@@ -84,3 +84,42 @@ POST /m003b-probe/_search，query.match.content="知识库 混合检索 Spring A
 - compose ps：PG、ES healthy，MinIO 不存在。MinIO S3 Put/Get、校验、重启持久化未执行，仍不通过。
 - MinIO 未构建源码、未改变选型；维护风险沿用前记录。候选方案是评审固定官方 release 源码/二进制、独立可信哈希、许可证及工具链后再决定本地镜像构建；本次没有证明该构建路径可用，不直接实施复杂构建。
 - M0-03 仍为部分完成；只关闭 ES/IK 独立运行与持久化阻断。等待 Docker 全局配置确认。未进入 M0-04，无 PR/合并。
+
+## M0-03b 补充：两个历史 MinIO RELEASE 的有限排查
+
+2026-11-06，起点 af70893，feature/m0-foundation，工作区干净。用户已取消清空 Registry Mirrors 和修改 Docker Desktop 全局配置的计划；此前的配置修改确认请求失效，不再等待或执行。现有 Docker 环境、镜像缓存和数据卷均未修改/删除。
+
+### 官方候选与发布时间（UTC）
+
+仅选择以下两个版本，先核实官方 GitHub Release 页面，再依次拉取官方 Docker Hub 命名空间；没有猜测新 Tag：
+
+| RELEASE | 官方来源 | GitHub 发布时刻 | 尝试的镜像地址 |
+|---|---|---|---|
+| RELEASE.2025-04-22T22-12-26Z | https://github.com/minio/minio/releases/tag/RELEASE.2025-04-22T22-12-26Z | 2025-04-22T22:44:34Z | docker.io/minio/minio:RELEASE.2025-04-22T22-12-26Z |
+| RELEASE.2024-12-18T13-15-44Z | https://github.com/minio/minio/releases/tag/RELEASE.2024-12-18T13-15-44Z | 2024-12-19T13:50:56Z | docker.io/minio/minio:RELEASE.2024-12-18T13-15-44Z |
+
+GitHub API 查询遇到未认证 rate limit，改用官方 Release HTML 核实。PowerShell Invoke-WebRequest 页面成功，提取 `<relative-time class="no-wrap" ... datetime="...">` 得到上述发布时刻；发布时刻与 tag 内构建时刻不同，尤其 2024 候选实际于次日发布。官方页面确认 RELEASE 存在，不等于本次已证明 Docker Hub 当前仍正确分发对应镜像。
+
+### 实际拉取：每版本仅一次
+
+```powershell
+docker pull minio/minio:RELEASE.2025-04-22T22-12-26Z
+docker pull minio/minio:RELEASE.2024-12-18T13-15-44Z
+```
+
+两个命令均退出 1，关键输出完全相同：
+
+```text
+ceac4e5b1332: Already exists
+failed to unpack image on snapshotter overlayfs: unexpected media type text/html for sha256:ceac4e5b13320ceb8fea08c5b4ca7c4782431ce2a27164d8ea301b90455875be: not found
+```
+
+不同历史标签均解析到同一异常内容 digest，是分发链路/缓存异常的证据线索，不能据此认定真实官方镜像内容相同，也不能证明官方版本不存在；未定位到具体镜像源或代理根因。
+
+### 结论与停止边界
+
+两个版本均失败，按用户要求停止镜像排查，不尝试更多历史版本，不改用其他对象存储，不构建源码，不修改全局配置。未获得可运行的候选，故不更新 compose.yaml；MinIO 实际版本、健康检查、S3 Bucket/PutObject/GetObject/内容一致性及重启持久化均未执行，不通过。PG/ES 既有独立验收结论保持，M0-03 仍部分完成、MinIO 阻断未关闭。
+
+这些历史版本即使未来能运行，也仅能证明本地部署可用，不能证明仍受安全维护；官方页面当前显示仓库于 2026-04-25 归档。没有将旧版本描述为当前受支持版本。
+
+本轮只更新本验证文档，未改 Java、Compose 或依赖，因此未重复 Maven/PG/ES 测试；此前回归结果见上一节。git diff --check 与暂存区 diff --check 均退出 0。未进入 M0-04，无 PR、合并或下一任务。
