@@ -1,5 +1,7 @@
 # Spring Boot 4 / Spring AI 2 最小升级实验
 
+后续核心组件验证见 [M0-02b 报告](spring-ai-2-core-compatibility.md)；以下为上一阶段的历史结果。
+
 日期：2026-11-06。实验分支：`experiment/spring-ai-2-upgrade`。
 起点：`feature/m0-foundation`，`b68b2927d9224de9ebad79e948830e8d79a40efa`；开始时工作区干净。
 本报告不替换冻结的兼容性矩阵或架构基线。
