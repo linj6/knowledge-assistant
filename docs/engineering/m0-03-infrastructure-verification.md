@@ -123,3 +123,35 @@ failed to unpack image on snapshotter overlayfs: unexpected media type text/html
 这些历史版本即使未来能运行，也仅能证明本地部署可用，不能证明仍受安全维护；官方页面当前显示仓库于 2026-04-25 归档。没有将旧版本描述为当前受支持版本。
 
 本轮只更新本验证文档，未改 Java、Compose 或依赖，因此未重复 Maven/PG/ES 测试；此前回归结果见上一节。git diff --check 与暂存区 diff --check 均退出 0。未进入 M0-04，无 PR、合并或下一任务。
+
+## M0-03d：固定镜像与 Compose 联合验收
+
+2026-11-06，feature/m0-foundation，起点 f73e141，工作区干净。未 docker pull、未修改全局 Docker 配置、未删除任何已有镜像或数据卷。
+
+### MinIO 锁定与交付
+
+再次 `docker run --rm --pull never minio/minio:latest --version` 返回 RELEASE.2025-09-07T16-13-09Z、commit 07c3a429bfed433e49018cb0f78a52145d4bedeb、go1.24.6 linux/amd64、AGPLv3。image inspect ID=sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e，与 M0-03c 一致。
+
+原官方 RELEASE 标签仍指向异常 ceac4e5...，没有覆盖它；确认项目专属目标标签不存在后，`docker tag minio/minio:latest knowledge-assistant-minio:RELEASE.2025-09-07T16-13-09Z-local`，新标签 inspect ID 与原镜像相同。Compose 改为此标签并设置 pull_policy: never，不依赖浮动 latest。
+
+执行 docker save、Get-FileHash、docker load、加载后 inspect 与 --pull never --version，均成功。归档在仓库外：`C:/Users/mi/ka-infrastructure-artifacts/minio-RELEASE.2025-09-07T16-13-09Z.tar`；SHA256：033da3bb0531f4b071310c1ad44cade4017e694ec554dc482d6da38f01fbcd33。命令见 README。
+
+**离线交付分层结论**：本机同 daemon 安全 save/load 和启动通过，没有移除原镜像，不影响其他标签；但缓存层存在，尚未完成空白隔离 daemon/异机完整恢复，因此隔离恢复项未通过，不能把本机加载成功扩大为异机离线交付通过。没有为验证恢复删除在用镜像。
+
+### 联合验收真实结果
+
+- docker compose config --quiet：退出0；docker compose up -d --build：退出0，ES 使用缓存完成 IK 构建，MinIO 未远端拉取。
+- 三服务 Compose health 均 healthy；PG17.6/vector0.8.0，ES/IK8.18.0，MinIO 上述版本。端口仅绑定127.0.0.1。
+- PG：独立 m003d_probe schema，创建 vector 扩展与 vectors(id int,embedding vector(3))，插入(1,[1,0,0])、(2,[0,1,0])；extversion=0.8.0；embedding <=> '[1,0,0]'::vector 排序返回1/0、2/1。
+- ES：首次在未就绪时请求 ResponseEnded，不计通过；等待 healthy 后重新执行成功。样本沿用八类技术术语，ik_smart tokens：spring,boot,spring,ai,postgresql,redis,rocketmq,向量,检索,知识库,混合,检索；ik_max_word 另包含知识、库。
+- ES 临时索引 m003d-probe，replicas=0，显式 similarity probe.type=BM25；content 使用 ik_max_word。文档1="Spring AI 中文知识库 混合检索"，文档2="unrelated text"；match content="Spring AI"，explain=true：id1 score=1.1130829。
+- MinIO：容器内 mc alias 使用容器环境凭据（不写报告）；mc mb probe/ka-m003d-probe；上传77字节 UTF-8 TXT，内容为 Knowledge Assistant、Spring AI、PostgreSQL、Elasticsearch、中文知识库测试，每行 LF。mc cp 上传和下载成功。
+- 上传源、首次下载、两次重启后下载 SHA256 均为1c6e4a7eb054be5f6de93c0e1e6a19a0da2bf0c981cd18500fa631fbab051044。
+- docker compose restart 实际执行两次。最终重启后：PG仍1/0、2/1；ES _count=2、同查询id1/1.1130829；MinIO对象可下载且哈希一致，三服务命名卷持久化通过。
+- 复查后 DROP SCHEMA m003d_probe CASCADE（含本次测试扩展）、DELETE /m003d-probe、mc rm 测试对象及mc rb测试Bucket。保留所有命名卷和服务，不使用down -v。
+- mvn -B clean verify：BUILD SUCCESS，48.256秒，7 tests、0 failures/errors/skipped。
+- git diff --check 与暂存区检查均通过。
+
+### 状态与风险
+
+本地功能、Compose联合功能及重启持久化验收通过；原MinIO本机运行阻断已解决。隔离离线恢复尚未完成，故不宣称所有M0-03d交付项完全通过。官方远端MinIO此前获取失败，本次没有重试，不代表恢复分发。旧社区版本长期维护、安全更新与AGPL义务仍存在；本次不做漏洞扫描或受支持版本背书。未进入M0-04，无PR或合并。

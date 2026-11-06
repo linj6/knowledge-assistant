@@ -47,3 +47,29 @@ PG/ES/S3/MinIO Console 分别绑定本机 5432/9200/9000/9001。服务共享项�
 停止保留卷；不要使用 `down -v`，该命令会删除数据。备份应在升级或主动删除卷之前完成。
 ES 关闭认证仅用于本地单节点开发；生产需要认证、TLS、权限与独立安全设计。
 MinIO 镜像尚未通过运行验收，不能据此配置宣称全栈可用。见 [验证记录](docs/engineering/m0-03-infrastructure-verification.md)。
+
+## MinIO 固定本地镜像与离线交付
+
+Compose 使用项目专属 `knowledge-assistant-minio:RELEASE.2025-09-07T16-13-09Z-local`，`pull_policy: never`，不会从远端拉取 MinIO。此标签来自已核验的本地镜像，不能从公共 Registry 直接获取。
+
+已有正确镜像时先核实版本和 ID，再创建标签（不要覆盖同名的其他镜像）：
+
+```powershell
+docker run --rm --pull never minio/minio:latest --version
+docker image inspect minio/minio:latest --format '{{.Id}}'
+docker tag minio/minio:latest knowledge-assistant-minio:RELEASE.2025-09-07T16-13-09Z-local
+```
+
+预期 Image ID 为 `sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e`。离线交付命令（路径自行选择，不提交归档）：
+
+```powershell
+docker save -o minio-RELEASE.2025-09-07T16-13-09Z.tar knowledge-assistant-minio:RELEASE.2025-09-07T16-13-09Z-local
+Get-FileHash minio-RELEASE.2025-09-07T16-13-09Z.tar -Algorithm SHA256
+# 接收方先比较交付方提供的 SHA256，再加载
+docker load -i minio-RELEASE.2025-09-07T16-13-09Z.tar
+docker image inspect knowledge-assistant-minio:RELEASE.2025-09-07T16-13-09Z-local --format '{{.Id}}'
+docker run --rm --pull never knowledge-assistant-minio:RELEASE.2025-09-07T16-13-09Z-local --version
+docker compose up -d --build
+```
+
+本机 save/load 与加载后启动已验证；未验证空白隔离 daemon 的完整层恢复，不能等同异机恢复通过。PG/ES 首次部署仍需各自镜像及 IK 构建来源，不是完整离线栈交付包。官方 MinIO 远端获取此前失败，本次未重试；历史社区版长期维护与安全更新风险仍存在。本地运行通过不代表官方恢复分发或仍提供安全维护。
