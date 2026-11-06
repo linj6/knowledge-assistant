@@ -2,6 +2,33 @@
 
 验证日期：2026-11-06；分支：feature/m0-foundation；平台：Windows 11 amd64，Docker Desktop Linux amd64。
 
+## M0-02b 核心开发基线升级决策（2026-11-06）
+
+**决策：以 Spring Boot 4.1.2 + Spring AI 2.0.2 作为后续 M0 核心开发候选基线。** 此决定基于 M0-02a/M0-02b 实验；上文 M0-01 的 Boot 3.5.15 / AI 1.1.8 记录作为**历史实测基线**保留，不应再被解读为当前 pom.xml 的版本。新版本**尚未通过全栈兼容性验收**，不得把 Mock 测试等同于真实模型服务测试。
+
+| 项目 | 当前候选基线与实测范围 | 后续关闭条件 |
+|---|---|---|
+| Java / Maven | Java 21（release=21）、Maven 3.9.16；构建实测 | 持续保持 Java 21 编译 |
+| Spring Boot | **4.1.2**；生产 JAR 独立启动、HTTP 404、7 项测试通过 | 后续数据源、Flyway、容器与自动配置实测 |
+| Spring AI | **2.0.2**；ChatClient/ChatModel、EmbeddingModel、Advisor、内存 ChatMemory、VectorStore 核心 API 的离线 Mock/手动装配测试通过 | 真实 Chat、Embedding、Rerank、供应商 Starter 与协议测试（M0-06） |
+| Spring Framework | **7.0.10**；Maven dependency tree 统一 | 与后续 Starter/中间件集成时重新检查 |
+| JUnit / Testcontainers | 以当前 Boot BOM 与实际 POM 解析结果为准；不能直接沿用 M0-01 的管理版本作为当前版本 | M0-07 记录实际版本并运行 Docker/Testcontainers 握手 |
+| JDBC / Flyway | M0-01 版本为旧 Boot BOM 依赖探针结果，**不是 Boot 4 已验证版本** | M0-05 解析当前 BOM、连接 PG、执行迁移 |
+| PostgreSQL / pgvector | PG 17.6 / vector 0.8.0 镜像版本已验证，与 Boot 升级无直接等价关系 | M0-03 容器、M0-05 SQL 与驱动验证 |
+| Elasticsearch / IK | 8.18.0 / 8.18.0 插件描述符匹配；未完成启动 | M0-03 安装、启动、分词/BM25 实测；客户端适配另验 |
+| MinIO | 候选镜像未成功获取，官方维护状态存在风险 | M0-03 优先解决来源与可运行性，不能宣称通过 |
+
+### 证据与变更边界
+
+- 实验报告：[最小升级实验](spring-ai-2-upgrade-experiment.md)、[Spring AI 2 核心组件兼容性](spring-ai-2-core-compatibility.md)。
+- 合并来源：`experiment/spring-ai-2-upgrade` fast-forward 至 `feature/m0-foundation`，合并后的 HEAD 为 `2cbe1b1ce15f95d0cfaa95be7e612c0049926339`（归档时已核对两分支一致）。
+- 实测：`mvn clean verify` 7/7 通过；dependency tree 的 AI 模块均为 2.0.2、Framework 为 7.0.10；effective POM 为 Java release 21；独立 JAR 启动成功。此处依据实验报告记录，归档操作本身未重新执行本地 Maven 命令。
+- 范围：仅决定**工程候选基线**，不扩大 P0 产品范围；内存 ChatMemory 测试不代表要在 V1 引入多轮 Memory。
+- **架构一致性待确认**：既有 Architecture Spec 写明 Spring Boot 3。此次版本升级与其技术版本表述存在差异。为避免静默修改冻结文档，本次只记录变更决策与差异；后续需通过明确的架构变更确认更新该版本描述，业务架构和 P0 范围不变。
+- 如后续真实集成出现阻断性兼容问题，应记录证据并重新评审候选基线，不自行无声回退或替换基础设施。
+
+---
+
 ## 结论与状态口径
 
 Java/Maven 可运行，选定的 Maven 组合依赖解析成功，pgvector 镜像可获取。**尚不能宣称完整运行栈验收通过**：MinIO 社区仓库已归档且镜像来源存在访问风险；ES/IK 尚未启动验证。本次不改变冻结架构、不创建工程或 Compose。
