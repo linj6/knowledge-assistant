@@ -1,4 +1,4 @@
-package io.github.linj6.knowledgeassistant;
+package com.lnjecit.knowledge.assistant;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

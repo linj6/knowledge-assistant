@@ -1,4 +1,4 @@
-package io.github.linj6.knowledgeassistant;
+package com.lnjecit.knowledge.assistant;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

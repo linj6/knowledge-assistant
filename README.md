@@ -14,7 +14,7 @@ mvn spring-boot:run
 构建、上下文测试与启动均不需要 Docker、数据库、Elasticsearch、MinIO 或模型密钥。
 本地敏感配置使用已忽略的 `.env` 或 `application-local.yml` 等文件；当前应用不会自动加载 `.env`。
 
-根包为 `io.github.linj6.knowledgeassistant`，启动入口位于根包以覆盖后续组件扫描。
+根包为 `com.lnjecit.knowledge.assistant`，启动入口位于根包以覆盖后续组件扫描。
 按架构规格，未来逻辑模块职责如下；目前均无实际业务实现，因此不创建空包或占位类：
 
 | 子包 | 职责 |
