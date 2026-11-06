@@ -1,0 +1,30 @@
+# Knowledge Assistant
+
+当前仅完成 M0-02：单 Maven 模块的 Spring Boot 工程骨架。
+
+使用 JDK 21 和 Maven 3.9（本机验证版本 3.9.16）：
+
+```shell
+mvn clean verify
+mvn spring-boot:run
+```
+
+也可在构建后执行 `java -jar target/knowledge-assistant-0.0.1-SNAPSHOT.jar`。
+应用默认监听 8080；停止时按 Ctrl+C。当前没有业务 API，访问根路径返回 404。
+构建、上下文测试与启动均不需要 Docker、数据库、Elasticsearch、MinIO 或模型密钥。
+本地敏感配置使用已忽略的 `.env` 或 `application-local.yml` 等文件；当前应用不会自动加载 `.env`。
+
+根包为 `io.github.linj6.knowledgeassistant`，启动入口位于根包以覆盖后续组件扫描。
+按架构规格，未来逻辑模块职责如下；目前均无实际业务实现，因此不创建空包或占位类：
+
+| 子包 | 职责 |
+|---|---|
+| knowledge | 知识库、文档元数据与知识库边界 |
+| ingestion | 上传、解析、切分、双索引构建验证与首次发布 |
+| retrieval | 向量/BM25 检索、RRF、Rerank 与策略编排 |
+| rag | 上下文构建、回答生成与引用校验 |
+| evaluation | 数据集、指标、评估运行与报告 |
+| infrastructure | 存储、模型客户端适配、配置与观测 |
+
+以上均为同一个 Maven 模块内的 Java 包，随对应任务实现。
+外部中间件、Flyway、模型调用和配置/错误协议由后续任务完成，当前构建通过不代表这些集成已通过验证。

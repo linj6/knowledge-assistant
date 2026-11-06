@@ -1,0 +1,12 @@
+target/
+.idea/
+*.iml
+.env
+.env.*
+!.env.example
+application-local.yml
+application-local.yaml
+application-local.properties
+application-secrets.yml
+application-secrets.yaml
+application-secrets.properties
