@@ -73,3 +73,15 @@ docker compose up -d --build
 ```
 
 本机 save/load 与加载后启动已验证；未验证空白隔离 daemon 的完整层恢复，不能等同异机恢复通过。PG/ES 首次部署仍需各自镜像及 IK 构建来源，不是完整离线栈交付包。官方 MinIO 远端获取此前失败，本次未重试；历史社区版长期维护与安全更新风险仍存在。本地运行通过不代表官方恢复分发或仍提供安全维护。
+
+## M0-04 配置与错误协议
+
+`assistant.model` 默认 enabled=false，timeout-seconds=30（合法范围 1–300）。
+通过环境变量 ASSISTANT_MODEL_API_KEY 设置密钥；ASSISTANT_MODEL_ENABLED=true 时要求非空。
+目前只校验配置，尚未接入模型服务。不创建 DataSource，也不预设模型 ID。
+请求和响应头 X-Request-Id 接受 1–64 位 ASCII 字母、数字、下划线、短横线；其他输入生成 UUID。
+同步处理期间写入 MDC requestId，finally 清理；异步线程传播不在当前范围。
+错误格式：`{"code":"INVALID_ARGUMENT","message":"请求参数不合法","requestId":"safe-123"}`。
+400/405/415/500 对应 INVALID_ARGUMENT/METHOD_NOT_ALLOWED/UNSUPPORTED_MEDIA_TYPE/INTERNAL_ERROR。
+404 保留 MVC 默认行为。未知异常日志只记录 RequestId、错误码、异常类型，不记录消息或堆栈。
+不记录配置对象、环境变量全集、请求正文、Prompt、文档或密钥。本地开发基线不包含认证和审计。

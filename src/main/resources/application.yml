@@ -1,3 +1,9 @@
 spring:
   application:
     name: knowledge-assistant
+
+assistant:
+  model:
+    enabled: false
+    api-key: ${ASSISTANT_MODEL_API_KEY:}
+    timeout-seconds: 30
