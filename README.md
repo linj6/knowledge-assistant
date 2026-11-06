@@ -28,3 +28,22 @@ mvn spring-boot:run
 
 以上均为同一个 Maven 模块内的 Java 包，随对应任务实现。
 外部中间件、Flyway、模型调用和配置/错误协议由后续任务完成，当前构建通过不代表这些集成已通过验证。
+
+## 本地基础设施（M0-03 验证中）
+
+复制 `.env.example` 为 `.env`，替换所有占位凭据，再执行：
+
+```shell
+docker compose config --quiet
+docker compose up -d --build
+docker compose ps
+docker compose logs --tail=100
+docker compose restart
+docker compose stop
+```
+
+PG/ES/S3/MinIO Console 分别绑定本机 5432/9200/9000/9001。服务共享项目默认网络，使用三个命名卷。
+应用尚未接入这些服务。修改 PG 初始化凭据不会修改已有卷中的数据库密码。
+停止保留卷；不要使用 `down -v`，该命令会删除数据。备份应在升级或主动删除卷之前完成。
+ES 关闭认证仅用于本地单节点开发；生产需要认证、TLS、权限与独立安全设计。
+MinIO 镜像尚未通过运行验收，不能据此配置宣称全栈可用。见 [验证记录](docs/engineering/m0-03-infrastructure-verification.md)。
