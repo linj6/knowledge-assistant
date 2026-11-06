@@ -41,3 +41,46 @@ PG 复现：使用 `docker compose exec -T postgres psql -U ka -d ka -v ON_ERROR
 `docker compose restart` 退出 0，但只重启实际存在的 PostgreSQL，不代表三服务通过。重复 `up -d postgres` 成功。全栈 up/build 未完成，三服务健康与整体持久化验收不通过。PG 命名卷保留，未删除任何已有数据卷。
 
 `git diff --check` 退出 0（仅提示 README 换行将转 CRLF）。M0-03 **部分完成、验收阻断**：PG 独立通过；ES 镜像下载与 MinIO 获取/维护问题未关闭。没有进入 M0-04/05/06/07，无 PR 或合并。
+
+## M0-03b：独立关闭 ES，MinIO 等待全局配置确认
+
+2026-11-06，起点 f4a2740，feature/m0-foundation，工作区干净。未修改 Docker 全局配置，未删除镜像缓存或数据卷。
+
+### 获取环境实测
+
+- Docker info：Mirrors 仍含原有 19 项，HTTP/HTTPS Proxy 均为 http.docker.internal:3128。
+- PowerShell Invoke-WebRequest，单请求 TimeoutSec=8：your_preferred_mirror/v2/ DNS 无法解析；1panelproxy/v2/ 超时；1ms.run/v2/ 返回 401；docker.elastic.co/v2/ 返回 401（Registry 认证挑战本身不表示镜像不可获取）；registry-1.docker.io/v2/ TLS 建连失败。
+- `docker buildx imagetools inspect minio/minio:RELEASE.2025-09-07T16-13-09Z`：连接 registry-1.docker.io 解析地址 31.13.95.17:443 超时。此结果值得检查 DNS/网络路径，不足以确定单一根因。
+- `docker image inspect minio/minio:RELEASE.2025-09-07T16-13-09Z` 存在 RepoDigest sha256:ceac4e5b13320ceb8fea08c5b4ca7c4782431ce2a27164d8ea301b90455875be，但再次 `docker pull` 报同 digest 的 unexpected media type text/html，无法解包。标签和 digest 元数据存在不代表镜像有效。
+- 下一步建议：经人工确认后暂清空 Registry Mirrors 为 []，保留当前代理，重启 Docker 后有限重试官方源。影响所有项目的镜像拉取路径，重启暂时中断容器，不删除数据卷。尚未获批准，未实施。
+
+### ES/IK 独立验收通过
+
+`docker compose build elasticsearch` 成功：官方 docker.elastic.co/elasticsearch/elasticsearch:8.18.0，大层完整下载解包（约 274 秒）；基础 digest 与前记录一致。官方 IK stable ZIP SHA256 校验输出 /tmp/ik.zip: OK，安装 analysis-ik 成功。构建提示插件使用 legacy Security Policy，并请求 outbound_network entitlement；保留该上游兼容提示，不等于安装失败。
+
+初次本地镜像 manifest list sha256:74a5e1cc4d81a43b4f7eac6eb05dc445d7c1ccc4a85357664b5984f64a60721f；再次缓存构建因 provenance 生成新 list digest 7205c0434d1a0e3d5b0939cc50bdcf8b7fb473c1e4836bedb912aee7884c5d1c，不能把本地构建 digest 当官方发行 digest。
+
+`docker compose up -d elasticsearch` 成功；插件 CLI list=analysis-ik；GET / 版本 8.18.0，Lucene 9.12.1；GET /_cat/plugins?format=json 返回 analysis-ik 8.18.0；Compose healthy。
+
+POST /_analyze 输入 `Spring Boot Spring AI PostgreSQL Redis RocketMQ 向量检索 知识库 混合检索`：
+
+- ik_smart：spring, boot, spring, ai, postgresql, redis, rocketmq, 向量, 检索, 知识库, 混合, 检索
+- ik_max_word：spring, boot, spring, ai, postgresql, redis, rocketmq, 向量, 检索, 知识库, 知识, 库, 混合, 检索
+
+复现：POST JSON {"analyzer":"ik_smart","text":"上述样本"}，再替换 analyzer。英文短语和部分中文术语拆分属实际结果；若后续要求术语整体匹配/召回，可评估自定义词典，本任务未添加。
+
+PUT /m003b-probe：number_of_replicas=0；settings.similarity.m003b_bm25.type=BM25；content 类型 text，analyzer=ik_max_word、search_analyzer=ik_smart、similarity=m003b_bm25。
+PUT /m003b-probe/_doc/1?refresh=true：content="Spring Boot 与 Spring AI 支持知识库向量检索和混合检索"；文档2 content="PostgreSQL Redis RocketMQ 技术学习"。
+POST /m003b-probe/_search，query.match.content="知识库 混合检索 Spring AI"，explain=true：仅命中 id=1，score=3.4239612；explanation 明确包含 freq/(freq+k1*(1-b+b*dl/avgdl))、k1、b、avgdl。
+
+`docker compose restart elasticsearch` 后首次过早请求 ResponseEnded；待服务 healthy 再查：_count=2，同查询 id=1 / score=3.4239612，持久化通过。DELETE /m003b-probe acknowledged=true，临时索引清理完成。
+
+### 回归与剩余阻断
+
+- compose config --quiet 退出0。
+- PG 在事务内创建 m003b_probe / vector 扩展和测试表，extversion=0.8.0，余弦结果 id1=0、id2=1；ROLLBACK 清理，回归通过。
+- mvn -B clean verify：BUILD SUCCESS，1分13秒，7 tests、0 failures/errors/skipped。
+- compose up -d --build：ES 缓存构建通过，随后 MinIO 创建失败 descriptor is neither a manifest or index，整体退出1。
+- compose ps：PG、ES healthy，MinIO 不存在。MinIO S3 Put/Get、校验、重启持久化未执行，仍不通过。
+- MinIO 未构建源码、未改变选型；维护风险沿用前记录。候选方案是评审固定官方 release 源码/二进制、独立可信哈希、许可证及工具链后再决定本地镜像构建；本次没有证明该构建路径可用，不直接实施复杂构建。
+- M0-03 仍为部分完成；只关闭 ES/IK 独立运行与持久化阻断。等待 Docker 全局配置确认。未进入 M0-04，无 PR/合并。
