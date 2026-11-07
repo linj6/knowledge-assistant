@@ -1,6 +1,6 @@
 # Knowledge Assistant
 
-当前仅完成 M0-02：单 Maven 模块的 Spring Boot 工程骨架。
+当前为 Java 21、Spring Boot 4.1.2、Spring AI 2.0.2 的单 Maven 模块工程。M0-01～M0-07 已有实现与验证记录；M0-01、M0-03、M0-07 仍为部分验证，M0 尚未完全验收。详见 [M0 验收报告](docs/engineering/m0-verification-report.md)。
 
 使用 JDK 21 和 Maven 3.9（本机验证版本 3.9.16）：
 
@@ -27,9 +27,9 @@ mvn spring-boot:run
 | infrastructure | 存储、模型客户端适配、配置与观测 |
 
 以上均为同一个 Maven 模块内的 Java 包，随对应任务实现。
-外部中间件、Flyway、模型调用和配置/错误协议由后续任务完成，当前构建通过不代表这些集成已通过验证。
+Flyway、配置/错误协议及模型适配已实现；PostgreSQL、Elasticsearch/IK、MinIO 本机功能和 Chat、Embedding、Rerank 历史接入已验证。业务导入、检索与 RAG 尚未实现，构建成功不代表 M0 完全验收。
 
-## 本地基础设施（M0-03 验证中）
+## 本地基础设施（M0-03 本机功能已验证，交付部分验证）
 
 复制 `.env.example` 为 `.env`，替换所有占位凭据，再执行：
 
@@ -43,10 +43,10 @@ docker compose stop
 ```
 
 PG/ES/S3/MinIO Console 分别绑定本机 5432/9200/9000/9001。服务共享项目默认网络，使用三个命名卷。
-应用尚未接入这些服务。修改 PG 初始化凭据不会修改已有卷中的数据库密码。
+应用已配置 PostgreSQL 与 Flyway；ES/MinIO 已有容器功能探针，业务接入尚未实现。修改 PG 初始化凭据不会修改已有卷中的数据库密码。
 停止保留卷；不要使用 `down -v`，该命令会删除数据。备份应在升级或主动删除卷之前完成。
 ES 关闭认证仅用于本地单节点开发；生产需要认证、TLS、权限与独立安全设计。
-MinIO 镜像尚未通过运行验收，不能据此配置宣称全栈可用。见 [验证记录](docs/engineering/m0-03-infrastructure-verification.md)。
+MinIO 历史远端获取失败保留原记录；固定本地镜像运行、对象读写及重启持久化已验证，空白隔离环境恢复仍未验证。见 [验证记录](docs/engineering/m0-03-infrastructure-verification.md)。
 
 ## MinIO 固定本地镜像与离线交付
 
@@ -78,7 +78,7 @@ docker compose up -d --build
 
 `assistant.model` 默认 enabled=false，timeout-seconds=30（合法范围 1–300）。
 通过环境变量 ASSISTANT_MODEL_API_KEY 设置密钥；ASSISTANT_MODEL_ENABLED=true 时要求非空。
-目前只校验配置，尚未接入模型服务。不创建 DataSource，也不预设模型 ID。
+此节描述 M0-04 配置基线；后续 M0-05 已接入 DataSource/Flyway，M0-06 已验证 Chat、Embedding、Rerank 接入。Chat/Embedding 模型 ID 通过本地配置提供，历史 Embedding 模型 ID 无可靠记录，不推测补填。
 请求和响应头 X-Request-Id 接受 1–64 位 ASCII 字母、数字、下划线、短横线；其他输入生成 UUID。
 同步处理期间写入 MDC requestId，finally 清理；异步线程传播不在当前范围。
 错误格式：`{"code":"INVALID_ARGUMENT","message":"请求参数不合法","requestId":"safe-123"}`。
@@ -102,6 +102,6 @@ docker compose up -d --build
 
 离线环境须预缓存 Maven 依赖和所有容器镜像，然后可用 Maven `-o`；本机 load 记录不代表空白 daemon/异机恢复已验证。容器测试清理自己的 schema/index/bucket，由 JUnit 和 Ryuk 清理容器，不删除开发数据卷。
 
-文件大小、KB数量、terms、Worker参数及 RAG Context 预算仍是 [设计文档](docs/engineering/m0-07-test-design.md) 中的候选值，本轮不添加未使用配置。完整 verify 留待 M0-07C。
+六类业务参数已记录为 [V1 初始配置基线](docs/engineering/configuration-baseline.md)，尚未实现或完成业务验证，不添加未使用配置。M0-07C 历史完整构建已通过（46 项、零失败/错误/跳过），本轮未重跑；隔离环境镜像恢复及负面测试仍未完成。
 
 本轮实施证据见 [M0-07B 验证记录](docs/engineering/m0-07b-verification.md)。
