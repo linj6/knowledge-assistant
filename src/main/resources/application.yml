@@ -16,3 +16,9 @@ assistant:
     embedding-model: ${ASSISTANT_MODEL_EMBEDDING_MODEL:}
     api-key: ${ASSISTANT_MODEL_API_KEY:}
     timeout-seconds: 30
+  rerank:
+    enabled: ${ASSISTANT_RERANK_ENABLED:false}
+    endpoint: ${ASSISTANT_RERANK_ENDPOINT:}
+    model: ${ASSISTANT_RERANK_MODEL:qwen3-rerank}
+    api-key: ${ASSISTANT_RERANK_API_KEY:}
+    timeout-seconds: 30

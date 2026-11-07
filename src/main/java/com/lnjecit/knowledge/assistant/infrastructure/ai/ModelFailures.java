@@ -19,8 +19,30 @@ public final class ModelFailures {
 
     private ModelFailures() {}
 
+    public static final class SafeModelException extends IllegalStateException {
+        private final Kind kind;
+
+        private SafeModelException(Kind kind) {
+            super("Model request failed: stage=RERANK kind=" + kind);
+            this.kind = kind;
+        }
+    }
+
+    public static SafeModelException rerankFailure(Kind kind) {
+        return new SafeModelException(kind);
+    }
+
+    public static Kind httpStatus(int status) {
+        if (status == 401 || status == 403) return Kind.AUTHENTICATION;
+        if (status == 429) return Kind.RATE_LIMIT;
+        if (status >= 500 && status <= 599) return Kind.SERVER;
+        if (status >= 400 && status <= 499) return Kind.REQUEST_REJECTED;
+        return Kind.INVALID_RESPONSE;
+    }
+
     public static Kind classify(Throwable failure) {
         for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SafeModelException safe) return safe.kind;
             if (cause instanceof SocketTimeoutException
                     || cause instanceof TimeoutException
                     || cause instanceof java.net.http.HttpTimeoutException) return Kind.TIMEOUT;
@@ -34,14 +56,22 @@ public final class ModelFailures {
             if (cause instanceof ModelResponseChecks.InvalidResponseException
                     || cause instanceof com.openai.errors.OpenAIInvalidDataException) return Kind.INVALID_RESPONSE;
         }
-        if (failure instanceof com.openai.errors.OpenAIIoException) return Kind.CONNECTION;
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof java.io.IOException || cause instanceof com.openai.errors.OpenAIIoException)
+                return Kind.CONNECTION;
+        }
         return Kind.OTHER;
     }
 
     public static IllegalStateException safe(String stage, Throwable failure) {
         String safeStage =
                 switch (stage) {
-                    case "CONFIGURATION", "CHAT_PLAIN", "CHAT_JSON", "EMBEDDING_SINGLE", "EMBEDDING_BATCH" -> stage;
+                    case "CONFIGURATION",
+                            "CHAT_PLAIN",
+                            "CHAT_JSON",
+                            "EMBEDDING_SINGLE",
+                            "EMBEDDING_BATCH",
+                            "RERANK" -> stage;
                     default -> "UNKNOWN";
                 };
         Kind kind = "CONFIGURATION".equals(safeStage) ? Kind.CONFIGURATION : classify(failure);

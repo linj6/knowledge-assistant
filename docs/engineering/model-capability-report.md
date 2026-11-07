@@ -99,3 +99,17 @@ chat.getOptions()
 离线连接失败实际类型为 OpenAIIoException；不能将该本地实验异常当成原真实失败类型。
 本轮 spotless:apply、spotless:check、clean verify、diff --check 通过；33项默认离线测试全部通过。
 原始失败异常已被安全处理，无法直接还原 HTTP 状态码；上述根因来自实际 SDK 行为检查与离线回归证据，而非对历史 HTTP 状态的推测。后续第二轮真实实验已确认三次 qwen-plus JSON Mode 与两次 Embedding 均成功，详见前述在线结果表。
+
+## M0-06B-2 Rerank / Token 估算离线实现（2026-11-07）
+
+新增qwen3-rerank原生HTTP适配器与稳定ID协议；使用JDK21 HttpClient和现有Jackson 3，无新增依赖。独立assistant.rerank默认禁用，未启用无需密钥；启用时完整HTTPS Endpoint及API Key由可信部署配置提供，不接受请求参数覆盖，不拼接Chat地址。模型固定为当前支持的qwen3-rerank，超时默认30秒、允许1–300秒。无应用自动重试，不跟随重定向；响应体最多256 KiB，完整响应受总超时限制。
+
+空候选不联网，拒绝重复ID/非法输入/超过500候选；冻结候选快照，发送min(topN,N)且关闭原文返回。按原始index映射ID，严格校验数量、整数索引、唯一性及有限[0,1]分数；全部校验后按分数降序、同分按输入顺序输出。协议错误整次失败，安全异常保留ModelFailures分类但不保留供应商正文或原始cause；不记录原文和密钥。
+
+TokenEstimator为独立本地估算器：Unicode码点数加调用方指定固定开销，再按可配置百分比加余量并向上取整，默认20%。使用long和安全乘加，返回estimatedTokens及exact=false。支持空串、中文、英文、Emoji、代码和长文本；null及非法参数拒绝。20%未经真实usage校准，不保证不会低估；不是模型专用Tokenizer，不实现ContextBuilder或窗口预算。
+
+当前无法精确预检供应商Token限制，不将码点数伪装为4000/120000 Token硬限；供应商超长拒绝分类REQUEST_REJECTED。具体设计细化见[m0-06b-design.md](m0-06b-design.md)。
+
+尚未执行真实Rerank在线验证；账户地域、完整Endpoint、业务空间、模型权限、实际限额、usage与费用均待在线验收。Fake协议通过不能证明真实服务连通性或排序质量，M0-06尚未整体验收。未实现M2/M3链路，未启动Docker、未调用真实模型、未执行全量clean verify。
+
+本轮最终验证：`mvn spotless:apply`、`mvn spotless:check`、`mvn -DskipTests test-compile`、`mvn '-Dtest=RerankTests,ModelCapabilityTests' test`及`git diff --check`通过。RerankTests 6项（内部循环覆盖多种协议/错误样例）、既有ModelCapabilityTests 10项，共16项，失败0、错误0、跳过0。覆盖本地请求路径/鉴权/嵌套JSON/top_n、乱序与同分映射、截断与归一化、非法输入、索引/分数/数量异常、无效JSON与200错误体、401/403/429/400/503、302不跟随、超大响应、连接失败、请求超时和安全异常；估算覆盖Unicode与大整数边界、配置禁用和启用校验。未单独故障注入慢速响应体、TLS/DNS或真实供应商协议差异，也未运行其他测试套件。早期测试编译断言签名及连接失败测试期限问题已修正，以上为最终重跑结果。

@@ -113,3 +113,13 @@ record RerankResult(String id, double score) {}
 官方链接见各节，访问日期均为调查日期；在线网页可能更新，不是冻结SDK合同。本地证据命令为针对上述六个2.0.2 JAR的jar tf及commons的javap/javap -c；没有根据1.1.x缓存推断2.0.2。仓库历史实验与本次只读检查明确分开。
 
 本次仅修改AGENTS.md过期句和本文；执行全文审阅、完整diff审阅、git diff --check、git status --short。未运行Maven编译/测试/格式化、真实模型或Docker，因为本次纯文档调查。完成提交后停止，等待架构评审，不进入M0-06B-2。
+
+## M0-06B-2 实现细化（2026-11-07）
+
+按本轮授权实施最小边界。复用JDK21 HttpClient和已有Jackson 3，不增加依赖；响应体上限256 KiB，总超时覆盖响应体，禁止重定向，不添加应用重试。独立assistant.rerank配置默认禁用，启用时要求HTTPS完整Endpoint、密钥、qwen3-rerank及1–300秒超时；构造器仅额外允许127.0.0.1的HTTP供离线Fake使用。
+
+设计细化：当前无法精确验证4000/120000供应商Token限制，因此不把码点估算当成硬性Token校验；本轮只硬校验500候选数，实际Token超限由供应商拒绝并分类为REQUEST_REJECTED。未截断、未分批。后续如增加本地长度预算，必须明确其估算属性。
+
+TokenEstimator固定开销由构造参数提供，默认余量20%，可配置范围0–1000%，计算为ceil((码点数+固定开销)×(1+余量百分比))，使用long返回并明确exact=false。固定开销非负int；没有配置全局Prompt预算或模型窗口。该策略未经真实usage校准，不能保证不会低估。
+
+Rerank协议异常使用保留Kind的安全异常，仍复用ModelFailures分类，而非扩展Embedding专用校验。API不返回供应商usage；本轮没有新增在线入口，未来在线验收需另行补充脱敏usage/费用证据。M0-06B-1调查正文保留为历史证据。
