@@ -73,17 +73,12 @@ public final class DashScopeReranker implements Reranker {
         int count = Math.min(topN, snapshot.size());
         try {
             // 供应商只需要正文；业务 ID 留在本地，按原始 index 关联，不能按文本匹配或响应位置关联。
-            String body = mapper.writeValueAsString(Map.of(
-                    "model",
-                    model,
-                    "input",
-                    Map.of(
-                            "query",
-                            query,
-                            "documents",
-                            snapshot.stream().map(RerankCandidate::text).toList()),
-                    "parameters",
-                    Map.of("top_n", count, "return_documents", false)));
+            List<String> documents =
+                    snapshot.stream().map(RerankCandidate::text).toList();
+            Map<String, Object> input = Map.of("query", query, "documents", documents);
+            Map<String, Object> parameters = Map.of("top_n", count, "return_documents", false);
+            Map<String, Object> requestBody = Map.of("model", model, "input", input, "parameters", parameters);
+            String body = mapper.writeValueAsString(requestBody);
             HttpRequest request = HttpRequest.newBuilder(endpoint)
                     .timeout(timeout)
                     .header("Authorization", "Bearer " + apiKey)
