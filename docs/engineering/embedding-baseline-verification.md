@@ -60,3 +60,26 @@ mvn -Dtest=EmbeddingBaselineOnlineIT test
 ```
 
 本入口不加入默认 Surefire/Failsafe 或原 online-model Profile，避免默认构建意外计费。真实四次检查全部通过后，记录实际证据，再决定冻结 provider=DashScope、model=text-embedding-v4、dimension=1024、distance=cosine。本次不修改正式配置基线，不解除 M1-01 阻断，不实施数据库功能。
+
+## 本次获授权后的执行记录（2026-11-07）
+
+用户已明确授权本次最多4次 Embedding 请求，模型、维度及端点不变。执行前确认分支为 feature/m1-ingestion-indexing，HEAD 为 1233a5cfea7cb8ac66bf1f023ecd5caf968e6af6，工作区干净。审阅入口确认仅构造 Embedding 客户端，SDK maxRetries=0、串行调用、首次失败停止。
+
+当前执行进程的 ASSISTANT_MODEL_API_KEY 未配置（仅检查是否存在，未输出密钥）。设置本次授权所需的三个布尔门禁后，实际执行：
+
+```powershell
+mvn -Dtest=EmbeddingBaselineOnlineIT test
+```
+
+结果：BUILD FAILURE；1项测试，0断言失败、1错误、0跳过。在客户端配置校验阶段停止，没有进入请求循环。安全输出：
+
+```text
+time=2026-11-07T14:19:36.464611800Z status=FAIL attempted=0
+Model request failed: stage=CONFIGURATION kind=CONFIGURATION exception=java.lang.IllegalStateException
+```
+
+此为配置阻断，不是供应商返回的鉴权或模型错误。预计最多4次，实际 API 请求0次；未调用 Chat、Rerank 或其他模型，未重试、未切换端点。请求候选仍为 text-embedding-v4 / 1024维；由于没有真实请求，实际请求模型、响应模型、实际维度、数量、索引对应、请求标识与 API 耗时均无在线证据。E01–E04 均未发送。
+
+最终结论仍为 **BLOCKED，未冻结**，不能解除 Embedding 前置阻断。此前“等待人工授权”的原因现已消除，剩余阻断为执行进程缺少 API Key。下一步由操作者安全配置该环境变量后再继续；不需要将密钥粘贴到对话、日志或文档。本次不更新正式配置基线，不实施 M1-01。
+
+本次 Maven 执行中的 Spotless 检查通过，编译阶段成功（代码已是最新）。仅修改本报告，未重跑此前12项离线测试，也未运行 Docker 或全量测试。
