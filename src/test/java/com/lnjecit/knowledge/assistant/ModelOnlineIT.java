@@ -53,10 +53,15 @@ class ModelOnlineIT {
         return value != null && value.matches("[a-zA-Z0-9_.:/-]{1,100}") ? value : "unavailable";
     }
 
-    private void runSmoke() {
-        if (!"true".equals(System.getenv("ASSISTANT_MODEL_ENABLED"))) {
-            throw new IllegalStateException("Explicit ASSISTANT_MODEL_ENABLED=true required");
+    static void requireAuthorization(java.util.Map<String, String> environment) {
+        if (!"true".equals(environment.get("ASSISTANT_MODEL_ONLINE_AUTHORIZED"))
+                || !"true".equals(environment.get("ASSISTANT_MODEL_ENABLED"))) {
+            throw new IllegalStateException("Explicit model online authorization required");
         }
+    }
+
+    private void runSmoke() {
+        requireAuthorization(System.getenv());
         ModelProperties p = new ModelProperties();
         p.setEnabled(true);
         p.setApiKey(System.getenv("ASSISTANT_MODEL_API_KEY"));
