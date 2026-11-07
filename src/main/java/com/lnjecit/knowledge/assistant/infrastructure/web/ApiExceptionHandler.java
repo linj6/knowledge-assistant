@@ -4,29 +4,39 @@ import com.lnjecit.knowledge.assistant.common.error.*;
 import org.slf4j.*;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     private static final Logger LOG = LoggerFactory.getLogger(ApiExceptionHandler.class);
-    @Override protected ResponseEntity<Object> handleExceptionInternal(Exception ex, Object body,
-            HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+
+    @Override
+    protected ResponseEntity<Object> handleExceptionInternal(
+            Exception ex, Object body, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         // 404 保留 MVC 默认语义，不扩大到静态资源统一错误处理。
         if (status.value() == 404) return super.handleExceptionInternal(ex, body, headers, status, request);
-        CommonErrorCode code = switch (status.value()) {
-            case 405 -> CommonErrorCode.METHOD_NOT_ALLOWED;
-            case 415 -> CommonErrorCode.UNSUPPORTED_MEDIA_TYPE;
-            default -> status.is5xxServerError() ? CommonErrorCode.INTERNAL_ERROR : CommonErrorCode.INVALID_ARGUMENT;
-        };
+        CommonErrorCode code =
+                switch (status.value()) {
+                    case 405 -> CommonErrorCode.METHOD_NOT_ALLOWED;
+                    case 415 -> CommonErrorCode.UNSUPPORTED_MEDIA_TYPE;
+                    default -> status.is5xxServerError()
+                            ? CommonErrorCode.INTERNAL_ERROR
+                            : CommonErrorCode.INVALID_ARGUMENT;
+                };
         return new ResponseEntity<>(error(code), headers, status);
     }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> unexpected(Exception ex) {
         // 不记录异常消息或堆栈：其中可能包含密钥、SQL 或文档正文。
-        LOG.error("requestId={} code=INTERNAL_ERROR exceptionType={}", MDC.get("requestId"), ex.getClass().getName());
+        LOG.error(
+                "requestId={} code=INTERNAL_ERROR exceptionType={}",
+                MDC.get("requestId"),
+                ex.getClass().getName());
         return ResponseEntity.status(500).body(error(CommonErrorCode.INTERNAL_ERROR));
     }
+
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Object> business(BusinessException ex) {
         ErrorCode code = ex.getErrorCode();

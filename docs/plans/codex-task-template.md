@@ -37,3 +37,7 @@ Java21、Spring Boot3；简单、易读、模块职责清晰；主流程及重�
 ## Git 约束
 
 M0 全部在 `feature/m0-foundation` 开发；开始前检查 `git status`，保护用户未提交改动；只提交本任务相关文件。完成测试与自检后提交一个或多个小 Commit，报告 SHA；不自行合并 main 或创建下一任务代码。人工评审后继续下一任务。
+
+## 提交前格式检查
+
+遵守 docs/engineering/code-style.md。依次执行 mvn spotless:apply、mvn spotless:check、mvn clean verify、git diff --check；检查 diff 后提交，报告实际测试结果。按任务需要运行既定 DatabaseIT，不跳过格式检查，不修改已执行 Flyway V1 或冻结设计。

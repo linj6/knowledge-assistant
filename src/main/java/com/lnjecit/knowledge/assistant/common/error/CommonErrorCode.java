@@ -8,8 +8,17 @@ public enum CommonErrorCode implements ErrorCode {
 
     private final String message;
 
-    CommonErrorCode(String message) { this.message = message; }
+    CommonErrorCode(String message) {
+        this.message = message;
+    }
 
-    @Override public String getCode() { return name(); }
-    @Override public String getMessage() { return message; }
+    @Override
+    public String getCode() {
+        return name();
+    }
+
+    @Override
+    public String getMessage() {
+        return message;
+    }
 }

@@ -87,3 +87,5 @@ docker compose up -d --build
 不记录配置对象、环境变量全集、请求正文、Prompt、文档或密钥。本地开发基线不包含认证和审计。
 
 数据库连接、环境变量与真实集成测试命令见 [M0-05 验证记录](docs/engineering/m0-05-database-verification.md)。
+
+代码格式与提交前检查见 [代码格式规范](docs/engineering/code-style.md)。
