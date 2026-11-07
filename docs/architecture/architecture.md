@@ -24,8 +24,8 @@ V1 是单用户、本地部署、领域无关的 RAG 知识库系统；Java 技�
 
 | 层 | 选型 | 说明 |
 |---|---|---|
-| 运行时 | Java 21、Spring Boot 3.x | 单体应用，REST API |
-| AI 集成 | Spring AI | Chat / Embedding 集成，Rerank 经适配接口接入 |
+| 运行时 | Java 21、Spring Boot 4.1.2 | 单体应用，REST API |
+| AI 集成 | Spring AI 2.0.2 | Chat / Embedding 集成，Rerank 经适配接口接入 |
 | 持久化 | PostgreSQL + pgvector | 元数据、Chunk、向量；Flyway 管理迁移 |
 | 关键词检索 | Elasticsearch + IK 中文分词插件 | **真实 BM25**；中文/英文技术术语测试 |
 | 原始文件 | MinIO | 服务端生成对象 Key，原始 Markdown/TXT |
@@ -237,3 +237,5 @@ ContextBuilder 仅使用最终检索候选，按 Chunk ID 去重、按模型 Tok
 - ADR-08：正式问答允许**显式、可配置**降级；评估严格禁止静默降级。
 
 未来 P1：文档删除/更新、版本切换与旧索引清理、SSE；P2：PDF/Web UI/Git 同步。Memory、Agent 属于独立后续阶段，不在 V1 预埋复杂平台。
+
+当前工程状态与历史验证边界见 [M0 验收报告](../engineering/m0-verification-report.md)；V1 业务参数初始值见 [配置基线](../engineering/configuration-baseline.md)。版本事实修正不改变本文架构决策。

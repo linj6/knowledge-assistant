@@ -1,0 +1,61 @@
+package com.lnjecit.knowledge.assistant.infrastructure.ai;
+
+import java.util.HashSet;
+import org.springframework.ai.embedding.Embedding;
+import org.springframework.ai.embedding.EmbeddingResponse;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+
+public final class ModelResponseChecks {
+    private ModelResponseChecks() {}
+
+    public static final class InvalidResponseException extends IllegalStateException {
+        private InvalidResponseException(String message) {
+            super(message);
+        }
+    }
+
+    public static void json(String text) {
+        try {
+            JsonNode node = JsonMapper.builder().build().readTree(text);
+            if (!node.isObject()
+                    || !node.path("answer").isString()
+                    || !node.path("citations").isArray()) {
+                throw new IllegalArgumentException();
+            }
+            for (JsonNode citation : node.path("citations")) {
+                if (!citation.isString()) throw new IllegalArgumentException();
+            }
+        } catch (RuntimeException ex) {
+            throw new InvalidResponseException("Invalid structured model response");
+        }
+    }
+
+    public static int embeddings(EmbeddingResponse response, int count, Integer expectedDimensions) {
+        if (response == null
+                || response.getResults() == null
+                || response.getResults().size() != count
+                || count < 1) throw invalid();
+        HashSet<Integer> indices = new HashSet<Integer>();
+        if (response.getResults().getFirst() == null
+                || response.getResults().getFirst().getOutput() == null) throw invalid();
+        int dimensions = response.getResults().getFirst().getOutput().length;
+        if (dimensions == 0 || dimensions > 16000 || (expectedDimensions != null && dimensions != expectedDimensions))
+            throw invalid();
+        // 按供应商 index 关联输入，不能依赖响应数组排列。
+        for (Embedding result : response.getResults()) {
+            if (result == null
+                    || result.getOutput() == null
+                    || result.getIndex() < 0
+                    || result.getIndex() >= count
+                    || !indices.add(result.getIndex())
+                    || result.getOutput().length != dimensions) throw invalid();
+            for (float value : result.getOutput()) if (!Float.isFinite(value)) throw invalid();
+        }
+        return dimensions;
+    }
+
+    private static IllegalStateException invalid() {
+        return new InvalidResponseException("Invalid embedding response");
+    }
+}

@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: knowledge-assistant
+  datasource:
+    url: ${KA_DB_URL:jdbc:postgresql://localhost:5432/ka}
+    username: ${KA_DB_USERNAME:ka}
+    password: ${KA_DB_PASSWORD}
+  flyway:
+    enabled: true
+    baseline-on-migrate: false
+assistant:
+  model:
+    enabled: ${ASSISTANT_MODEL_ENABLED:false}
+    base-url: ${ASSISTANT_MODEL_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+    chat-model: ${ASSISTANT_MODEL_CHAT_MODEL:}
+    embedding-model: ${ASSISTANT_MODEL_EMBEDDING_MODEL:}
+    api-key: ${ASSISTANT_MODEL_API_KEY:}
+    timeout-seconds: 30
+  rerank:
+    enabled: ${ASSISTANT_RERANK_ENABLED:false}
+    endpoint: ${ASSISTANT_RERANK_ENDPOINT:}
+    model: ${ASSISTANT_RERANK_MODEL:qwen3-rerank}
+    api-key: ${ASSISTANT_RERANK_API_KEY:}
+    timeout-seconds: 30
