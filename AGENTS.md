@@ -2,7 +2,7 @@
 
 ## 项目定位
 
-Knowledge Assistant 是基于 Java / Spring AI 的个人知识管理与 RAG 问答项目，采用分阶段开发。遵守已确认的 V1 P0 范围和当前任务授权，不提前实现后续里程碑或 P1/P2、Memory、Agent、Web UI。本次工程规范任务完成后停止，不进入 M0-06B。
+Knowledge Assistant 是基于 Java / Spring AI 的个人知识管理与 RAG 问答项目，采用分阶段开发。遵守已确认的 V1 P0 范围和当前任务授权，不提前实现后续里程碑或 P1/P2、Memory、Agent、Web UI。
 
 ## 技术栈
 
