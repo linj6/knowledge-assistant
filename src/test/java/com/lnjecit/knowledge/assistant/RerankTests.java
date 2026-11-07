@@ -235,10 +235,10 @@ class RerankTests {
 
     @Test
     void onlineGateRequiresExplicitConfigurationWithoutNetwork() {
-        assertThatThrownBy(() -> RerankOnlineIT.configuration(java.util.Map.of()))
+        assertThatThrownBy(() -> OnlineConfiguration.rerank(OnlineAuthorizationTests.environment(java.util.Map.of())))
                 .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> RerankOnlineIT.configuration(java.util.Map.of(
-                        "ASSISTANT_RERANK_ENABLED", "true", "ASSISTANT_RERANK_ONLINE_AUTHORIZED", "true")))
+        assertThatThrownBy(() -> OnlineConfiguration.rerank(OnlineAuthorizationTests.environment(java.util.Map.of(
+                        "assistant.rerank.enabled", "true", "assistant.rerank.online-authorized", "true"))))
                 .hasMessage("Invalid assistant.rerank configuration");
         assertThat(RerankOnlineIT.class.getSimpleName()).endsWith("IT");
     }

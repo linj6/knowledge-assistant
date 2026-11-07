@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Timeout;
 import org.springframework.ai.embedding.EmbeddingRequest;
 import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
+import org.springframework.core.env.StandardEnvironment;
 
 /** 独立基线实验；默认构建不执行，必须另行获得在线授权。 */
 class EmbeddingBaselineOnlineIT {
@@ -39,12 +40,9 @@ class EmbeddingBaselineOnlineIT {
         String stage = "CONFIGURATION";
         int attempted = 0;
         try {
-            ModelOnlineIT.requireAuthorization(System.getenv());
-            if (!"true".equals(System.getenv("ASSISTANT_EMBEDDING_BASELINE_AUTHORIZED"))) {
-                throw new IllegalStateException("Explicit embedding baseline authorization required");
-            }
-            OpenAiEmbeddingModel model = new ModelConfiguration()
-                    .embeddingModel(properties(ENDPOINT, System.getenv("ASSISTANT_MODEL_API_KEY")));
+            StandardEnvironment environment = OnlineConfiguration.load();
+            OpenAiEmbeddingModel model =
+                    new ModelConfiguration().embeddingModel(OnlineConfiguration.baseline(environment));
             List<List<String>> requests =
                     List.of(List.of(TEXTS.get(0)), List.of(TEXTS.get(1)), List.of(TEXTS.get(2)), TEXTS);
             // 顺序执行，首次失败立即停止；SDK maxRetries=0，最多四次请求。

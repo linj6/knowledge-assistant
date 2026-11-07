@@ -1,0 +1,17 @@
+assistant:
+  model:
+    enabled: false
+    api-key: "<DASHSCOPE_API_KEY>"
+    base-url: "<BASE_URL>"
+    chat-model: "<CHAT_MODEL>"
+    embedding-model: "<EMBEDDING_MODEL>"
+    dimensions: "<EMBEDDING_DIMENSIONS_INTEGER>"
+    online-authorized: false
+  embedding:
+    baseline-authorized: false
+  rerank:
+    enabled: false
+    endpoint: "<RERANK_ENDPOINT>"
+    model: "<RERANK_MODEL>"
+    api-key: "<DASHSCOPE_API_KEY>"
+    online-authorized: false

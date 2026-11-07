@@ -10,13 +10,17 @@ spring:
     baseline-on-migrate: false
 assistant:
   model:
+    online-authorized: ${ASSISTANT_MODEL_ONLINE_AUTHORIZED:false}
     enabled: ${ASSISTANT_MODEL_ENABLED:false}
     base-url: ${ASSISTANT_MODEL_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
     chat-model: ${ASSISTANT_MODEL_CHAT_MODEL:}
     embedding-model: ${ASSISTANT_MODEL_EMBEDDING_MODEL:}
     api-key: ${ASSISTANT_MODEL_API_KEY:}
     timeout-seconds: 30
+  embedding:
+    baseline-authorized: ${ASSISTANT_EMBEDDING_BASELINE_AUTHORIZED:false}
   rerank:
+    online-authorized: ${ASSISTANT_RERANK_ONLINE_AUTHORIZED:false}
     enabled: ${ASSISTANT_RERANK_ENABLED:false}
     endpoint: ${ASSISTANT_RERANK_ENDPOINT:}
     model: ${ASSISTANT_RERANK_MODEL:qwen3-rerank}
