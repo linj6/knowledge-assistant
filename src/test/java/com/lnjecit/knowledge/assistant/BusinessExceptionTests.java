@@ -10,6 +10,7 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.MDC;
 import org.springframework.boot.test.system.*;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.*;
@@ -82,7 +83,8 @@ class BusinessExceptionTests {
 
     @Test
     void generatedIdIsCorrelated() throws Exception {
-        var response = mvc.perform(get("/api/business/custom")).andReturn().getResponse();
+        MockHttpServletResponse response =
+                mvc.perform(get("/api/business/custom")).andReturn().getResponse();
         String id = response.getHeader("X-Request-Id");
         assertThat(id).matches("[a-f0-9-]{36}");
         assertThat(response.getContentAsString()).contains(id);

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelConfiguration;
+import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures.Kind;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelResponseChecks;
 import com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties;
 import com.sun.net.httpserver.HttpServer;
@@ -13,10 +14,14 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.embedding.Embedding;
 import org.springframework.ai.embedding.EmbeddingResponse;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.OpenAiEmbeddingModel;
+import tools.jackson.databind.JsonNode;
 
 class ModelCapabilityTests {
     static ModelProperties properties(String url) {
-        var p = new ModelProperties();
+        ModelProperties p = new ModelProperties();
         p.setEnabled(true);
         p.setApiKey("offline-test-value");
         p.setChatModel("fake-chat");
@@ -28,18 +33,18 @@ class ModelCapabilityTests {
 
     @Test
     void requestOptionsDoNotInheritModelDefaults() {
-        var options = org.springframework.ai.openai.OpenAiChatOptions.builder().build();
+        OpenAiChatOptions options = OpenAiChatOptions.builder().build();
         assertThat(options.getModel()).isNotEqualTo("fake-chat");
         System.out.println("SDK_DEFAULT_MODEL=" + options.getModel());
     }
 
     @Test
     void embeddingBoundaryFailuresAreSafe() {
-        var nullResults = org.mockito.Mockito.mock(EmbeddingResponse.class);
+        EmbeddingResponse nullResults = org.mockito.Mockito.mock(EmbeddingResponse.class);
         org.mockito.Mockito.when(nullResults.getResults()).thenReturn(null);
-        var nullOutput = org.mockito.Mockito.mock(Embedding.class);
+        Embedding nullOutput = org.mockito.Mockito.mock(Embedding.class);
         org.mockito.Mockito.when(nullOutput.getOutput()).thenReturn(null);
-        for (var response : java.util.Arrays.asList(
+        for (EmbeddingResponse response : java.util.Arrays.asList(
                 null,
                 nullResults,
                 new EmbeddingResponse(java.util.Arrays.asList((Embedding) null)),
@@ -69,7 +74,7 @@ class ModelCapabilityTests {
 
     @Test
     void safeDiagnosticsPreserveStage() {
-        var secret = new IllegalStateException("offline-test-value");
+        IllegalStateException secret = new IllegalStateException("offline-test-value");
         for (String stage :
                 List.of("CONFIGURATION", "CHAT_PLAIN", "CHAT_JSON", "EMBEDDING_SINGLE", "EMBEDDING_BATCH")) {
             assertThat(com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures.safe(stage, secret))
@@ -83,7 +88,7 @@ class ModelCapabilityTests {
 
     @Test
     void embeddingHttpPreservesProviderIndex() throws Exception {
-        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/v1/embeddings", exchange -> {
             var request = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             assertThat(request).contains("fake-embedding", "float", "input");
@@ -97,10 +102,10 @@ class ModelCapabilityTests {
         });
         server.start();
         try {
-            var model = new ModelConfiguration()
+            OpenAiEmbeddingModel model = new ModelConfiguration()
                     .embeddingModel(
                             properties("http://127.0.0.1:" + server.getAddress().getPort() + "/v1"));
-            var response =
+            EmbeddingResponse response =
                     model.call(new org.springframework.ai.embedding.EmbeddingRequest(List.of("first", "second"), null));
             assertThat(ModelResponseChecks.embeddings(response, 2, 2)).isEqualTo(2);
             assertThat(response.getResults().stream()
@@ -117,7 +122,7 @@ class ModelCapabilityTests {
     @Test
     void httpFailuresAreClassifiedAndSanitized() throws Exception {
         for (int status : new int[] {401, 403, 429, 503, 200}) {
-            var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+            HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
             server.createContext("/v1/chat/completions", exchange -> {
                 byte[] bytes = "{invalid offline-test-value".getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().set("Content-Type", "application/json");
@@ -127,13 +132,13 @@ class ModelCapabilityTests {
             });
             server.start();
             try {
-                var model = new ModelConfiguration()
+                OpenAiChatModel model = new ModelConfiguration()
                         .chatModel(properties(
                                 "http://127.0.0.1:" + server.getAddress().getPort() + "/v1"));
                 Throwable failure = org.assertj.core.api.Assertions.catchThrowable(() -> model.call("test"));
                 assertThat(failure).isNotNull();
                 if (status == 200) assertThat(failure).isInstanceOf(com.openai.errors.OpenAIInvalidDataException.class);
-                var kind = com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures.classify(failure);
+                Kind kind = com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures.classify(failure);
                 if (status == 401 || status == 403) assertThat(kind.name()).isEqualTo("AUTHENTICATION");
                 if (status == 200) assertThat(kind.name()).isEqualTo("INVALID_RESPONSE");
                 if (status == 429) assertThat(kind.name()).isEqualTo("RATE_LIMIT");
@@ -153,15 +158,15 @@ class ModelCapabilityTests {
 
     @Test
     void constructsModels() {
-        var config = new ModelConfiguration();
-        var p = properties("http://localhost:1/v1");
+        ModelConfiguration config = new ModelConfiguration();
+        ModelProperties p = properties("http://localhost:1/v1");
         assertThat(config.chatModel(p)).isNotNull();
         assertThat(config.embeddingModel(p)).isNotNull();
     }
 
     @Test
     void validatesConfiguration() {
-        var p = properties("invalid");
+        ModelProperties p = properties("invalid");
         assertThatThrownBy(() -> ModelConfiguration.validate(p)).hasMessageContaining("base-url");
         p.setBaseUrl("https://localhost/v1");
         p.setChatModel("");
@@ -182,11 +187,11 @@ class ModelCapabilityTests {
 
     @Test
     void validatesVectorsAndIndices() {
-        var reordered = new EmbeddingResponse(
+        EmbeddingResponse reordered = new EmbeddingResponse(
                 List.of(new Embedding(new float[] {1, 2}, 1), new Embedding(new float[] {3, 4}, 0)));
         assertThat(ModelResponseChecks.embeddings(reordered, 2, 2)).isEqualTo(2);
         assertThat(reordered.getResults().getFirst().getIndex()).isEqualTo(1);
-        for (var invalid : List.of(
+        for (EmbeddingResponse invalid : List.of(
                 new EmbeddingResponse(List.of()),
                 new EmbeddingResponse(List.of(new Embedding(new float[] {Float.NaN}, 0))),
                 new EmbeddingResponse(List.of(new Embedding(new float[] {Float.POSITIVE_INFINITY}, 0))),
@@ -200,12 +205,12 @@ class ModelCapabilityTests {
 
     @Test
     void actualHttpProtocol() throws Exception {
-        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/v1/chat/completions", exchange -> {
             var body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             assertThat(body).contains("fake-chat", "messages");
             if (body.contains("response_format")) {
-                var json =
+                JsonNode json =
                         tools.jackson.databind.json.JsonMapper.builder().build().readTree(body);
                 assertThat(json.path("response_format").path("type").asString()).isEqualTo("json_object");
                 assertThat(json.path("max_tokens").asInt()).isEqualTo(128);
@@ -220,13 +225,14 @@ class ModelCapabilityTests {
         });
         server.start();
         try {
-            var model = new ModelConfiguration()
+            OpenAiChatModel model = new ModelConfiguration()
                     .chatModel(
                             properties("http://127.0.0.1:" + server.getAddress().getPort() + "/v1"));
             assertThat(model.call("test")).isEqualTo("ok");
-            var format = new org.springframework.ai.openai.OpenAiChatModel.ResponseFormat();
-            format.setType(org.springframework.ai.openai.OpenAiChatModel.ResponseFormat.Type.JSON_OBJECT);
-            var options = model.getOptions().mutate().responseFormat(format).build();
+            OpenAiChatModel.ResponseFormat format = new OpenAiChatModel.ResponseFormat();
+            format.setType(OpenAiChatModel.ResponseFormat.Type.JSON_OBJECT);
+            OpenAiChatOptions options =
+                    model.getOptions().mutate().responseFormat(format).build();
             assertThat(options.getModel()).isEqualTo("fake-chat");
             assertThat(options.getTimeout()).isEqualTo(java.time.Duration.ofSeconds(1));
             assertThat(options.getMaxRetries()).isZero();

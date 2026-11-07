@@ -22,7 +22,8 @@ Spotless Maven Plugin 2.43.0、Palantir Java Format 2.50.0、removeUnusedImports
 ```powershell
 mvn spotless:apply
 mvn spotless:check
-mvn clean verify
+mvn -DskipTests test-compile
+# 按影响范围执行对应测试；仅在关键节点执行全量测试
 git diff --check
 ```
 
@@ -31,3 +32,23 @@ validate 阶段绑定 check，格式不合规构建失败；正常构建只检�
 ## 评审边界
 
 自动格式化不能证明业务正确、SQL安全、API兼容或测试充分，不能替代代码评审。字符串或 SQL 内容变化必须单独说明并验证。工具升级应独立评估兼容性及全量 diff，固定版本后运行上述命令。
+
+## Java 局部变量类型
+
+默认使用显式类型，仅在类型非常直观且显式声明明显冗余时允许 `var`，不要为了消除所有 `var` 而牺牲代码简洁性。
+
+必须使用显式类型：
+
+1. Spring AI 模型调用及响应对象。
+2. 业务实体、DTO、配置对象和异常对象。
+3. 方法调用返回值类型不直观的情况。
+4. 泛型集合及其重要中间结果。
+5. 需要阅读者理解具体 API 类型的局部变量。
+
+允许使用 `var`：
+
+1. 右侧直接 `new ConcreteType(...)`，类型非常明确（上述必须显式声明的场景除外）。
+2. 简单循环变量，且类型不影响理解。
+3. 显式类型明显冗余、不会增加阅读成本的局部变量。
+
+每次修改默认只执行受影响的测试；Milestone 验收、重大架构或依赖调整、合并前等关键节点才执行全量测试。仅执行局部测试时，报告必须准确注明验证范围。

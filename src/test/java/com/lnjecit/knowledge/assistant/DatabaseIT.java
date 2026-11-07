@@ -3,16 +3,21 @@ package com.lnjecit.knowledge.assistant;
 import static org.assertj.core.api.Assertions.*;
 
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 class DatabaseIT {
-    private org.springframework.context.ConfigurableApplicationContext start(String... args) {
+    private ConfigurableApplicationContext start(String... args) {
         var app = new SpringApplication(KnowledgeAssistantApplication.class);
         app.setWebApplicationType(WebApplicationType.NONE);
         return app.run(args);
@@ -21,9 +26,9 @@ class DatabaseIT {
     @Test
     void migrationAndVector() throws Exception {
         // 使用应用真实自动配置及同一数据源，临时表只在当前 JDBC 会话内存在。
-        try (var context = start()) {
-            var flyway = context.getBean(Flyway.class);
-            var dataSource = context.getBean(DataSource.class);
+        try (ConfigurableApplicationContext context = start()) {
+            Flyway flyway = context.getBean(Flyway.class);
+            DataSource dataSource = context.getBean(DataSource.class);
             var jdbc = new JdbcTemplate(dataSource);
             assertThat(jdbc.queryForObject("SELECT extversion FROM pg_extension WHERE extname='vector'", String.class))
                     .isEqualTo("0.8.0");
@@ -31,11 +36,11 @@ class DatabaseIT {
                             "SELECT count(*) FROM flyway_schema_history WHERE version='1' AND success", Integer.class))
                     .isEqualTo(1);
             assertThat(flyway.migrate().migrationsExecuted).isZero();
-            try (var connection = dataSource.getConnection();
-                    var sql = connection.createStatement()) {
+            try (Connection connection = dataSource.getConnection();
+                    Statement sql = connection.createStatement()) {
                 sql.execute("CREATE TEMP TABLE vector_probe(id INT PRIMARY KEY, embedding vector(3))");
                 sql.execute("INSERT INTO vector_probe VALUES (1,'[1,0,0]'),(2,'[0,1,0]')");
-                try (var rows = sql.executeQuery(
+                try (ResultSet rows = sql.executeQuery(
                         "SELECT id, embedding <=> '[1,0,0]'::vector AS distance FROM vector_probe ORDER BY distance")) {
                     assertThat(rows.next()).isTrue();
                     assertThat(rows.getInt(1)).isEqualTo(1);
@@ -53,11 +58,11 @@ class DatabaseIT {
     @Test
     void failedMigrationBlocksStartup() throws Exception {
         String schema = "m005_" + UUID.randomUUID().toString().replace("-", "");
-        var directory = Files.createTempDirectory("ka-m005-failure-");
-        var migration = directory.resolve("V1__deliberate_failure.sql");
+        Path directory = Files.createTempDirectory("ka-m005-failure-");
+        Path migration = directory.resolve("V1__deliberate_failure.sql");
         Files.writeString(migration, "SELECT deliberate_m005_missing_function();");
         // 随机 Schema 隔离失败迁移，只清理本测试自己创建的 Schema。
-        try (var context = start()) {
+        try (ConfigurableApplicationContext context = start()) {
             var jdbc = new JdbcTemplate(context.getBean(DataSource.class));
             try {
                 assertThatThrownBy(() -> start(

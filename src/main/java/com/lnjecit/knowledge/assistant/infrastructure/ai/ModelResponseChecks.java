@@ -1,7 +1,9 @@
 package com.lnjecit.knowledge.assistant.infrastructure.ai;
 
 import java.util.HashSet;
+import org.springframework.ai.embedding.Embedding;
 import org.springframework.ai.embedding.EmbeddingResponse;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 public final class ModelResponseChecks {
@@ -15,13 +17,13 @@ public final class ModelResponseChecks {
 
     public static void json(String text) {
         try {
-            var node = JsonMapper.builder().build().readTree(text);
+            JsonNode node = JsonMapper.builder().build().readTree(text);
             if (!node.isObject()
                     || !node.path("answer").isString()
                     || !node.path("citations").isArray()) {
                 throw new IllegalArgumentException();
             }
-            for (var citation : node.path("citations")) {
+            for (JsonNode citation : node.path("citations")) {
                 if (!citation.isString()) throw new IllegalArgumentException();
             }
         } catch (RuntimeException ex) {
@@ -34,14 +36,14 @@ public final class ModelResponseChecks {
                 || response.getResults() == null
                 || response.getResults().size() != count
                 || count < 1) throw invalid();
-        var indices = new HashSet<Integer>();
+        HashSet<Integer> indices = new HashSet<Integer>();
         if (response.getResults().getFirst() == null
                 || response.getResults().getFirst().getOutput() == null) throw invalid();
         int dimensions = response.getResults().getFirst().getOutput().length;
         if (dimensions == 0 || dimensions > 16000 || (expectedDimensions != null && dimensions != expectedDimensions))
             throw invalid();
         // 按供应商 index 关联输入，不能依赖响应数组排列。
-        for (var result : response.getResults()) {
+        for (Embedding result : response.getResults()) {
             if (result == null
                     || result.getOutput() == null
                     || result.getIndex() < 0

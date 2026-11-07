@@ -39,7 +39,7 @@ class SpringAiCoreCompatibilityTests {
         String answer = ChatClient.create(model).prompt().user("测试问题").call().content();
 
         assertThat(answer).isEqualTo("模拟回答");
-        var prompt = ArgumentCaptor.forClass(Prompt.class);
+        ArgumentCaptor<Prompt> prompt = ArgumentCaptor.forClass(Prompt.class);
         verify(model).call(prompt.capture());
         assertThat(prompt.getValue().getUserMessage().getText()).isEqualTo("测试问题");
     }
@@ -52,7 +52,7 @@ class SpringAiCoreCompatibilityTests {
 
         // 使用真实默认方法完成文本到请求的转换，仅替换底层模型响应。
         assertThat(model.embed("离线文本")).containsExactly(0.25f, 0.75f);
-        var request = ArgumentCaptor.forClass(EmbeddingRequest.class);
+        ArgumentCaptor<EmbeddingRequest> request = ArgumentCaptor.forClass(EmbeddingRequest.class);
         verify(model).call(request.capture());
         assertThat(request.getValue().getInstructions()).containsExactly("离线文本");
     }
@@ -87,7 +87,7 @@ class SpringAiCoreCompatibilityTests {
                         .content())
                 .isEqualTo("模拟回答");
 
-        var prompt = ArgumentCaptor.forClass(Prompt.class);
+        ArgumentCaptor<Prompt> prompt = ArgumentCaptor.forClass(Prompt.class);
         verify(model).call(prompt.capture());
         assertThat(prompt.getValue().getInstructions())
                 .extracting(message -> message.getText())

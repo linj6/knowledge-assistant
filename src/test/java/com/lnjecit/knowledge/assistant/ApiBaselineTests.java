@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.*;
 import org.slf4j.MDC;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.*;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.*;
@@ -60,7 +61,7 @@ class ApiBaselineTests {
     @Test
     void invalidIdsAndNoReuse() throws Exception {
         for (String id : new String[] {"", "bad\r\ninput", "x".repeat(65), "bad space"}) {
-            var response = mvc.perform(get("/api/fail").header("X-Request-Id", id))
+            MockHttpServletResponse response = mvc.perform(get("/api/fail").header("X-Request-Id", id))
                     .andReturn()
                     .getResponse();
             assertThat(response.getHeader("X-Request-Id")).isNotEqualTo(id);

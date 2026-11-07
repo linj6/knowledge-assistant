@@ -20,7 +20,7 @@
 
 ## 代码规范
 
-Java21、Spring Boot 4.1.2、Spring AI 2.0.2；简单、易读、模块职责清晰；主流程及重要业务判断必须有准确通俗的中文注释；配置不含密钥；不得记录敏感原文。优先复用已有测试基础设施。
+Java 默认使用显式局部变量类型，var 仅限类型显而易见的场景。Java21、Spring Boot 4.1.2、Spring AI 2.0.2；简单、易读、模块职责清晰；主流程及重要业务判断必须有准确通俗的中文注释；配置不含密钥；不得记录敏感原文。优先复用已有测试基础设施。
 
 ## 验收与测试
 
@@ -40,4 +40,6 @@ M0 全部在 `feature/m0-foundation` 开发；开始前检查 `git status`，保
 
 ## 提交前格式检查
 
-遵守 docs/engineering/code-style.md。依次执行 mvn spotless:apply、mvn spotless:check、mvn clean verify、git diff --check；检查 diff 后提交，报告实际测试结果。按任务需要运行既定 DatabaseIT，不跳过格式检查，不修改已执行 Flyway V1 或冻结设计。
+遵守 docs/engineering/code-style.md。依次执行 mvn spotless:apply、mvn spotless:check、按影响范围执行对应测试、git diff --check；检查 diff 后提交，报告实际测试结果。按任务需要运行既定 DatabaseIT，不跳过格式检查，不修改已执行 Flyway V1 或冻结设计。
+
+每次修改默认只执行受影响的测试。只有 Milestone 验收、重大架构或依赖调整、合并前等关键节点才执行全量测试。仅执行局部测试时，报告必须准确注明验证范围。
