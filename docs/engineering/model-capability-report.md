@@ -113,3 +113,15 @@ TokenEstimator为独立本地估算器：Unicode码点数加调用方指定固�
 尚未执行真实Rerank在线验证；账户地域、完整Endpoint、业务空间、模型权限、实际限额、usage与费用均待在线验收。Fake协议通过不能证明真实服务连通性或排序质量，M0-06尚未整体验收。未实现M2/M3链路，未启动Docker、未调用真实模型、未执行全量clean verify。
 
 本轮最终验证：`mvn spotless:apply`、`mvn spotless:check`、`mvn -DskipTests test-compile`、`mvn '-Dtest=RerankTests,ModelCapabilityTests' test`及`git diff --check`通过。RerankTests 6项（内部循环覆盖多种协议/错误样例）、既有ModelCapabilityTests 10项，共16项，失败0、错误0、跳过0。覆盖本地请求路径/鉴权/嵌套JSON/top_n、乱序与同分映射、截断与归一化、非法输入、索引/分数/数量异常、无效JSON与200错误体、401/403/429/400/503、302不跟随、超大响应、连接失败、请求超时和安全异常；估算覆盖Unicode与大整数边界、配置禁用和启用校验。未单独故障注入慢速响应体、TLS/DNS或真实供应商协议差异，也未运行其他测试套件。早期测试编译断言签名及连接失败测试期限问题已修正，以上为最终重跑结果。
+
+## M0-06B-2 评审补充（2026-11-07）
+
+修正异常边界：JSON解析异常仅在响应解析处转为INVALID_RESPONSE，结构/index/score异常仍整次失败；其他未知RuntimeException为OTHER，已分类SafeModelException原样传播，不保留未知message/cause。输入校验仍在请求前，HTTP/连接/超时分类保持不变。补齐适配器中文注释，解释职责范围、快照与本地ID、index校验、严格数量、整次失败、确定性排序及HTTP安全边界。
+
+新增独立RerankOnlineIT，Surefire默认命名规则不执行*IT；只在人工授权后显式运行：`mvn '-Dtest=RerankOnlineIT' test`。必要环境变量：ASSISTANT_RERANK_ONLINE_AUTHORIZED=true、ASSISTANT_RERANK_ENABLED=true、ASSISTANT_RERANK_ENDPOINT（完整可信HTTPS地址）、ASSISTANT_RERANK_MODEL=qwen3-rerank、ASSISTANT_RERANK_API_KEY。配置缺失明确失败，无默认真实Endpoint。固定中文问题和三篇非敏感候选，topN=3，只调用一次生产适配器，无重试，无基础设施依赖。记录固定模型/非敏感Endpoint标识、候选数、topN、耗时、ID/score及成功或失败分类，不打印文本、URL、密钥或body。排序只作观察，不断言人工相关项必须第一。
+
+在线映射校验复用生产适配器的严格index检查，再检查输出ID唯一且属于固定候选集；原始index到ID的对应关系仍由Fake乱序测试独立验证。业务接口未暴露原始index，在线入口不声称能够独立比对原始响应映射。
+
+usage取舍：当前Reranker接口不暴露usage；为读取usage另发请求或复制HTTP协议会增加调用和重复实现，因此保持封装，明确输出usage=unavailable，不修改业务API。该入口不能提供真实usage/费用证据，后续若需要须另行评审受控诊断方案。本次没有执行RerankOnlineIT或任何真实供应商请求；地域、权限、真实协议/质量、usage、费用仍未验证，M0-06B及M0-06均未标记最终验收通过。
+
+本次实际验证：spotless:apply、spotless:check、`mvn -DskipTests test-compile`、`mvn '-Dtest=RerankTests,ModelCapabilityTests' test`通过；RerankTests 8项、ModelCapabilityTests 10项，共18项，失败0、错误0、跳过0。新增离线注入未知运行时故障、所有安全分类原样传播及在线配置授权门禁测试；既有Fake协议、非法响应和HTTP错误回归通过。在线IT仅编译及配置函数离线检查，默认排除依据*IT命名与Surefire默认规则检查，未执行在线测试。未运行全量clean verify、其他测试套件或Docker。

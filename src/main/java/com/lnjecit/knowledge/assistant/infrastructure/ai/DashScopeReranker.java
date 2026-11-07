@@ -15,6 +15,8 @@ import java.util.concurrent.Flow;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+/** DashScope 原生 HTTP Rerank 适配器，负责请求、响应校验及候选 ID 映射。
+ * 不负责 M2 的混合检索、RRF 融合或完整重排编排。 */
 public final class DashScopeReranker implements Reranker {
     private static final int MAX_RESPONSE_BYTES = 262144;
     private final URI endpoint;
@@ -44,6 +46,7 @@ public final class DashScopeReranker implements Reranker {
         this.apiKey = apiKey;
         this.model = model;
         this.timeout = timeout;
+        // 禁止重定向，避免鉴权信息发送到其他地址；不添加自动重试，限制费用和调用次数。
         client = HttpClient.newBuilder()
                 .connectTimeout(timeout)
                 .followRedirects(HttpClient.Redirect.NEVER)
@@ -54,6 +57,7 @@ public final class DashScopeReranker implements Reranker {
     public List<RerankResult> rerank(String query, List<RerankCandidate> candidates, int topN) {
         if (query == null || query.isBlank() || topN < 1 || candidates == null || candidates.size() > 500)
             throw new IllegalArgumentException("Invalid rerank input");
+        // 固定本次发送顺序，避免调用方修改列表后，响应 index 指向不同业务候选。
         List<RerankCandidate> snapshot = new ArrayList<>(candidates);
         HashSet<String> ids = new HashSet<>();
         for (RerankCandidate candidate : snapshot) {
@@ -68,6 +72,7 @@ public final class DashScopeReranker implements Reranker {
         if (snapshot.isEmpty()) return List.of();
         int count = Math.min(topN, snapshot.size());
         try {
+            // 供应商只需要正文；业务 ID 留在本地，按原始 index 关联，不能按文本匹配或响应位置关联。
             String body = mapper.writeValueAsString(Map.of(
                     "model",
                     model,
@@ -109,13 +114,22 @@ public final class DashScopeReranker implements Reranker {
 
         } catch (RuntimeException ex) {
             if (ex instanceof ModelFailures.SafeModelException safe) throw safe;
-            throw ModelFailures.rerankFailure(ModelFailures.Kind.INVALID_RESPONSE);
+            // 未知运行时故障不等于供应商协议错误；不保留可能含敏感正文的 message/cause。
+            throw ModelFailures.rerankFailure(ModelFailures.Kind.OTHER);
         }
     }
 
     private List<RerankResult> parse(byte[] body, List<RerankCandidate> snapshot, int count) {
-        JsonNode root = mapper.readTree(body);
+        JsonNode root;
+        try {
+            root = mapper.readTree(body);
+        } catch (tools.jackson.core.JacksonException ex) {
+            // 只有解析响应时的 JSON 错误属于协议失败，不能把任意运行时异常都归入此类。
+            throw invalid();
+        }
+        if (root == null) throw invalid();
         JsonNode results = root.path("output").path("results");
+        // 截断后必须恰好返回 min(topN,N) 项；任何缺失或非法项都整次失败，不能交付部分结果。
         if (root.has("code") || !results.isArray() || results.size() != count) throw invalid();
         record Indexed(int index, double score) {}
         List<Indexed> validated = new ArrayList<>();
@@ -123,6 +137,7 @@ public final class DashScopeReranker implements Reranker {
         for (JsonNode item : results) {
             JsonNode index = item.path("index");
             JsonNode score = item.path("relevance_score");
+            // index 必须在本次输入范围内且唯一；分数必须是有限的 [0,1] 数字。
             if (!index.isIntegralNumber()
                     || !index.canConvertToInt()
                     || index.asInt() < 0
@@ -134,7 +149,7 @@ public final class DashScopeReranker implements Reranker {
                     || score.asDouble() > 1) throw invalid();
             validated.add(new Indexed(index.asInt(), score.asDouble()));
         }
-        // 全部校验后才排序与映射，供应商数组顺序和正文都不是业务 ID 的来源。
+        // 全部校验后按分数降序、原始 index 升序排序，保证同分结果确定且不依赖响应顺序。
         validated.sort(Comparator.comparingDouble(Indexed::score).reversed().thenComparingInt(Indexed::index));
         return validated.stream()
                 .map(item -> new RerankResult(snapshot.get(item.index()).id(), item.score()))
@@ -145,6 +160,7 @@ public final class DashScopeReranker implements Reranker {
         return ModelFailures.rerankFailure(ModelFailures.Kind.INVALID_RESPONSE);
     }
 
+    // 在累积字节前检查大小，避免异常或恶意响应无限占用内存；不回显原始响应。
     private static HttpResponse.BodySubscriber<byte[]> limitedBody() {
         HttpResponse.BodySubscriber<byte[]> delegate = HttpResponse.BodySubscribers.ofByteArray();
         return new HttpResponse.BodySubscriber<>() {

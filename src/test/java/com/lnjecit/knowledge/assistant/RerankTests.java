@@ -206,4 +206,40 @@ class RerankTests {
         properties.setEndpoint("http://trusted.example/api");
         assertThatThrownBy(properties::afterPropertiesSet).hasMessageNotContaining("fake-secret");
     }
+
+    @Test
+    void unknownRuntimeAndSafeFailures() throws Exception {
+        DashScopeReranker reranker = client(1, Duration.ofSeconds(1));
+        java.net.http.HttpClient http = org.mockito.Mockito.mock(java.net.http.HttpClient.class);
+        java.lang.reflect.Field field = DashScopeReranker.class.getDeclaredField("client");
+        field.setAccessible(true);
+        field.set(reranker, http);
+        org.mockito.Mockito.when(http.sendAsync(
+                        org.mockito.ArgumentMatchers.any(java.net.http.HttpRequest.class),
+                        org.mockito.ArgumentMatchers.<java.net.http.HttpResponse.BodyHandler<byte[]>>any()))
+                .thenThrow(new IllegalStateException("fake-secret private-text"));
+        Throwable error = org.assertj.core.api.Assertions.catchThrowable(() -> reranker.rerank("q", INPUT, 1));
+        assertThat(ModelFailures.classify(error)).isEqualTo(ModelFailures.Kind.OTHER);
+        assertThat(error).hasNoCause().hasMessageNotContaining("fake-secret").hasMessageNotContaining("private-text");
+        for (ModelFailures.Kind kind : ModelFailures.Kind.values()) {
+            ModelFailures.SafeModelException safe = ModelFailures.rerankFailure(kind);
+            org.mockito.Mockito.when(http.sendAsync(
+                            org.mockito.ArgumentMatchers.any(java.net.http.HttpRequest.class),
+                            org.mockito.ArgumentMatchers.<java.net.http.HttpResponse.BodyHandler<byte[]>>any()))
+                    .thenThrow(safe);
+            assertThat(org.assertj.core.api.Assertions.catchThrowable(() -> reranker.rerank("q", INPUT, 1)))
+                    .isSameAs(safe);
+            org.mockito.Mockito.reset(http);
+        }
+    }
+
+    @Test
+    void onlineGateRequiresExplicitConfigurationWithoutNetwork() {
+        assertThatThrownBy(() -> RerankOnlineIT.configuration(java.util.Map.of()))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> RerankOnlineIT.configuration(java.util.Map.of(
+                        "ASSISTANT_RERANK_ENABLED", "true", "ASSISTANT_RERANK_ONLINE_AUTHORIZED", "true")))
+                .hasMessage("Invalid assistant.rerank configuration");
+        assertThat(RerankOnlineIT.class.getSimpleName()).endsWith("IT");
+    }
 }
