@@ -17,7 +17,7 @@ Spotless Maven Plugin 2.43.0、Palantir Java Format 2.50.0、removeUnusedImports
 
 ## 命令与 Codex CLI 流程
 
-开始前检查 git status、当前分支及任务范围，阅读相关规范。完成修改后按顺序执行：
+开始前检查 git status、当前分支及任务范围，阅读相关规范。纯文档修改通常只需审阅文档及完整 diff，并执行 `git diff --check`，无需执行 Maven 命令。涉及 Java 或 pom.xml 的修改按顺序执行：
 
 ```powershell
 mvn spotless:apply
@@ -52,3 +52,7 @@ validate 阶段绑定 check，格式不合规构建失败；正常构建只检�
 3. 显式类型明显冗余、不会增加阅读成本的局部变量。
 
 每次修改默认只执行受影响的测试；Milestone 验收、重大架构或依赖调整、合并前等关键节点才执行全量测试。仅执行局部测试时，报告必须准确注明验证范围。
+
+## Git Commit Message
+
+Git Commit Message 默认使用中文描述变更意图，保留 `feat`、`fix`、`docs`、`test`、`refactor` 等 Conventional Commits 类型前缀及必要英文技术术语。优先说明为什么修改以及修改了什么。无需改写已有提交历史。

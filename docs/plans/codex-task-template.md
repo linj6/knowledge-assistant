@@ -38,8 +38,10 @@ Java 默认使用显式局部变量类型，var 仅限类型显而易见的场�
 
 M0 全部在 `feature/m0-foundation` 开发；开始前检查 `git status`，保护用户未提交改动；只提交本任务相关文件。完成测试与自检后提交一个或多个小 Commit，报告 SHA；不自行合并 main 或创建下一任务代码。人工评审后继续下一任务。
 
+Git Commit Message 默认使用中文描述变更意图，保留 Conventional Commits 类型前缀及必要英文技术术语；优先说明为什么修改以及修改了什么，无需改写已有提交历史。完整规则见 [Code Style](../engineering/code-style.md#git-commit-message)。
+
 ## 提交前格式检查
 
-遵守 docs/engineering/code-style.md。依次执行 mvn spotless:apply、mvn spotless:check、按影响范围执行对应测试、git diff --check；检查 diff 后提交，报告实际测试结果。按任务需要运行既定 DatabaseIT，不跳过格式检查，不修改已执行 Flyway V1 或冻结设计。
+遵守 [Code Style](../engineering/code-style.md)。纯文档修改通常只需审阅文档、完整 diff 和执行 `git diff --check`，无需执行 Maven 命令。涉及 Java 或 pom.xml 的修改依次执行 mvn spotless:apply、mvn spotless:check、按影响范围执行对应测试、git diff --check；检查 diff 后提交，报告实际测试结果。按任务需要运行既定 DatabaseIT，不跳过格式检查，不修改已执行 Flyway V1 或冻结设计。
 
 每次修改默认只执行受影响的测试。只有 Milestone 验收、重大架构或依赖调整、合并前等关键节点才执行全量测试。仅执行局部测试时，报告必须准确注明验证范围。
