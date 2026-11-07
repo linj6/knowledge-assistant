@@ -7,6 +7,43 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConfigurationProperties("assistant.model")
 public class ModelProperties implements InitializingBean {
+    private String baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+    private String chatModel;
+    private String embeddingModel;
+    private Integer dimensions;
+
+    public String getBaseUrl() {
+        return baseUrl;
+    }
+
+    public void setBaseUrl(String value) {
+        baseUrl = value;
+    }
+
+    public String getChatModel() {
+        return chatModel;
+    }
+
+    public void setChatModel(String value) {
+        chatModel = value;
+    }
+
+    public String getEmbeddingModel() {
+        return embeddingModel;
+    }
+
+    public void setEmbeddingModel(String value) {
+        embeddingModel = value;
+    }
+
+    public Integer getDimensions() {
+        return dimensions;
+    }
+
+    public void setDimensions(Integer value) {
+        dimensions = value;
+    }
+
     private boolean enabled;
     private String apiKey;
     private int timeoutSeconds = 30;
