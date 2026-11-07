@@ -7,6 +7,12 @@ import tools.jackson.databind.json.JsonMapper;
 public final class ModelResponseChecks {
     private ModelResponseChecks() {}
 
+    public static final class InvalidResponseException extends IllegalStateException {
+        private InvalidResponseException(String message) {
+            super(message);
+        }
+    }
+
     public static void json(String text) {
         try {
             var node = JsonMapper.builder().build().readTree(text);
@@ -19,19 +25,26 @@ public final class ModelResponseChecks {
                 if (!citation.isString()) throw new IllegalArgumentException();
             }
         } catch (RuntimeException ex) {
-            throw new IllegalStateException("Invalid structured model response");
+            throw new InvalidResponseException("Invalid structured model response");
         }
     }
 
     public static int embeddings(EmbeddingResponse response, int count, Integer expectedDimensions) {
-        if (response.getResults().size() != count || count < 1) throw invalid();
+        if (response == null
+                || response.getResults() == null
+                || response.getResults().size() != count
+                || count < 1) throw invalid();
         var indices = new HashSet<Integer>();
+        if (response.getResults().getFirst() == null
+                || response.getResults().getFirst().getOutput() == null) throw invalid();
         int dimensions = response.getResults().getFirst().getOutput().length;
         if (dimensions == 0 || dimensions > 16000 || (expectedDimensions != null && dimensions != expectedDimensions))
             throw invalid();
         // 按供应商 index 关联输入，不能依赖响应数组排列。
         for (var result : response.getResults()) {
-            if (result.getIndex() < 0
+            if (result == null
+                    || result.getOutput() == null
+                    || result.getIndex() < 0
                     || result.getIndex() >= count
                     || !indices.add(result.getIndex())
                     || result.getOutput().length != dimensions) throw invalid();
@@ -41,6 +54,6 @@ public final class ModelResponseChecks {
     }
 
     private static IllegalStateException invalid() {
-        return new IllegalStateException("Invalid embedding response");
+        return new InvalidResponseException("Invalid embedding response");
     }
 }

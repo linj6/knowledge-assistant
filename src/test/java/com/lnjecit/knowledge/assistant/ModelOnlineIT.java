@@ -1,7 +1,5 @@
 package com.lnjecit.knowledge.assistant;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelConfiguration;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelResponseChecks;
 import com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties;
@@ -15,14 +13,40 @@ import org.springframework.ai.openai.OpenAiChatOptions;
 
 // IT 命名排除在默认 Surefire 执行之外；显式执行时缺少配置必须失败。
 class ModelOnlineIT {
+    private String stage = "CONFIGURATION";
+
     @Test
     @Timeout(180)
     void chatAndEmbedding() {
         try {
             runSmoke();
         } catch (RuntimeException ex) {
-            throw com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures.safe(ex);
+            throw com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures.safe(stage, ex);
         }
+    }
+
+    private void logChat(org.springframework.ai.chat.model.ChatResponse response, long start) {
+        if (response == null
+                || response.getResult() == null
+                || response.getResult().getOutput() == null
+                || response.getResult().getOutput().getText() == null
+                || response.getResult().getOutput().getText().isBlank()) {
+            ModelResponseChecks.json(null);
+        }
+        var usage = response.getMetadata().getUsage();
+        System.out.printf(
+                "stage=%s model=%s elapsedMs=%d input=%s output=%s total=%s finish_reason=%s%n",
+                stage,
+                safeLabel(response.getMetadata().getModel()),
+                (System.nanoTime() - start) / 1_000_000,
+                usage.getPromptTokens(),
+                usage.getCompletionTokens(),
+                usage.getTotalTokens(),
+                safeLabel(response.getResult().getMetadata().getFinishReason()));
+    }
+
+    private String safeLabel(String value) {
+        return value != null && value.matches("[a-zA-Z0-9_.:/-]{1,100}") ? value : "unavailable";
     }
 
     private void runSmoke() {
@@ -41,26 +65,26 @@ class ModelOnlineIT {
         var config = new ModelConfiguration();
         var chat = config.chatModel(p);
         var embedding = config.embeddingModel(p);
+        stage = "CHAT_PLAIN";
         long start = System.nanoTime();
         var plain = chat.call(new Prompt("只回答数字：1+1等于多少？"));
-        assertThat(plain.getResult().getOutput().getText()).isNotBlank();
-        System.out.printf(
-                "chat model=%s elapsedMs=%d usage=%s%n",
-                plain.getMetadata().getModel(),
-                (System.nanoTime() - start) / 1_000_000,
-                plain.getMetadata().getUsage());
+        logChat(plain, start);
         var format = new OpenAiChatModel.ResponseFormat();
         format.setType(OpenAiChatModel.ResponseFormat.Type.JSON_OBJECT);
         // 三次独立原生 JSON mode 请求；通过不代表可靠性保证，也不等于 JSON Schema 支持。
         for (int i = 0; i < 3; i++) {
+            stage = "CHAT_JSON";
+            start = System.nanoTime();
             var structured = chat.call(new Prompt(
                     "返回 JSON 对象：answer 为字符串测试答案，citations 为字符串数组 [E1]。",
                     OpenAiChatOptions.builder().responseFormat(format).build()));
+            logChat(structured, start);
             ModelResponseChecks.json(structured.getResult().getOutput().getText());
         }
         var texts = List.of("Spring Boot 使用依赖注入管理 Bean。", "Redis 可以用作缓存。", "PostgreSQL 支持 pgvector 扩展。");
         Integer dimensions = p.getDimensions();
         for (var inputs : List.of(texts.subList(0, 1), texts)) {
+            stage = inputs.size() == 1 ? "EMBEDDING_SINGLE" : "EMBEDDING_BATCH";
             start = System.nanoTime();
             var response = embedding.call(new EmbeddingRequest(inputs, null));
             dimensions = ModelResponseChecks.embeddings(response, inputs.size(), dimensions);

@@ -11,6 +11,7 @@ public final class ModelFailures {
         RATE_LIMIT,
         SERVER,
         INVALID_RESPONSE,
+        CONFIGURATION,
         OTHER
     }
 
@@ -27,10 +28,22 @@ public final class ModelFailures {
                 if (status == 429) return Kind.RATE_LIMIT;
                 if (status >= 500) return Kind.SERVER;
             }
-            if (cause instanceof com.openai.errors.OpenAIInvalidDataException) return Kind.INVALID_RESPONSE;
+            if (cause instanceof ModelResponseChecks.InvalidResponseException
+                    || cause instanceof com.openai.errors.OpenAIInvalidDataException) return Kind.INVALID_RESPONSE;
         }
         return Kind.OTHER;
     }
+
+    public static IllegalStateException safe(String stage, Throwable failure) {
+        String safeStage =
+                switch (stage) {
+                    case "CONFIGURATION", "CHAT_PLAIN", "CHAT_JSON", "EMBEDDING_SINGLE", "EMBEDDING_BATCH" -> stage;
+                    default -> "UNKNOWN";
+                };
+        Kind kind = "CONFIGURATION".equals(safeStage) ? Kind.CONFIGURATION : classify(failure);
+        return new IllegalStateException("Model request failed: stage=" + safeStage + " kind=" + kind);
+    }
+
     // 不传播供应商消息、请求头或异常 cause，防止错误正文回显密钥。
     public static IllegalStateException safe(Throwable failure) {
         return new IllegalStateException("Model request failed: " + classify(failure));

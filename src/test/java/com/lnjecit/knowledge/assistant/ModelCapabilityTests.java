@@ -27,6 +27,54 @@ class ModelCapabilityTests {
     }
 
     @Test
+    void embeddingBoundaryFailuresAreSafe() {
+        var nullResults = org.mockito.Mockito.mock(EmbeddingResponse.class);
+        org.mockito.Mockito.when(nullResults.getResults()).thenReturn(null);
+        var nullOutput = org.mockito.Mockito.mock(Embedding.class);
+        org.mockito.Mockito.when(nullOutput.getOutput()).thenReturn(null);
+        for (var response : java.util.Arrays.asList(
+                null,
+                nullResults,
+                new EmbeddingResponse(java.util.Arrays.asList((Embedding) null)),
+                new EmbeddingResponse(List.of(nullOutput)),
+                new EmbeddingResponse(List.of(new Embedding(new float[0], 0))),
+                new EmbeddingResponse(List.of(new Embedding(new float[] {1}, -1))))) {
+            assertInvalid(response, 1);
+        }
+        assertInvalid(
+                new EmbeddingResponse(List.of(new Embedding(new float[] {1}, 0), new Embedding(new float[] {2}, 0))),
+                2);
+        assertInvalid(
+                new EmbeddingResponse(List.of(new Embedding(new float[] {1}, 0), new Embedding(new float[] {2, 3}, 1))),
+                2);
+    }
+
+    private void assertInvalid(EmbeddingResponse response, int count) {
+        Throwable failure = org.assertj.core.api.Assertions.catchThrowable(
+                () -> ModelResponseChecks.embeddings(response, count, null));
+        assertThat(failure)
+                .isInstanceOf(ModelResponseChecks.InvalidResponseException.class)
+                .hasNoCause();
+        assertThat(com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures.classify(failure)
+                        .name())
+                .isEqualTo("INVALID_RESPONSE");
+    }
+
+    @Test
+    void safeDiagnosticsPreserveStage() {
+        var secret = new IllegalStateException("offline-test-value");
+        for (String stage :
+                List.of("CONFIGURATION", "CHAT_PLAIN", "CHAT_JSON", "EMBEDDING_SINGLE", "EMBEDDING_BATCH")) {
+            assertThat(com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures.safe(stage, secret))
+                    .hasMessageContaining(stage)
+                    .hasMessageNotContaining("offline-test-value")
+                    .hasNoCause();
+        }
+        assertThat(com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures.safe("CONFIGURATION", secret))
+                .hasMessageContaining("kind=CONFIGURATION");
+    }
+
+    @Test
     void embeddingHttpPreservesProviderIndex() throws Exception {
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/v1/embeddings", exchange -> {
@@ -61,7 +109,7 @@ class ModelCapabilityTests {
 
     @Test
     void httpFailuresAreClassifiedAndSanitized() throws Exception {
-        for (int status : new int[] {401, 429, 503, 200}) {
+        for (int status : new int[] {401, 403, 429, 503, 200}) {
             var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
             server.createContext("/v1/chat/completions", exchange -> {
                 byte[] bytes = "{invalid offline-test-value".getBytes(StandardCharsets.UTF_8);
@@ -77,8 +125,10 @@ class ModelCapabilityTests {
                                 "http://127.0.0.1:" + server.getAddress().getPort() + "/v1"));
                 Throwable failure = org.assertj.core.api.Assertions.catchThrowable(() -> model.call("test"));
                 assertThat(failure).isNotNull();
+                if (status == 200) assertThat(failure).isInstanceOf(com.openai.errors.OpenAIInvalidDataException.class);
                 var kind = com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures.classify(failure);
-                if (status == 401) assertThat(kind.name()).isEqualTo("AUTHENTICATION");
+                if (status == 401 || status == 403) assertThat(kind.name()).isEqualTo("AUTHENTICATION");
+                if (status == 200) assertThat(kind.name()).isEqualTo("INVALID_RESPONSE");
                 if (status == 429) assertThat(kind.name()).isEqualTo("RATE_LIMIT");
                 if (status == 503) assertThat(kind.name()).isEqualTo("SERVER");
                 assertThat(com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures.safe(failure))
