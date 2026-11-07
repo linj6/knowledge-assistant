@@ -25,8 +25,6 @@ class EmbeddingBaselineOnlineIT {
         ModelProperties properties = new ModelProperties();
         properties.setEnabled(true);
         properties.setApiKey(key);
-        // 复用配置校验所需占位值，不创建 Chat 客户端或发送 Chat 请求。
-        properties.setChatModel("unused-baseline-chat");
         properties.setEmbeddingModel(MODEL);
         properties.setDimensions(DIMENSIONS);
         properties.setBaseUrl(endpoint);

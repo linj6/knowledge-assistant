@@ -170,10 +170,10 @@ class ModelCapabilityTests {
         assertThatThrownBy(() -> ModelConfiguration.validate(p)).hasMessageContaining("base-url");
         p.setBaseUrl("https://localhost/v1");
         p.setChatModel("");
-        assertThatThrownBy(() -> ModelConfiguration.validate(p)).hasMessageContaining("chat-model");
+        assertThatThrownBy(() -> ModelConfiguration.validateChat(p)).hasMessageContaining("chat-model");
         p.setChatModel("fake");
         p.setDimensions(0);
-        assertThatThrownBy(() -> ModelConfiguration.validate(p)).hasMessageContaining("dimensions");
+        assertThatThrownBy(() -> ModelConfiguration.validateEmbedding(p)).hasMessageContaining("dimensions");
     }
 
     @Test

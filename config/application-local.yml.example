@@ -1,17 +1,16 @@
+# 复制到同目录 application-local.yml；已有文件请手工补齐，不要覆盖。
+# 模型 ID、Endpoint、维度继承 classpath local 默认值。
+spring:
+  datasource:
+    password: "<LOCAL_POSTGRES_PASSWORD>"
 assistant:
   model:
-    enabled: false
     api-key: "<DASHSCOPE_API_KEY>"
-    base-url: "<BASE_URL>"
-    chat-model: "<CHAT_MODEL>"
-    embedding-model: "<EMBEDDING_MODEL>"
-    dimensions: "<EMBEDDING_DIMENSIONS_INTEGER>"
+    enabled: false
     online-authorized: false
   embedding:
     baseline-authorized: false
   rerank:
     enabled: false
-    endpoint: "<RERANK_ENDPOINT>"
-    model: "<RERANK_MODEL>"
-    api-key: "<DASHSCOPE_API_KEY>"
     online-authorized: false
+# 仅启用 Rerank 时另行填写 assistant.rerank.endpoint 和 api-key。
