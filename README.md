@@ -85,3 +85,5 @@ docker compose up -d --build
 400/405/415/500 对应 INVALID_ARGUMENT/METHOD_NOT_ALLOWED/UNSUPPORTED_MEDIA_TYPE/INTERNAL_ERROR。
 404 保留 MVC 默认行为。未知异常日志只记录 RequestId、错误码、异常类型，不记录消息或堆栈。
 不记录配置对象、环境变量全集、请求正文、Prompt、文档或密钥。本地开发基线不包含认证和审计。
+
+数据库连接、环境变量与真实集成测试命令见 [M0-05 验证记录](docs/engineering/m0-05-database-verification.md)。

@@ -1,7 +1,13 @@
 spring:
   application:
     name: knowledge-assistant
-
+  datasource:
+    url: ${KA_DB_URL:jdbc:postgresql://localhost:5432/ka}
+    username: ${KA_DB_USERNAME:ka}
+    password: ${KA_DB_PASSWORD}
+  flyway:
+    enabled: true
+    baseline-on-migrate: false
 assistant:
   model:
     enabled: false
