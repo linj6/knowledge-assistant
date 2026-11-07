@@ -125,3 +125,40 @@ TokenEstimator为独立本地估算器：Unicode码点数加调用方指定固�
 usage取舍：当前Reranker接口不暴露usage；为读取usage另发请求或复制HTTP协议会增加调用和重复实现，因此保持封装，明确输出usage=unavailable，不修改业务API。该入口不能提供真实usage/费用证据，后续若需要须另行评审受控诊断方案。本次没有执行RerankOnlineIT或任何真实供应商请求；地域、权限、真实协议/质量、usage、费用仍未验证，M0-06B及M0-06均未标记最终验收通过。
 
 本次实际验证：spotless:apply、spotless:check、`mvn -DskipTests test-compile`、`mvn '-Dtest=RerankTests,ModelCapabilityTests' test`通过；RerankTests 8项、ModelCapabilityTests 10项，共18项，失败0、错误0、跳过0。新增离线注入未知运行时故障、所有安全分类原样传播及在线配置授权门禁测试；既有Fake协议、非法响应和HTTP错误回归通过。在线IT仅编译及配置函数离线检查，默认排除依据*IT命名与Surefire默认规则检查，未执行在线测试。未运行全量clean verify、其他测试套件或Docker。
+
+## M0-06B Rerank 真实在线验收（2026-11-07）
+
+本节归档用户提供的真实 `RerankOnlineIT` 执行结果，本次文档任务未重新执行请求。模型为 `qwen3-rerank`，候选数为3，topN为3，单次请求耗时1786 ms，usage为 `unavailable`。
+
+| 返回顺序 | 稳定业务 ID | relevance score |
+|---|---|---:|
+| 1 | spring-di | 0.8793624122453081 |
+| 2 | weather | 0.10159243956770786 |
+| 3 | postgres | 0.07159474172730773 |
+
+`RerankOnlineIT`：1 passed，0 failures，0 errors，0 skipped；Maven：`BUILD SUCCESS`。该记录确认当前配置下的真实供应商连通性、qwen3-rerank 请求与响应解析，以及适配器结果通过既有数量、ID和分数检查。原始 index 到业务 ID 的对应关系仍以离线乱序测试为独立证据，不将在线结果视为对原始响应映射的独立核验。
+
+spring-di 在本次样本中得分最高仅为一次排序观察，不代表多样本排序质量、稳定性或业务检索收益已全面验证。1786 ms 为单次观测，不是性能基准或 SLA。usage=unavailable 表示当前业务接口未暴露该数据，不能据此推断供应商未返回usage，也不能推算费用。
+
+## M0-06 模型能力接入验收总结（2026-11-07）
+
+**M0-06 模型能力接入范围验收通过。** 依据为已有 M0-06A Chat/Embedding 在线记录、M0-06B 最终18项离线测试记录，以及本次1项 Rerank 在线成功记录；各批次结果分别记录，不将其描述为本轮全量测试通过。前述“尚未在线验证”“未整体验收”等表述保留为当时的历史状态，当前状态以本节为准。
+
+### 已验证的接入能力
+
+- Chat：当前 DashScope OpenAI-compatible Endpoint 下普通文本调用、qwen-plus 原生 JSON Mode 基础调用及当前字段类型校验通过；能够读取已记录的 Chat usage 和 finish_reason。
+- Embedding：当前配置下单条及批量调用成功，实测1024维；离线验证数量、维度、有限数值及 index 映射。Embedding 模型 ID 仍无可靠记录，不补填；不外推其他模型维度。
+- Rerank：qwen3-rerank 真实单次调用成功；离线验证稳定 ID 映射、严格响应校验、确定性排序、输入边界、错误分类及安全异常，在线结果通过当前入口检查。
+- Token 估算：本地估算算法及Unicode、参数和大整数边界已离线验证，返回 exact=false；这仅证明实现行为符合设计。
+
+### 限制与尚未验证事项
+
+TokenEstimator 使用码点和固定开销加余量，默认20%未经真实usage校准，不是模型专用Tokenizer，不保证不会低估，也不能精确预检供应商Token上限或证明上下文窗口预算正确。
+
+已记录的 Chat usage 和 Embedding tokens 不等于所有阶段的用量均已验证：Rerank usage仍不可获取，跨阶段用量归集、估算误差校准、真实账单和费用核对尚未完成。多样本排序质量、相关性指标、稳定性、性能分布与检索增益均未验证；JSON结构化输出的统计可靠性、自定义Embedding维度和pgvector实际兼容等既有限制继续有效。
+
+### 后续 M2/M3 业务边界
+
+本次验收仅覆盖模型能力接入，不代表知识库问答链路已完成。M2/M3阶段才按实施计划实现和验收检索编排、混合检索与RRF融合、完整重排编排、ContextBuilder及上下文预算、RAG回答与引用校验等业务能力；本次不提前实现，也不以单次模型成功替代这些业务验收。
+
+本次仅更新本报告并审阅文档差异、执行 `git diff --check`；未执行Maven、真实模型请求、Docker或全量测试。上述在线与离线结果均为已有证据归档，不标记为本次重新运行。
