@@ -9,7 +9,6 @@ import org.junit.jupiter.api.Timeout;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.embedding.EmbeddingRequest;
 import org.springframework.ai.openai.OpenAiChatModel;
-import org.springframework.ai.openai.OpenAiChatOptions;
 
 // IT 命名排除在默认 Surefire 执行之外；显式执行时缺少配置必须失败。
 class ModelOnlineIT {
@@ -77,7 +76,7 @@ class ModelOnlineIT {
             start = System.nanoTime();
             var structured = chat.call(new Prompt(
                     "返回 JSON 对象：answer 为字符串测试答案，citations 为字符串数组 [E1]。",
-                    OpenAiChatOptions.builder().responseFormat(format).build()));
+                    chat.getOptions().mutate().responseFormat(format).build()));
             logChat(structured, start);
             ModelResponseChecks.json(structured.getResult().getOutput().getText());
         }

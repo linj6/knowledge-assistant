@@ -27,6 +27,13 @@ class ModelCapabilityTests {
     }
 
     @Test
+    void requestOptionsDoNotInheritModelDefaults() {
+        var options = org.springframework.ai.openai.OpenAiChatOptions.builder().build();
+        assertThat(options.getModel()).isNotEqualTo("fake-chat");
+        System.out.println("SDK_DEFAULT_MODEL=" + options.getModel());
+    }
+
+    @Test
     void embeddingBoundaryFailuresAreSafe() {
         var nullResults = org.mockito.Mockito.mock(EmbeddingResponse.class);
         org.mockito.Mockito.when(nullResults.getResults()).thenReturn(null);
@@ -197,6 +204,12 @@ class ModelCapabilityTests {
         server.createContext("/v1/chat/completions", exchange -> {
             var body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             assertThat(body).contains("fake-chat", "messages");
+            if (body.contains("response_format")) {
+                var json =
+                        tools.jackson.databind.json.JsonMapper.builder().build().readTree(body);
+                assertThat(json.path("response_format").path("type").asString()).isEqualTo("json_object");
+                assertThat(json.path("max_tokens").asInt()).isEqualTo(128);
+            }
             byte[] response =
                     "{\"id\":\"fake\",\"object\":\"chat.completion\",\"created\":1,\"model\":\"fake-chat\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"ok\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":1,\"total_tokens\":3}}"
                             .getBytes(StandardCharsets.UTF_8);
@@ -211,6 +224,18 @@ class ModelCapabilityTests {
                     .chatModel(
                             properties("http://127.0.0.1:" + server.getAddress().getPort() + "/v1"));
             assertThat(model.call("test")).isEqualTo("ok");
+            var format = new org.springframework.ai.openai.OpenAiChatModel.ResponseFormat();
+            format.setType(org.springframework.ai.openai.OpenAiChatModel.ResponseFormat.Type.JSON_OBJECT);
+            var options = model.getOptions().mutate().responseFormat(format).build();
+            assertThat(options.getModel()).isEqualTo("fake-chat");
+            assertThat(options.getTimeout()).isEqualTo(java.time.Duration.ofSeconds(1));
+            assertThat(options.getMaxRetries()).isZero();
+            assertThat(model.call(new org.springframework.ai.chat.prompt.Prompt("return JSON", options))
+                            .getResult()
+                            .getOutput()
+                            .getText())
+                    .isEqualTo("ok");
+            assertThat(model.getOptions().getResponseFormat()).isNull();
         } finally {
             server.stop(0);
         }

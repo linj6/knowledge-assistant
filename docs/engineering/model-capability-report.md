@@ -64,3 +64,18 @@ mvn '-Dtest=ModelOnlineIT' test
 ## 本轮验收结果
 
 mvn spotless:apply、mvn spotless:check、mvn clean verify、git diff --check 已通过。默认测试30项，失败0、错误0、跳过0；其中新增模型测试7项。在线未运行，真实请求0次。本次提交仅包含离线工程实现，真实在线验证待后续完成。
+
+## JSON Mode 失败排查（2026-11-07）
+
+用户提供的真实记录：qwen-plus 普通 Chat 成功，input=18、output=1、total=19，耗时2994ms，finish_reason=STOP；JSON 阶段 OTHER，Embedding 未执行。此处为用户提供证据，本轮未重跑真实请求。
+
+实际 2.0.2 JAR 的 buildRequestPrompt 仅在 Prompt.options=null 时采用模型默认 Options，不合并非空请求 Options。
+离线确认全新 OpenAiChatOptions.builder() 默认模型是 gpt-5-mini；旧 JSON 调用因此丢失已配置的 qwen-plus。
+最小修复：从 chat.getOptions().mutate() 派生 JSON 请求 Options，仅修改 responseFormat。
+本地 HTTP 回归确认模型、max_tokens=128、response_format.type=json_object；Options 保留超时和零重试，且不修改模型默认 Options。
+
+原真实异常已被脱敏，无法从 OTHER 还原类名或 HTTP 状态，不宣称供应商不支持 JSON Mode。
+增加 REQUEST_REJECTED（其他 HTTP 4xx）与 CONNECTION 分类，安全失败消息仅增加异常类名、可得的 HTTP 状态，不输出消息正文或 Header。
+离线连接失败实际类型为 OpenAIIoException；不能将该本地实验异常当成原真实失败类型。
+本轮 spotless:apply、spotless:check、clean verify、diff --check 通过；33项默认离线测试全部通过。
+仍需真实请求确认修复后的 qwen-plus JSON Mode 与 Embedding；本轮真实调用0次；本次提交仅修复 Options 构造与安全诊断。
