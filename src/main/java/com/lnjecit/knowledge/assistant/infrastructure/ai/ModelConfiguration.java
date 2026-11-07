@@ -28,11 +28,11 @@ public class ModelConfiguration {
         } catch (RuntimeException ex) {
             throw new IllegalStateException("assistant.model.base-url must be an HTTP endpoint without credentials");
         }
-        if (p.getChatModel() == null
-                || p.getChatModel().isBlank()
-                || p.getEmbeddingModel() == null
-                || p.getEmbeddingModel().isBlank()) {
-            throw new IllegalStateException("assistant.model chat-model and embedding-model are required when enabled");
+        if (p.getChatModel() == null || p.getChatModel().isBlank()) {
+            throw new IllegalStateException("assistant.model.chat-model is required when enabled");
+        }
+        if (p.getEmbeddingModel() == null || p.getEmbeddingModel().isBlank()) {
+            throw new IllegalStateException("assistant.model.embedding-model is required when enabled");
         }
         if (p.getDimensions() != null && (p.getDimensions() < 1 || p.getDimensions() > 16000)) {
             throw new IllegalStateException("assistant.model.dimensions must be between 1 and 16000");

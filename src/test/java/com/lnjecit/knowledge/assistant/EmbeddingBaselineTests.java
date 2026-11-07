@@ -14,6 +14,53 @@ import tools.jackson.databind.json.JsonMapper;
 
 class EmbeddingBaselineTests {
     @Test
+    void configurationFailuresAreSafeAndDoNotSendRequests() throws Exception {
+        java.util.concurrent.atomic.AtomicInteger requests = new java.util.concurrent.atomic.AtomicInteger();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            requests.incrementAndGet();
+            exchange.close();
+        });
+        server.start();
+        try {
+            String endpoint = "http://127.0.0.1:" + server.getAddress().getPort() + "/v1";
+            for (boolean missingKey : new boolean[] {true, false}) {
+                com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties properties =
+                        EmbeddingBaselineOnlineIT.properties(endpoint, missingKey ? null : "secret-fixture-value");
+                if (!missingKey) properties.setEmbeddingModel(" ");
+                RuntimeException failure = org.junit.jupiter.api.Assertions.assertThrows(
+                        IllegalStateException.class, () -> new ModelConfiguration()
+                                .embeddingModel(properties)
+                                .call(new EmbeddingRequest(java.util.List.of("test"), null)));
+                assertThat(com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures.classify(failure))
+                        .isEqualTo(com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures.Kind.CONFIGURATION);
+                IllegalStateException safe =
+                        com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures.safe("CONFIGURATION", failure);
+                assertThat(safe).hasMessageContaining(missingKey ? "MISSING_API_KEY" : "MISSING_EMBEDDING_MODEL");
+                assertThat(safe).hasMessageNotContaining("secret-fixture-value").hasNoCause();
+                assertThat(safe.getCause()).isNull();
+            }
+            assertThat(requests.get()).isZero();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void unknownRawMessagesAndCausesAreDiscarded() {
+        RuntimeException raw = new IllegalStateException(
+                "secret-fixture-value", new RuntimeException("Authorization: secret-fixture-value"));
+        assertThat(com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures.safe("EMBEDDING_SINGLE", raw))
+                .hasMessageContaining("stage=EMBEDDING_SINGLE")
+                .hasMessageNotContaining("secret-fixture-value")
+                .hasNoCause();
+        assertThat(com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures.safe("CONFIGURATION", raw))
+                .hasMessageContaining("kind=CONFIGURATION")
+                .hasMessageNotContaining("secret-fixture-value")
+                .hasNoCause();
+    }
+
+    @Test
     void explicitModelAndDimensionsReachWire() throws Exception {
         AtomicReference<String> captured = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);

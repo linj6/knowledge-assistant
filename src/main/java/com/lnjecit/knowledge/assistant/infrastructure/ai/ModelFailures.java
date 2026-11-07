@@ -43,6 +43,7 @@ public final class ModelFailures {
     public static Kind classify(Throwable failure) {
         for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
             if (cause instanceof SafeModelException safe) return safe.kind;
+            if (configurationCode(cause) != null) return Kind.CONFIGURATION;
             if (cause instanceof SocketTimeoutException
                     || cause instanceof TimeoutException
                     || cause instanceof java.net.http.HttpTimeoutException) return Kind.TIMEOUT;
@@ -75,9 +76,27 @@ public final class ModelFailures {
                     default -> "UNKNOWN";
                 };
         Kind kind = "CONFIGURATION".equals(safeStage) ? Kind.CONFIGURATION : classify(failure);
+        String code = configurationCode(failure);
         return new IllegalStateException("Model request failed: stage=" + safeStage + " kind=" + kind + " exception="
                 + failure.getClass().getName()
+                + (code == null ? "" : " code=" + code)
                 + (failure instanceof OpenAIServiceException service ? " httpStatus=" + service.statusCode() : ""));
+    }
+
+    private static String configurationCode(Throwable failure) {
+        if (!(failure instanceof IllegalStateException) || failure.getMessage() == null) return null;
+        return switch (failure.getMessage()) {
+            case "assistant.model.api-key is required when enabled" -> "MISSING_API_KEY";
+            case "assistant.model chat-model and embedding-model are required when enabled" -> "MISSING_MODEL_ID";
+            case "assistant.model.embedding-model is required when enabled" -> "MISSING_EMBEDDING_MODEL";
+            case "assistant.model.chat-model is required when enabled" -> "MISSING_CHAT_MODEL";
+            case "assistant.model.base-url must be an HTTP endpoint without credentials" -> "INVALID_ENDPOINT";
+            case "assistant.model.dimensions must be between 1 and 16000" -> "INVALID_DIMENSIONS";
+            case "assistant.model.timeout-seconds must be between 1 and 300" -> "INVALID_TIMEOUT";
+            case "Explicit model online authorization required" -> "MISSING_ONLINE_AUTHORIZATION";
+            case "Explicit embedding baseline authorization required" -> "MISSING_BASELINE_AUTHORIZATION";
+            default -> null;
+        };
     }
 
     // 不传播供应商消息、请求头或异常 cause，防止错误正文回显密钥。
