@@ -1,0 +1,98 @@
+package com.lnjecit.knowledge.assistant;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import com.lnjecit.knowledge.assistant.ingestion.*;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+
+class DocumentParserTests {
+    private final DocumentParser parser = new DocumentParser();
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "English 123",
+                "中文",
+                "😀𠀀",
+                "\uFEFF正文",
+                "a\nb\n",
+                "a\r\nb",
+                "a\rb\nc\r\n",
+                "end",
+                "end\n",
+                "**行内** `code`",
+                "- 列表\n> 引用",
+                "同文\n\n同文"
+            })
+    void preservesSource(String source) {
+        for (String name : List.of("a.md", "a.txt")) {
+            ParsedDocument parsed = parse(name, source);
+            assertEquals(source, parsed.source());
+            assertEquals(parsed, parse(name, source));
+            StringBuilder rebuilt = new StringBuilder();
+            for (ParsedDocument.Fragment fragment : parsed.fragments())
+                rebuilt.append(fragment.span().extract(source));
+            assertEquals(source, rebuilt.toString());
+        }
+    }
+
+    @Test
+    void headingsAndFences() {
+        String source =
+                "\uFEFF# 中文😀\r\n## JVM\r\n### GC\r\n正文𠀀\r\n```java\r\n# 假标题\r\n```\r\n## JVM\r\n同文\r\n#### 跳跃\r\n> 引用\r\n# 新标题";
+        ParsedDocument parsed = parse("a.md", source);
+        assertEquals(List.of("中文😀", "JVM", "GC"), titles(parsed, 3));
+        assertEquals(titles(parsed, 3), titles(parsed, 5));
+        assertEquals(List.of("中文😀", "JVM"), titles(parsed, 8));
+        assertEquals(List.of("中文😀", "JVM", "跳跃"), titles(parsed, 10));
+        assertEquals(List.of("新标题"), titles(parsed, 11));
+        assertEquals(
+                source,
+                parsed.fragments().stream().map(f -> f.span().extract(source)).reduce("", String::concat));
+        assertEquals(
+                1, parsed.fragments().getFirst().headingPath().getFirst().span().start() - 2);
+        assertNotEquals(
+                parsed.fragments().get(1).headingPath().getLast().span(),
+                parsed.fragments().get(7).headingPath().getLast().span());
+    }
+
+    @Test
+    void failures() {
+        for (String source : List.of("", " \r\n\t", "\uFEFF \u00a0"))
+            assertEquals(
+                    ParseException.Kind.NO_CONTENT,
+                    assertThrows(ParseException.class, () -> parse("a.txt", source))
+                            .kind());
+        assertEquals(
+                ParseException.Kind.INVALID_UTF8,
+                assertThrows(ParseException.class, () -> parser.parse("a.md", new byte[] {(byte) 0xc0, (byte) 0xaf}))
+                        .kind());
+        assertEquals(
+                ParseException.Kind.UNSUPPORTED_FORMAT,
+                assertThrows(ParseException.class, () -> parse("a.pdf", "text")).kind());
+    }
+
+    @Test
+    void rejectsUnreliableRanges() {
+        assertThrows(ParseException.class, () -> new SourceSpan(-1, 1));
+        assertThrows(ParseException.class, () -> new SourceSpan(1, 1));
+        assertThrows(ParseException.class, () -> new SourceSpan(0, 3).extract("😀中"));
+        assertThrows(
+                ParseException.class,
+                () -> new ParsedDocument("abc", List.of(new ParsedDocument.Fragment(new SourceSpan(1, 3), List.of()))));
+    }
+
+    private ParsedDocument parse(String name, String source) {
+        return parser.parse(name, source.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private List<String> titles(ParsedDocument parsed, int line) {
+        return parsed.fragments().get(line).headingPath().stream()
+                .map(ParsedDocument.Heading::text)
+                .toList();
+    }
+}
