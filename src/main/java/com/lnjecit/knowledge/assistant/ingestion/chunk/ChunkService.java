@@ -67,6 +67,7 @@ public class ChunkService {
         List<DocumentChunk> result = new ArrayList<>();
         for (DocumentSplitter.Chunk candidate : split) {
             DocumentChunk chunk = new DocumentChunk();
+            chunk.setVersion(0);
             chunk.setKnowledgeBaseId(document.getKnowledgeBaseId());
             chunk.setDocumentId(documentId);
             chunk.setIndexVersionId(versionId);

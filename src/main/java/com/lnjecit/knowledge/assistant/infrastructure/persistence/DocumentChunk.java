@@ -15,6 +15,8 @@ public class DocumentChunk {
     /** 服务端生成的 Snowflake 主键，数据库不自增。 */
     @TableId(type = IdType.ASSIGN_ID)
     private Long id;
+    /** 记录级乐观锁版本，与索引版本及 Worker fencing 无关。 */
+    private Integer version;
     /** 所属知识库标识；无外键，关联存在性与归属由业务事务校验。 */
     private Long knowledgeBaseId;
     /** 所属文档标识；关联存在性与版本归属由业务事务校验。 */

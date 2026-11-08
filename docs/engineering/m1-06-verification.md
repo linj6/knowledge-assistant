@@ -52,3 +52,15 @@ EmbeddingProperties统一 DEFAULT_BATCH_SIZE/MAX_BATCH_SIZE（均16），Service
 保留并发发布互斥/fencing和提交后网络断连故障注入边界；本次没有实现Worker、发布或新状态机，没有在线模型请求或全量clean verify。此前“真实PG跨批恢复尚未组合”的记录为历史状态，本节补充其组合验证。
 
 本轮实际验证：`mvn spotless:apply`、`mvn spotless:check`、`mvn -DskipTests test-compile` 成功；`mvn '-Dtest=EmbeddingServiceTests,EmbeddingBaselineTests,ModelCapabilityTests,EmbeddingPersistenceIT' test` 共18项通过（4+3+10+1），0失败、0错误、0跳过，包含真实PostgreSQL 17.6及V1～V4迁移、XML实际更新及跨批恢复。`git diff --check`通过。首次脚本受系统默认GBK编码影响，修正新增文件为UTF-8后重新格式化、编译和测试成功。
+
+## Chunk 记录级乐观锁（基线 ab2e9ec）
+
+新增V5：document_chunk.version INTEGER NOT NULL DEFAULT 0，不修改V1～V4，不新增索引；现有主键足以定位更新行。ChunkService明确初始化version=0，MyBatis按字段映射读取。该version是记录级版本，与IndexVersion索引构建版本、Worker fencing均不同，不使用MyBatis-Plus乐观锁拦截器。
+
+Embedding XML以ID、索引版本、归属、expectedVersion及NULL embedding定位；SET embedding同时SET version=version+1。正文、标题和范围不再逐字段放入WHERE。EXISTS保留版本BUILDING、未发布、发布指针为空、文档/KB归属和模型/维度快照条件。Repository传入模型调用前读取的Chunk.version，写入后不修改旧内存快照；批次失败数据库embedding和version一起回滚。受影响行为0时按ID重读：版本状态失效拒绝、归属异常拒绝、embedding仍NULL且version变化报告乐观锁冲突；已完成且元数据一致则保留已有向量和数据库版本号，不覆盖。
+
+未来任何Chunk正文/来源更新必须原子递增version；绕过版本协议的直接SQL修改不受此乐观锁保护。本次不提供正文更新、重建API或Worker，不声称解决发布互斥和fencing竞态。整数版本溢出由PostgreSQL拒绝并回滚，不回绕复用旧版本。
+
+真实PG测试补充：新建0、写向量后1、旧版本重试保留ID/向量/version、两个持有相同版本的更新只有一个成功、version已递增但embedding仍NULL时旧结果被拒绝；SQL层验证跨索引版本、模型/维度不匹配、三种非BUILDING状态、非空发布指针均拒绝。触发器令同批第二条失败，验证首条embedding与version均回滚。保留17条16+1跨批恢复。独立从Flyway target=4插入历史Chunk后升级V5，移除新增version字段后逐字段比较前后记录完全一致，新增version=0。
+
+本轮实际命令：`mvn spotless:apply`、`mvn spotless:check`、`mvn -DskipTests test-compile` 全部成功；`mvn '-Dtest=EmbeddingServiceTests,EmbeddingBaselineTests,ModelCapabilityTests,EmbeddingPersistenceIT,ChunkPersistenceIT,DocumentLifecycleMigrationTests' test` 共21项通过（4+3+10+2+1+1），0失败/错误/跳过。将双执行者场景改为分别读取相同版本并用两个CompletableFuture并发调用真实Mapper后，再次执行格式化、格式检查、test-compile及 `mvn '-Dtest=EmbeddingPersistenceIT' test`，2项通过，0失败/错误/跳过；并发更新结果为1和0。真实PostgreSQL 17.6、仓库固定pgvector镜像，V4到V5升级及新库V1～V5均成功。完整diff已审阅，`git diff --check`通过。未调用真实供应商、未执行全量测试或Worker/发布竞态验证。

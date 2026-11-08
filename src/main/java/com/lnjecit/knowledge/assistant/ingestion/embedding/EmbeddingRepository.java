@@ -50,7 +50,9 @@ public class EmbeddingRepository {
         for (int i = 0; i < rows.size(); i++) {
             DocumentChunk c = rows.get(i);
             if (c.getEmbedding() != null) validateVector(c.getEmbedding(), v.getEmbeddingDimension());
-            if (c.getId() == null
+            if (c.getVersion() == null
+                    || c.getVersion() < 0
+                    || c.getId() == null
                     || !ids.add(c.getId())
                     || !Objects.equals(c.getChunkOrder(), i)
                     || !documentId.equals(c.getDocumentId())
@@ -87,10 +89,16 @@ public class EmbeddingRepository {
             DocumentChunk c = batch.get(i);
             if (!documentId.equals(c.getDocumentId()) || !versionId.equals(c.getIndexVersionId()))
                 throw new IllegalStateException("Embedding batch ownership invalid");
+            if (c.getVersion() == null || c.getVersion() < 0)
+                throw new IllegalStateException("Embedding chunk version invalid");
             int updated;
             try {
-                updated =
-                        mapper.write(c, vectors.get(i), snapshot.getEmbeddingModel(), snapshot.getEmbeddingDimension());
+                updated = mapper.write(
+                        c,
+                        vectors.get(i),
+                        c.getVersion(),
+                        snapshot.getEmbeddingModel(),
+                        snapshot.getEmbeddingDimension());
             } catch (RuntimeException failure) {
                 throw new IllegalStateException("Embedding database write failed");
             }
@@ -115,6 +123,8 @@ public class EmbeddingRepository {
                     throw new IllegalStateException("Embedding chunk ownership invalid");
                 if (stored.getEmbedding() != null)
                     validateVector(stored.getEmbedding(), snapshot.getEmbeddingDimension());
+                if (stored.getEmbedding() == null && !Objects.equals(stored.getVersion(), c.getVersion()))
+                    throw new IllegalStateException("Embedding optimistic lock conflict");
                 if (!Objects.equals(stored.getContent(), c.getContent())
                         || !Objects.equals(stored.getHeadingPath(), c.getHeadingPath())
                         || !Objects.equals(stored.getSourceStart(), c.getSourceStart())

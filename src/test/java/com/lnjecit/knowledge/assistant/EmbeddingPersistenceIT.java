@@ -28,6 +28,31 @@ class EmbeddingPersistenceIT {
             .withImagePullPolicy(image -> false);
 
     @Test
+    void upgradeV4PreservesExistingChunk() {
+        org.springframework.jdbc.datasource.DriverManagerDataSource source =
+                new org.springframework.jdbc.datasource.DriverManagerDataSource(
+                        postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+        org.flywaydb.core.Flyway.configure()
+                .dataSource(source)
+                .target("4")
+                .load()
+                .migrate();
+        JdbcTemplate jdbc = new JdbcTemplate(source);
+        jdbc.update(
+                "INSERT INTO document_chunk(id,knowledge_base_id,document_id,index_version_id,chunk_order,content,source_start,source_end) VALUES(99,1,2,3,0,'existing',0,8)");
+        java.util.Map<String, Object> before = jdbc.queryForMap("SELECT * FROM document_chunk WHERE id=99");
+        assertThat(org.flywaydb.core.Flyway.configure()
+                        .dataSource(source)
+                        .load()
+                        .migrate()
+                        .migrationsExecuted)
+                .isEqualTo(1);
+        java.util.Map<String, Object> after = jdbc.queryForMap("SELECT * FROM document_chunk WHERE id=99");
+        assertThat(after.remove("version")).isEqualTo(0);
+        assertThat(after).isEqualTo(before);
+    }
+
+    @Test
     void retryRollbackAndUniqueConstraint() {
         SpringApplication app = new SpringApplication(KnowledgeAssistantApplication.class);
         app.setWebApplicationType(WebApplicationType.NONE);
@@ -53,6 +78,7 @@ class EmbeddingPersistenceIT {
                     service.initialize(2L, 3L, parsed);
             com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingRepository embeddings =
                     context.getBean(com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingRepository.class);
+            assertThat(first).allMatch(c -> Integer.valueOf(0).equals(c.getVersion()));
             String vector = java.util.Arrays.toString(new float[1024]);
             embeddings.write(2L, 3L, first, java.util.Collections.nCopies(first.size(), vector));
             assertThat(jdbc.queryForObject(
@@ -64,6 +90,7 @@ class EmbeddingPersistenceIT {
                             "UPDATE document_chunk SET embedding='[1,2]' WHERE id=?",
                             first.getFirst().getId()))
                     .isInstanceOf(RuntimeException.class);
+            assertThat(embeddings.read(2L, 3L)).allMatch(c -> Integer.valueOf(1).equals(c.getVersion()));
             String original = jdbc.queryForObject(
                     "SELECT embedding::text FROM document_chunk WHERE id=?",
                     String.class,
@@ -78,7 +105,7 @@ class EmbeddingPersistenceIT {
                             String.class,
                             first.getFirst().getId()))
                     .isEqualTo(original);
-            jdbc.update("UPDATE document_chunk SET embedding=NULL WHERE index_version_id=3");
+            jdbc.update("UPDATE document_chunk SET embedding=NULL,version=0 WHERE index_version_id=3");
             java.util.List<String> invalid =
                     new java.util.ArrayList<>(java.util.Collections.nCopies(first.size(), vector));
             invalid.set(invalid.size() - 1, "[1,2]");
@@ -96,6 +123,7 @@ class EmbeddingPersistenceIT {
             assertThat(jdbc.queryForObject(
                             "SELECT count(*) FROM document_chunk WHERE embedding IS NOT NULL", Integer.class))
                     .isZero();
+            assertThat(embeddings.read(2L, 3L)).allMatch(c -> Integer.valueOf(0).equals(c.getVersion()));
             jdbc.execute("DROP TRIGGER reject_embedding ON document_chunk");
             embeddings.write(2L, 3L, first, java.util.Collections.nCopies(first.size(), vector));
             assertThat(service.initialize(2L, 3L, parsed))
@@ -213,6 +241,49 @@ class EmbeddingPersistenceIT {
             assertThatThrownBy(() -> embeddingService.embed(2L, 7L)).hasMessageContaining("input limit");
             org.mockito.Mockito.verify(model, org.mockito.Mockito.never())
                     .call(org.mockito.ArgumentMatchers.any(org.springframework.ai.embedding.EmbeddingRequest.class));
+            jdbc.update("INSERT INTO document_index_version(id,document_id,chunking_config) VALUES(8,2,?)", config);
+            java.util.List<com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk> locked =
+                    service.initialize(2L, 8L, new TxtDocumentParser().parse("lock".getBytes(StandardCharsets.UTF_8)));
+            com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingMapper mapper =
+                    context.getBean(com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingMapper.class);
+            com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk candidate = locked.getFirst();
+            assertThat(mapper.write(candidate, vector, 0, "wrong-model", 1024)).isZero();
+            assertThat(mapper.write(candidate, vector, 0, "text-embedding-v4", 512))
+                    .isZero();
+            for (String state : new String[] {"VERIFIED", "PUBLISHED", "FAILED"}) {
+                jdbc.update("UPDATE document_index_version SET status=? WHERE id=8", state);
+                assertThat(mapper.write(candidate, vector, 0, "text-embedding-v4", 1024))
+                        .isZero();
+            }
+            jdbc.update("UPDATE document_index_version SET status='BUILDING' WHERE id=8");
+            jdbc.update("UPDATE document SET active_version_id=8 WHERE id=2");
+            assertThat(mapper.write(candidate, vector, 0, "text-embedding-v4", 1024))
+                    .isZero();
+            jdbc.update("UPDATE document SET active_version_id=NULL WHERE id=2");
+            candidate.setIndexVersionId(5L);
+            assertThat(mapper.write(candidate, vector, 0, "text-embedding-v4", 1024))
+                    .isZero();
+            candidate.setIndexVersionId(8L);
+            jdbc.update("UPDATE document_chunk SET version=version+1 WHERE id=?", candidate.getId());
+            assertThatThrownBy(() -> embeddings.write(2L, 8L, locked, java.util.List.of(vector)))
+                    .hasMessageContaining("optimistic lock");
+            assertThat(mapper.write(candidate, vector, 0, "text-embedding-v4", 1024))
+                    .isZero();
+            // 两个执行者分别读取相同版本，并发提交时只有一个条件更新成功。
+            com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk contenderA =
+                    embeddings.read(2L, 8L).getFirst();
+            com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk contenderB =
+                    embeddings.read(2L, 8L).getFirst();
+            java.util.concurrent.CompletableFuture<Integer> updateA =
+                    java.util.concurrent.CompletableFuture.supplyAsync(
+                            () -> mapper.write(contenderA, vector, contenderA.getVersion(), "text-embedding-v4", 1024));
+            java.util.concurrent.CompletableFuture<Integer> updateB =
+                    java.util.concurrent.CompletableFuture.supplyAsync(
+                            () -> mapper.write(contenderB, vector, contenderB.getVersion(), "text-embedding-v4", 1024));
+            assertThat(java.util.List.of(updateA.join(), updateB.join())).containsExactlyInAnyOrder(1, 0);
+            assertThat(embeddings.read(2L, 8L).getFirst().getVersion()).isEqualTo(2);
+            embeddings.write(2L, 8L, locked, java.util.List.of(vector));
+            assertThat(embeddings.read(2L, 8L).getFirst().getVersion()).isEqualTo(2);
         }
     }
 }

@@ -9,6 +9,7 @@ public interface EmbeddingMapper {
     int write(
             @Param("c") DocumentChunk chunk,
             @Param("vector") String vector,
+            @Param("expectedVersion") int expectedVersion,
             @Param("model") String model,
             @Param("dimension") int dimension);
 }
