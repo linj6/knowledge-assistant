@@ -244,46 +244,82 @@ class EmbeddingPersistenceIT {
             jdbc.update("INSERT INTO document_index_version(id,document_id,chunking_config) VALUES(8,2,?)", config);
             java.util.List<com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk> locked =
                     service.initialize(2L, 8L, new TxtDocumentParser().parse("lock".getBytes(StandardCharsets.UTF_8)));
-            com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingMapper mapper =
-                    context.getBean(com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingMapper.class);
-            com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk candidate = locked.getFirst();
-            assertThat(mapper.write(candidate, vector, 0, "wrong-model", 1024)).isZero();
-            assertThat(mapper.write(candidate, vector, 0, "text-embedding-v4", 512))
-                    .isZero();
             for (String state : new String[] {"VERIFIED", "PUBLISHED", "FAILED"}) {
                 jdbc.update("UPDATE document_index_version SET status=? WHERE id=8", state);
-                assertThat(mapper.write(candidate, vector, 0, "text-embedding-v4", 1024))
-                        .isZero();
+                assertThatThrownBy(() -> embeddings.write(2L, 8L, locked, java.util.List.of(vector)))
+                        .hasMessageContaining("version unavailable");
             }
-            jdbc.update("UPDATE document_index_version SET status='BUILDING' WHERE id=8");
+            jdbc.update("UPDATE document_index_version SET status='BUILDING',published_at=now() WHERE id=8");
+            assertThatThrownBy(() -> embeddings.write(2L, 8L, locked, java.util.List.of(vector)))
+                    .hasMessageContaining("version unavailable");
+            jdbc.update("UPDATE document_index_version SET published_at=NULL WHERE id=8");
             jdbc.update("UPDATE document SET active_version_id=8 WHERE id=2");
-            assertThat(mapper.write(candidate, vector, 0, "text-embedding-v4", 1024))
-                    .isZero();
+            assertThatThrownBy(() -> embeddings.write(2L, 8L, locked, java.util.List.of(vector)))
+                    .hasMessageContaining("version unavailable");
             jdbc.update("UPDATE document SET active_version_id=NULL WHERE id=2");
-            candidate.setIndexVersionId(5L);
-            assertThat(mapper.write(candidate, vector, 0, "text-embedding-v4", 1024))
-                    .isZero();
-            candidate.setIndexVersionId(8L);
+            com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties properties =
+                    context.getBean(com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties.class);
+            properties.setEmbeddingModel("wrong");
+            assertThatThrownBy(() -> embeddings.write(2L, 8L, locked, java.util.List.of(vector)))
+                    .hasMessageContaining("snapshot mismatch");
+            properties.setEmbeddingModel("text-embedding-v4");
+            properties.setDimensions(512);
+            assertThatThrownBy(() -> embeddings.write(2L, 8L, locked, java.util.List.of(vector)))
+                    .hasMessageContaining("snapshot mismatch");
+            properties.setDimensions(1024);
+            assertThatThrownBy(() -> embeddings.write(2L, 5L, locked, java.util.List.of(vector)))
+                    .hasMessageContaining("ownership");
+            com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk candidate = locked.getFirst();
             jdbc.update("UPDATE document_chunk SET version=version+1 WHERE id=?", candidate.getId());
             assertThatThrownBy(() -> embeddings.write(2L, 8L, locked, java.util.List.of(vector)))
                     .hasMessageContaining("optimistic lock");
-            assertThat(mapper.write(candidate, vector, 0, "text-embedding-v4", 1024))
-                    .isZero();
-            // 两个执行者分别读取相同版本，并发提交时只有一个条件更新成功。
-            com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk contenderA =
-                    embeddings.read(2L, 8L).getFirst();
-            com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk contenderB =
-                    embeddings.read(2L, 8L).getFirst();
-            java.util.concurrent.CompletableFuture<Integer> updateA =
-                    java.util.concurrent.CompletableFuture.supplyAsync(
-                            () -> mapper.write(contenderA, vector, contenderA.getVersion(), "text-embedding-v4", 1024));
-            java.util.concurrent.CompletableFuture<Integer> updateB =
-                    java.util.concurrent.CompletableFuture.supplyAsync(
-                            () -> mapper.write(contenderB, vector, contenderB.getVersion(), "text-embedding-v4", 1024));
-            assertThat(java.util.List.of(updateA.join(), updateB.join())).containsExactlyInAnyOrder(1, 0);
+            java.util.List<com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk> contenderA =
+                    embeddings.read(2L, 8L);
+            java.util.List<com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk> contenderB =
+                    embeddings.read(2L, 8L);
+            java.util.concurrent.CompletableFuture<Void> updateA = java.util.concurrent.CompletableFuture.runAsync(
+                    () -> embeddings.write(2L, 8L, contenderA, java.util.List.of(vector)));
+            java.util.concurrent.CompletableFuture<Void> updateB = java.util.concurrent.CompletableFuture.runAsync(
+                    () -> embeddings.write(2L, 8L, contenderB, java.util.List.of(vector)));
+            updateA.join();
+            updateB.join();
             assertThat(embeddings.read(2L, 8L).getFirst().getVersion()).isEqualTo(2);
             embeddings.write(2L, 8L, locked, java.util.List.of(vector));
             assertThat(embeddings.read(2L, 8L).getFirst().getVersion()).isEqualTo(2);
+            // 正式入口返回后，外层测试事务仍持有业务行锁，状态转换必须等待提交。
+            java.util.concurrent.atomic.AtomicReference<java.util.concurrent.CompletableFuture<Void>> transition =
+                    new java.util.concurrent.atomic.AtomicReference<>();
+            transaction.executeWithoutResult(status -> {
+                embeddings.write(2L, 8L, locked, java.util.List.of(vector));
+                transition.set(java.util.concurrent.CompletableFuture.runAsync(() -> new TransactionTemplate(
+                                context.getBean(PlatformTransactionManager.class))
+                        .executeWithoutResult(other -> {
+                            com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingMapper locking =
+                                    context.getBean(
+                                            com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingMapper.class);
+                            locking.lockDocument(2L);
+                            locking.lockVersion(8L);
+                            jdbc.update("UPDATE document_index_version SET status='VERIFIED' WHERE id=8");
+                        })));
+                long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+                boolean blocked = false;
+                while (System.nanoTime() < deadline) {
+                    if (jdbc.queryForObject(
+                                    "SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND cardinality(pg_blocking_pids(pid))>0",
+                                    Integer.class)
+                            > 0) {
+                        blocked = true;
+                        break;
+                    }
+                    java.util.concurrent.locks.LockSupport.parkNanos(
+                            java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(20));
+                }
+                assertThat(blocked).isTrue();
+                assertThat(transition.get()).isNotCompleted();
+            });
+            transition.get().join();
+            assertThatThrownBy(() -> embeddings.write(2L, 8L, locked, java.util.List.of(vector)))
+                    .hasMessageContaining("version unavailable");
         }
     }
 }

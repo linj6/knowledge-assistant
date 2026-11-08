@@ -64,3 +64,17 @@ Embedding XML以ID、索引版本、归属、expectedVersion及NULL embedding定
 真实PG测试补充：新建0、写向量后1、旧版本重试保留ID/向量/version、两个持有相同版本的更新只有一个成功、version已递增但embedding仍NULL时旧结果被拒绝；SQL层验证跨索引版本、模型/维度不匹配、三种非BUILDING状态、非空发布指针均拒绝。触发器令同批第二条失败，验证首条embedding与version均回滚。保留17条16+1跨批恢复。独立从Flyway target=4插入历史Chunk后升级V5，移除新增version字段后逐字段比较前后记录完全一致，新增version=0。
 
 本轮实际命令：`mvn spotless:apply`、`mvn spotless:check`、`mvn -DskipTests test-compile` 全部成功；`mvn '-Dtest=EmbeddingServiceTests,EmbeddingBaselineTests,ModelCapabilityTests,EmbeddingPersistenceIT,ChunkPersistenceIT,DocumentLifecycleMigrationTests' test` 共21项通过（4+3+10+2+1+1），0失败/错误/跳过。将双执行者场景改为分别读取相同版本并用两个CompletableFuture并发调用真实Mapper后，再次执行格式化、格式检查、test-compile及 `mvn '-Dtest=EmbeddingPersistenceIT' test`，2项通过，0失败/错误/跳过；并发更新结果为1和0。真实PostgreSQL 17.6、仓库固定pgvector镜像，V4到V5升级及新库V1～V5均成功。完整diff已审阅，`git diff --check`通过。未调用真实供应商、未执行全量测试或Worker/发布竞态验证。
+
+## 短事务行锁与最终 SQL 简化（基线 c91b807）
+
+EmbeddingRepository.write 在正式Spring事务入口内固定先 SELECT Document FOR UPDATE，再 SELECT IndexVersion FOR UPDATE；只读取一次锁定的版本快照。持锁后检查文档/版本/知识库归属、BUILDING、publishedAt、activeVersionId、正数量与连续Chunk顺序、模型配置和版本快照一致、维度符合物理schema、Chunk身份/来源元数据、记录版本和整批向量。Mapper的独立XML查询负责加锁；UPDATE只包含ID、index_version_id、expectedVersion、embedding IS NULL四项条件，原子写embedding并递增version，不再传model/dimension或使用EXISTS。模型配置仅用于与持久化快照作一致性检查，不能覆盖快照；Service仍检查实际客户端Options。
+
+已有向量在事务内按ID核对元数据并校验后幂等跳过；未完成记录版本不一致明确失败。实际UPDATE为0表明记录异常或未遵循锁协议的竞争，明确冲突并整批回滚，不把未知结果静默视为成功。数据库写入异常仍只抛固定安全消息，不带原文/向量或原始cause。Chunk.version保持启用，不能用Document/IndexVersion锁替代。
+
+锁协议：未来所有改变版本状态、模型/维度、publishedAt或Document.activeVersionId的流程，以及影响Chunk归属/正文/集合的流程，必须在同一事务中按Document→IndexVersion顺序持锁到提交（若涉及多个对象，应按各类ID升序），正文修改还须递增Chunk.version。即使直接UPDATE相关父行也会受已有行锁阻塞，但多行流程仍必须遵循统一顺序以避免死锁。当前未实现发布，M1-09必须延续此协议并完成跨发布互斥/fencing验收；本轮锁不是Worker fencing，不宣称最终发布竞态已解决。
+
+EmbeddingService仍拒绝在外部事务中发起模型调用；每批模型调用完成后才进入Repository短事务。行锁只覆盖批次校验与写入，跨批允许部分完成，保持16+1失败恢复。
+
+测试改为通过Repository正式代理事务入口验证非BUILDING、发布指针、publishedAt、模型/维度不一致和跨版本归属拒绝；双执行者通过Repository并发写相同Chunk，数据库仅增一次版本，后到者幂等跳过。锁测试在外层测试事务中调用正式入口，另一个事务按同样顺序申请锁并修改状态，使用pg_blocking_pids确认数据库实际阻塞，提交后才完成状态转换；随后Repository写入明确拒绝。保留模型调用期间状态变化、V4→V5、旧版本、回滚、16+1恢复及空白Chunk协议回归。外层事务仅用于测试延长锁观测窗口，不包含模型请求。
+
+本轮最终实际执行：`mvn spotless:apply`、`mvn spotless:check`、`mvn -DskipTests test-compile` 成功；`mvn '-Dtest=EmbeddingServiceTests,EmbeddingBaselineTests,ModelCapabilityTests,EmbeddingPersistenceIT,ChunkPersistenceIT' test` 共20项通过（4+3+10+2+1），0失败、0错误、0跳过，真实PostgreSQL 17.6及固定pgvector镜像。Repository入口的双执行者幂等竞争、实际锁阻塞、状态拒绝、批次回滚和16+1恢复均通过。`git diff --check`通过，已审阅完整diff。Flyway V1～V5未修改；未执行全量测试、在线模型或真正发布流程验证。

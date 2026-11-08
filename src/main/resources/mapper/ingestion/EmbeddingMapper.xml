@@ -1,19 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingMapper">
+    <select id="lockDocument" resultType="com.lnjecit.knowledge.assistant.infrastructure.persistence.Document">
+        SELECT * FROM document WHERE id=#{id} FOR UPDATE
+    </select>
+    <select id="lockVersion" resultType="com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion">
+        SELECT * FROM document_index_version WHERE id=#{id} FOR UPDATE
+    </select>
     <update id="write">
-        UPDATE document_chunk c
+        UPDATE document_chunk
         SET embedding=#{vector,typeHandler=com.lnjecit.knowledge.assistant.infrastructure.persistence.VectorTypeHandler},
-            version=c.version+1
-        WHERE c.id=#{c.id} AND c.index_version_id=#{c.indexVersionId}
-          AND c.version=#{expectedVersion} AND c.embedding IS NULL
-          AND c.document_id=#{c.documentId} AND c.knowledge_base_id=#{c.knowledgeBaseId}
-          AND EXISTS (
-              SELECT 1 FROM document_index_version v JOIN document d ON d.id=v.document_id
-              WHERE v.id=c.index_version_id AND d.id=c.document_id
-                AND d.knowledge_base_id=c.knowledge_base_id
-                AND v.embedding_model=#{model} AND v.embedding_dimension=#{dimension}
-                AND v.status='BUILDING' AND v.published_at IS NULL AND d.active_version_id IS NULL
-          )
+            version=version+1
+        WHERE id=#{c.id} AND index_version_id=#{c.indexVersionId}
+          AND version=#{expectedVersion} AND embedding IS NULL
     </update>
 </mapper>
