@@ -12,6 +12,10 @@ spring:
     enabled: true
     baseline-on-migrate: false
 assistant:
+  worker:
+    enabled: false
+    scan-interval: 5s
+    batch-size: 1
   elasticsearch:
     enabled: false
     endpoint: ${KA_ES_ENDPOINT:http://localhost:9200}
