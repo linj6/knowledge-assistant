@@ -23,6 +23,40 @@ class EsIndexIT extends ElasticsearchIT {
                     .withImagePullPolicy(image -> false);
 
     @Test
+    void rejectsDisabledInvertedIndexes() throws Exception {
+        try (RestClientTransport transport = new RestClientTransport(
+                RestClient.builder(HttpHost.create("http://" + elasticsearch.getHttpHostAddress()))
+                        .build(),
+                new JacksonJsonpMapper())) {
+            ElasticsearchClient client = new ElasticsearchClient(transport);
+            EsIndexRepository repository = new EsIndexRepository(client);
+            for (String disabled : List.of("knowledge_base_id", "content")) {
+                String index = "m107-" + UUID.randomUUID();
+                try {
+                    client.indices()
+                            .create(r -> r.index(index).mappings(m -> m.properties("chunk_id", p -> p.keyword(k -> k))
+                                    .properties(
+                                            "knowledge_base_id",
+                                            p -> p.keyword(k -> k.index(!disabled.equals("knowledge_base_id"))))
+                                    .properties("document_id", p -> p.keyword(k -> k))
+                                    .properties("index_version_id", p -> p.keyword(k -> k))
+                                    .properties("chunk_order", p -> p.integer(k -> k))
+                                    .properties(
+                                            "content",
+                                            p -> p.text(t -> t.index(!disabled.equals("content"))
+                                                    .analyzer("ik_max_word")
+                                                    .searchAnalyzer("ik_smart")
+                                                    .similarity("BM25")))));
+                    assertThatThrownBy(() -> repository.ensureIndex(index)).hasMessage("ES_MAPPING_INCOMPATIBLE");
+                } finally {
+                    if (client.indices().exists(r -> r.index(index)).value())
+                        client.indices().delete(r -> r.index(index));
+                }
+            }
+        }
+    }
+
+    @Test
     void postgresSnapshotRemainsUnpublishedAndUnchanged() throws Exception {
         org.springframework.boot.SpringApplication app =
                 new org.springframework.boot.SpringApplication(KnowledgeAssistantApplication.class);

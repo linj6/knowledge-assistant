@@ -27,7 +27,9 @@ public class EsIndexService {
     public EsIndexService(
             ChunkRepository chunks,
             EsIndexRepository es,
-            @Value("${assistant.elasticsearch.batch-size:100}") int batchSize) {
+            @Value(
+                            "${assistant.elasticsearch.batch-size:#{T(com.lnjecit.knowledge.assistant.ingestion.indexing.EsIndexService).DEFAULT_BATCH_SIZE}}")
+                    int batchSize) {
         if (batchSize < 1 || batchSize > MAX_BATCH_SIZE) throw new IllegalArgumentException("ES batch size invalid");
         this.chunks = chunks;
         this.es = es;
@@ -37,20 +39,26 @@ public class EsIndexService {
     public void index(Long documentId, Long versionId) {
         if (TransactionSynchronizationManager.isActualTransactionActive())
             throw new IllegalStateException("ES cannot run inside a transaction");
-        List<EsChunkDocument> documents = read(documentId, versionId);
+        List<ChunkSnapshot> documents = read(documentId, versionId);
         es.ensureIndex(INDEX);
         for (int offset = 0; offset < documents.size(); offset += batchSize) {
-            // 每批前重新校验 PG 身份和正文；这不是 Worker fencing，不能阻止迟到请求。
+            // 同时比较 PG 记录版本，识别正文改动后恢复原值；检查后到请求间仍有竞态，M1-09 须提供 fencing。
             if (!documents.equals(read(documentId, versionId)))
                 throw new IllegalStateException("ES chunk snapshot changed");
-            es.create(INDEX, documents.subList(offset, Math.min(documents.size(), offset + batchSize)));
+            es.create(
+                    INDEX,
+                    documents.subList(offset, Math.min(documents.size(), offset + batchSize)).stream()
+                            .map(ChunkSnapshot::document)
+                            .toList());
         }
         if (!documents.equals(read(documentId, versionId)))
             throw new IllegalStateException("ES chunk snapshot changed");
         // 此处仅写入完成，不刷新、不修改版本状态或发布指针。
     }
 
-    private List<EsChunkDocument> read(Long documentId, Long versionId) {
+    private record ChunkSnapshot(EsChunkDocument document, int version) {}
+
+    private List<ChunkSnapshot> read(Long documentId, Long versionId) {
         Document document = chunks.document(documentId);
         IndexVersion version = chunks.version(versionId);
         if (document == null
@@ -79,6 +87,8 @@ public class EsIndexService {
                     || c.getVersion() == null
                     || c.getVersion() < 0) throw new IllegalStateException("ES chunk identity invalid");
         }
-        return rows.stream().map(EsChunkDocument::from).toList();
+        return rows.stream()
+                .map(c -> new ChunkSnapshot(EsChunkDocument.from(c), c.getVersion()))
+                .toList();
     }
 }

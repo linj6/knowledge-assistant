@@ -39,3 +39,19 @@ PG 事务不能跨越 ES 请求；Service 拒绝在已有事务中运行。只�
 真实集成仅使用本地固定 knowledge-assistant-elasticsearch:8.18.0-ik8.18.0 和固定 digest pgvector 0.8.0/PG17，禁止拉取镜像。ES 测试索引为随机 m107-*，finally 仅删除本次测试索引；继承的 M0 测试仍使用其随机 m007-*。没有访问共享业务索引、修改 Docker 全局设置或调用真实模型。
 
 未执行全量 clean verify、真实连接中断/超时及响应丢失注入、并发 Worker/fencing、发布协议、双索引完整性、吞吐/内存基准和生产 TLS/鉴权部署验证。没有修改 Flyway V1～V5。
+
+## M1-07 评审修正（基线 96206dd）
+
+开始时分支 feature/m1-ingestion-indexing、HEAD 与指定基线一致，工作区干净。本次保留官方8.18.0客户端、六字段协议、IK/BM25、create-only及409六字段校验，不修改迁移或发布协议。
+
+EsIndexService 新增私有 ChunkSnapshot(document, version)，批前及最终比较同时覆盖六字段和 PG Chunk.version。version 不进入 ES _source。离线测试模拟正文临时改变后恢复原值但版本递增，以及 Bulk 后版本递增，均明确报告快照变化。此检查仍不能消除检查后到请求间的竞态，不是 fencing；M1-09 仍须解决迟到写入和写入/验证/发布互斥。
+
+Bulk 校验增加 response/items/item 非空、严格数量、CREATE 操作类型，保留 index/id 一致、201无错误及409实时GET比较，其他响应明确拒绝。畸形响应使用 Fake/mock 注入，不作为真实 ES 故障证据；继续使用固定安全错误码，不附文档、鉴权或原始错误正文。
+
+Mapping 额外拒绝四个 keyword 字段和 content 的显式 index=false；省略 index 的默认值视为启用，避免拒绝合法默认 Mapping。既有类型、ik_max_word、ik_smart及显式BM25校验保留。只检查当前检索必要设置，没有引入通用Schema比较。真实测试单独创建正常类型但 KB keyword 或 content 禁用倒排的随机索引，检查明确拒绝；既有默认参数省略的索引正常复用。
+
+Endpoint 仅接受具备host的HTTP(S)地址，拒绝userinfo、查询、片段、非根路径及无效端口，错误消息不回显输入且不带cause。HTTPS使用官方客户端默认TLS校验，没有禁用证书/主机名验证。未新增鉴权配置或生产证书管理。批大小默认100集中引用DEFAULT_BATCH_SIZE，最大100保留MAX_BATCH_SIZE，移除YAML中重复默认值，仍可通过assistant.elasticsearch.batch-size覆盖（1–100）。补充Spring容器实际创建Service的默认值解析测试。
+
+实际执行：`mvn spotless:apply spotless:check -DskipTests test-compile` 成功；`mvn '-Dtest=EsIndexTests' test` 最终6项通过（补充默认配置解析后重跑），0失败/错误/跳过。`mvn '-Dtest=EsIndexIT' test` 4项通过，0失败/错误/跳过，包含真实ES/IK及PG组合，PG 17.6和V1～V5迁移成功。`git diff --check`通过。
+
+未执行全量测试、真实超时/响应丢失注入、并发Worker/fencing或生产HTTPS握手验证：本次仅修正M1-07评审范围。测试继续使用固定本地ES/IK与PG镜像，仅清理本次随机测试索引，没有修改共享ka-chunks-v1、Docker全局配置，也未调用在线模型。

@@ -7,6 +7,7 @@ import co.elastic.clients.elasticsearch.core.BulkRequest;
 import co.elastic.clients.elasticsearch.core.BulkResponse;
 import co.elastic.clients.elasticsearch.core.GetResponse;
 import co.elastic.clients.elasticsearch.core.bulk.BulkResponseItem;
+import co.elastic.clients.elasticsearch.core.bulk.OperationType;
 import jakarta.json.JsonException;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
@@ -52,12 +53,16 @@ public class EsIndexRepository {
                     .mappings()
                     .properties();
             for (String name : List.of("chunk_id", "knowledge_base_id", "document_id", "index_version_id"))
-                if (fields.get(name) == null || !fields.get(name).isKeyword()) throw failure("ES_MAPPING_INCOMPATIBLE");
+                if (fields.get(name) == null
+                        || !fields.get(name).isKeyword()
+                        || Boolean.FALSE.equals(fields.get(name).keyword().index()))
+                    throw failure("ES_MAPPING_INCOMPATIBLE");
             Property order = fields.get("chunk_order"), content = fields.get("content");
             if (order == null
                     || !order.isInteger()
                     || content == null
                     || !content.isText()
+                    || Boolean.FALSE.equals(content.text().index())
                     || !"ik_max_word".equals(content.text().analyzer())
                     || !"ik_smart".equals(content.text().searchAnalyzer())
                     || !"BM25".equals(content.text().similarity())) throw failure("ES_MAPPING_INCOMPATIBLE");
@@ -77,13 +82,16 @@ public class EsIndexRepository {
                     o -> o.create(c -> c.index(index).id(document.chunk_id()).document(document)));
         try {
             BulkResponse response = client.bulk(request.build());
-            if (response.items().size() != documents.size()) throw failure("ES_BULK_PROTOCOL_INVALID");
+            if (response == null || response.items() == null || response.items().size() != documents.size())
+                throw failure("ES_BULK_PROTOCOL_INVALID");
             boolean rejected = false;
             for (int i = 0; i < documents.size(); i++) {
                 BulkResponseItem item = response.items().get(i);
                 EsChunkDocument expected = documents.get(i);
-                if (!expected.chunk_id().equals(item.id()) || !index.equals(item.index()))
-                    throw failure("ES_BULK_PROTOCOL_INVALID");
+                if (item == null
+                        || item.operationType() != OperationType.Create
+                        || !expected.chunk_id().equals(item.id())
+                        || !index.equals(item.index())) throw failure("ES_BULK_PROTOCOL_INVALID");
                 if (item.status() == 409) {
                     GetResponse<EsChunkDocument> existing =
                             client.get(r -> r.index(index).id(expected.chunk_id()), EsChunkDocument.class);
