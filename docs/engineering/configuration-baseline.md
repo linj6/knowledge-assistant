@@ -29,3 +29,23 @@ TokenEstimator 已实现估算并返回 exact=false，现有固定开销和默�
 - M3：模型窗口、回答输出上限、估算校准与预算不足时的处理策略需确认；1024 是初始回答预留，不是当前已生效的模型输出配置。
 
 M0 状态与剩余验收缺口见 [验收报告](m0-verification-report.md)。后续调整应记录原因和验证证据，不把初始假设写成实测结论。
+
+## Embedding V1 冻结基线（2026-11-08 归档）
+
+依据操作者 2026-11-07 的四次真实在线请求，冻结以下参数；完整证据及验证边界见 [Embedding 基线验证](embedding-baseline-verification.md)。
+
+| 参数 | V1 基线 |
+|---|---|
+| Provider | DashScope |
+| Model | text-embedding-v4 |
+| Dimension | 1024 |
+| Encoding | float |
+| Distance | cosine |
+| Endpoint | https://dashscope.aliyuncs.com/compatible-mode/v1 |
+| SDK maxRetries | 0 |
+
+文档与查询向量必须使用兼容的 Embedding 空间；V1 使用同一模型及参数，不能仅凭维度相同认定兼容。cosine 属于向量检索配置，不是 Embedding API 参数；数据库及检索实现留待后续授权任务。
+
+离线审阅确认：classpath application-local.yml 的端点、模型和维度与基线一致；ModelConfiguration 显式设置 float 和 maxRetries=0，无需配置或代码修复。未读取私有 config/application-local.yml，个人覆盖及环境变量的实际生效值未验证；部署与运行时仍须遵守冻结基线。通用超时保持 30 秒，独立在线基线测试使用 20 秒。
+
+本次仅解除 Embedding API 基线前置阻断，不代表 M1-01、向量检索或 RAG 质量验收通过。
