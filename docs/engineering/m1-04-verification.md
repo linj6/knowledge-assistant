@@ -29,3 +29,17 @@ DocumentParserTests 15 项：12 组参数分别对 MD/TXT 检查原文回取和�
 已知冻结架构 Boot 3.x 与 pom 4.1.2 差异保持不变；无依赖、迁移、表名或 API 变更。
 
 实际局部测试总计 20 项通过（解析 15、导入单元 4、导入 API 1），0 失败、0 错误、0 跳过。已审阅完整新增源码与暂存 diff，git diff --check 和 git diff --cached --check 通过。
+
+## 架构评审修正（基线 7ae8cf1）
+
+DocumentParser 现为接口（extension、parse(byte[])）；TxtDocumentParser 与 MarkdownDocumentParser 各自只处理单一格式。DocumentParserFactory 显式创建两种实现，以大小写无关的扩展名选择；未知类型抛 UNSUPPORTED_FORMAT，构造时拒绝重复扩展名和超出 md/txt 的实现，避免顺序决定匹配结果。没有扫描或插件注册机制。ParserSource 包内共享严格 UTF-8 解码、空内容检查及码点边界构建。原有原文、错误分类和位置协议不变。
+
+ParsedDocument 校验建立一次码点到 UTF-16 边界数组，O(N) 时间与空间；片段覆盖检查只比较边界，标题用边界表回取，并通过局部 Set 对相同 Heading 去重校验。不存在逐片段从头扫描全文。总体成本为原文长度、片段路径条目及不同标题文字校验长度之和。SourceSpan.extract 作为独立单次提取 API 仍为 O(N)，不用于批量构造校验；调用方批量回取应顺序扫描，避免自行引入二次成本。边界表与 Set 仅在构造校验期间存在，无持久缓存或依赖。
+
+职责边界：Parser 负责格式解析及来源映射；未来 Splitter 读取所属 IndexVersion 持久化 ChunkingConfig 执行确定性切分（FIXED_CODE_POINT v1 / 800 / 120 不变）；未来 ProcessingService 负责选择、编排和调用。当前仅提供 ParserFactory，不创建 Splitter 或 ProcessingService 空壳，也不改变原文、上传或 Chunk 持久化流程。
+
+保留原 15 项解析测试，新增路由/冲突检测及大量短行测试，解析共 17 项。短行输入 50,001 行、250,010 码点，含 BOM、CRLF、中文、Emoji、补充平面字符及一个标题；逐片段顺序验证连续范围和源码回取。当前机器单次实测 parseAndValidationMs=291.6077（含 UTF-8 编码、解析和构造校验，不含随后逐片段断言）。这是单次观测，非稳定基准、性能门槛或跨机器承诺；未作旧实现对照测量。
+
+本次执行 mvn spotless:apply、mvn spotless:check、mvn -DskipTests test-compile，以及 DocumentParserTests、ImportTests、ImportApiTests 局部测试。未执行全量/数据库/MinIO/ES/在线模型验证，本次未改这些链路。原有 Markdown 支持范围及限制保持不变。
+
+修正后局部测试总计 22 项通过（解析 17、导入单元 4、API 1），0 失败、0 错误、0 跳过。完整修改已审阅，git diff --check 与暂存检查通过。

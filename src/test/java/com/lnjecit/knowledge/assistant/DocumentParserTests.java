@@ -10,7 +10,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class DocumentParserTests {
-    private final DocumentParser parser = new DocumentParser();
+    private final DocumentParserFactory parser = new DocumentParserFactory();
 
     @ParameterizedTest
     @ValueSource(
@@ -84,6 +84,37 @@ class DocumentParserTests {
         assertThrows(
                 ParseException.class,
                 () -> new ParsedDocument("abc", List.of(new ParsedDocument.Fragment(new SourceSpan(1, 3), List.of()))));
+    }
+
+    @Test
+    void routesAndRejectsConflicts() {
+        assertInstanceOf(TxtDocumentParser.class, parser.select("a.TXT"));
+        assertInstanceOf(MarkdownDocumentParser.class, parser.select("a.md"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new DocumentParserFactory(List.of(new TxtDocumentParser(), new TxtDocumentParser())));
+    }
+
+    @Test
+    void manyShortLines() {
+        String line = "\u4e2d\uD83D\uDE00\uD840\uDC00\r\n";
+        String source = "\uFEFF# title\r\n" + line.repeat(50000);
+        long start = System.nanoTime();
+        ParsedDocument parsed = parse("large.md", source);
+        long elapsed = System.nanoTime() - start;
+        assertEquals(50001, parsed.fragments().size());
+        int cursor = 0;
+        int character = 0;
+        for (ParsedDocument.Fragment fragment : parsed.fragments()) {
+            assertEquals(cursor, fragment.span().start());
+            int end = source.offsetByCodePoints(character, fragment.span().end() - cursor);
+            assertEquals(character == 0 ? "\uFEFF# title\r\n" : line, source.substring(character, end));
+            character = end;
+            cursor = fragment.span().end();
+        }
+        assertEquals(source.length(), character);
+        System.out.println(
+                "SHORT_LINES lines=50001 codePoints=" + cursor + " parseAndValidationMs=" + elapsed / 1_000_000.0);
     }
 
     private ParsedDocument parse(String name, String source) {

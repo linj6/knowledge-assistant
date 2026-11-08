@@ -14,17 +14,25 @@ public record ParsedDocument(String source, List<Fragment> fragments) {
 
     public ParsedDocument {
         fragments = List.copyOf(fragments);
+        int[] boundaries = ParserSource.boundaries(source);
+        java.util.Set<Heading> checked = new java.util.HashSet<>();
         int cursor = 0;
         for (Fragment fragment : fragments) {
             if (fragment.span().start() != cursor) throw new ParseException(ParseException.Kind.UNRELIABLE_MAPPING);
-            fragment.span().extract(source);
+            if (fragment.span().end() >= boundaries.length)
+                throw new ParseException(ParseException.Kind.UNRELIABLE_MAPPING);
             for (Heading heading : fragment.headingPath()) {
-                if (!heading.span().extract(source).equals(heading.text()))
+                if (checked.add(heading)
+                        && (heading.span().end() >= boundaries.length
+                                || !source.substring(
+                                                boundaries[heading.span().start()],
+                                                boundaries[heading.span().end()])
+                                        .equals(heading.text())))
                     throw new ParseException(ParseException.Kind.UNRELIABLE_MAPPING);
             }
             cursor = fragment.span().end();
         }
-        if (cursor != source.codePointCount(0, source.length()) || cursor == 0)
+        if (cursor != boundaries.length - 1 || cursor == 0)
             throw new ParseException(ParseException.Kind.UNRELIABLE_MAPPING);
     }
 }
