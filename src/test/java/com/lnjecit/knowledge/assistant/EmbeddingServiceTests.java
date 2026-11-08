@@ -29,6 +29,27 @@ import org.springframework.ai.openai.OpenAiEmbeddingOptions;
 
 class EmbeddingServiceTests {
     @Test
+    void incompatibleSnapshotsRefuseBeforeCallingModel() {
+        for (int scenario = 0; scenario < 3; scenario++) {
+            EmbeddingRepository repository = mock(EmbeddingRepository.class);
+            OpenAiEmbeddingModel model = mock(OpenAiEmbeddingModel.class);
+            when(repository.read(2L, 3L)).thenReturn(List.of());
+            IndexVersion version = new IndexVersion();
+            version.setEmbeddingModel("text-embedding-v4");
+            version.setEmbeddingDimension(scenario == 2 ? 512 : 1024);
+            when(repository.version(3L)).thenReturn(version);
+            when(model.getOptions())
+                    .thenReturn(OpenAiEmbeddingOptions.builder()
+                            .model(scenario == 0 ? "other" : "text-embedding-v4")
+                            .dimensions(scenario == 1 ? 512 : version.getEmbeddingDimension())
+                            .build());
+            assertThatThrownBy(() -> new EmbeddingService(model, repository, new EmbeddingProperties()).embed(2L, 3L))
+                    .hasMessageContaining(scenario == 2 ? "schema" : "mismatch");
+            verify(model, never()).call(any(EmbeddingRequest.class));
+        }
+    }
+
+    @Test
     void invalidResponsesNeverWrite() {
         for (int mode = 0; mode < 5; mode++) {
             EmbeddingRepository repository = mock(EmbeddingRepository.class);

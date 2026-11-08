@@ -135,6 +135,84 @@ class EmbeddingPersistenceIT {
             jdbc.update("UPDATE document_index_version SET status='BUILDING' WHERE id=3");
             jdbc.update("UPDATE document SET active_version_id=3 WHERE id=2");
             assertThatThrownBy(() -> service.initialize(2L, 3L, parsed)).isInstanceOf(IllegalStateException.class);
+            jdbc.update("UPDATE document SET active_version_id=NULL WHERE id=2");
+            jdbc.update(
+                    "INSERT INTO document_index_version(id,document_id,chunking_config) VALUES(5,2,?),(6,2,?),(7,2,?)",
+                    config,
+                    config,
+                    config);
+            java.util.List<com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk> recovery =
+                    service.initialize(
+                            2L,
+                            5L,
+                            new TxtDocumentParser().parse("a".repeat(11680).getBytes(StandardCharsets.UTF_8)));
+            assertThat(recovery).hasSize(17);
+            org.springframework.ai.openai.OpenAiEmbeddingModel model =
+                    org.mockito.Mockito.mock(org.springframework.ai.openai.OpenAiEmbeddingModel.class);
+            org.mockito.Mockito.when(model.getOptions())
+                    .thenReturn(org.springframework.ai.openai.OpenAiEmbeddingOptions.builder()
+                            .model("text-embedding-v4")
+                            .dimensions(1024)
+                            .build());
+            java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+            java.util.List<Integer> sizes = new java.util.ArrayList<>();
+            org.mockito.Mockito.when(model.call(
+                            org.mockito.ArgumentMatchers.any(org.springframework.ai.embedding.EmbeddingRequest.class)))
+                    .thenAnswer(call -> {
+                        org.springframework.ai.embedding.EmbeddingRequest request = call.getArgument(0);
+                        sizes.add(request.getInstructions().size());
+                        if (calls.incrementAndGet() == 2) throw new IllegalStateException("injected model failure");
+                        java.util.List<org.springframework.ai.embedding.Embedding> result = new java.util.ArrayList<>();
+                        for (int i = request.getInstructions().size() - 1; i >= 0; i--)
+                            result.add(new org.springframework.ai.embedding.Embedding(new float[1024], i));
+                        return new org.springframework.ai.embedding.EmbeddingResponse(result);
+                    });
+            com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingService embeddingService =
+                    new com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingService(
+                            model,
+                            embeddings,
+                            new com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingProperties());
+            assertThatThrownBy(() -> embeddingService.embed(2L, 5L)).isInstanceOf(IllegalStateException.class);
+            assertThat(jdbc.queryForObject(
+                            "SELECT count(*) FROM document_chunk WHERE index_version_id=5 AND embedding IS NOT NULL",
+                            Integer.class))
+                    .isEqualTo(16);
+            embeddingService.embed(2L, 5L);
+            embeddingService.embed(2L, 5L);
+            assertThat(sizes).containsExactly(16, 1, 1);
+            assertThat(embeddings.read(2L, 5L)).allMatch(c -> c.getEmbedding() != null);
+            float[] different = new float[1024];
+            different[0] = 1;
+            embeddings.write(2L, 5L, recovery.subList(0, 1), java.util.List.of(java.util.Arrays.toString(different)));
+            assertThat(jdbc.queryForObject(
+                            "SELECT embedding::text FROM document_chunk WHERE id=?",
+                            String.class,
+                            recovery.getFirst().getId()))
+                    .startsWith("[0,");
+            service.initialize(2L, 6L, new TxtDocumentParser().parse("a".getBytes(StandardCharsets.UTF_8)));
+            org.mockito.Mockito.when(model.call(
+                            org.mockito.ArgumentMatchers.any(org.springframework.ai.embedding.EmbeddingRequest.class)))
+                    .thenAnswer(call -> {
+                        jdbc.update("UPDATE document_index_version SET status='VERIFIED' WHERE id=6");
+                        return new org.springframework.ai.embedding.EmbeddingResponse(
+                                java.util.List.of(new org.springframework.ai.embedding.Embedding(new float[1024], 0)));
+                    });
+            assertThatThrownBy(() -> embeddingService.embed(2L, 6L)).hasMessageContaining("version unavailable");
+            assertThat(jdbc.queryForObject(
+                            "SELECT count(*) FROM document_chunk WHERE index_version_id=6 AND embedding IS NOT NULL",
+                            Integer.class))
+                    .isZero();
+            java.util.List<com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk> whitespace =
+                    service.initialize(
+                            2L,
+                            7L,
+                            new TxtDocumentParser()
+                                    .parse(("a" + " ".repeat(2000) + "b").getBytes(StandardCharsets.UTF_8)));
+            assertThat(whitespace).anyMatch(c -> c.getContent().isBlank());
+            org.mockito.Mockito.clearInvocations(model);
+            assertThatThrownBy(() -> embeddingService.embed(2L, 7L)).hasMessageContaining("input limit");
+            org.mockito.Mockito.verify(model, org.mockito.Mockito.never())
+                    .call(org.mockito.ArgumentMatchers.any(org.springframework.ai.embedding.EmbeddingRequest.class));
         }
     }
 }

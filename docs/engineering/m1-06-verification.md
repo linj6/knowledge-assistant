@@ -35,3 +35,20 @@ EmbeddingMapper 仅更新 embedding，使用 id、index_version_id、document_id
 首轮编译发现 Embedding Options 没有 mutate()，改为实际客户端配置与快照一致性校验后编译通过。过程中一次构建因并行编辑触发格式检查失败，最终停止编辑后重新格式化并完整执行上述命令通过，不将中间失败视为通过。
 
 测试边界：跨批次模型失败恢复使用可控模型及内存Repository模拟；真实PG测试独立验证批次提交、条件写入、回滚和重试，尚未将17条跨批恢复与真实PG组合为同一个端到端故障注入场景。未故障注入提交后网络断连，响应丢失恢复依据重复调用跳过与持久化重读协议；未执行并发Worker或发布竞态测试。
+
+
+## M1-06 评审修正（基线 a20e7db）
+
+业务SQL迁至 `mapper/ingestion/EmbeddingMapper.xml`，namespace与接口一致，所有业务参数使用 `#{}`，保留VectorTypeHandler。Java Mapper仅保留方法及参数；采用MyBatis-Plus默认 `classpath*:/mapper/**/*.xml` 加载路径，真实PG测试通过该Mapper实际执行更新。代码规范新增业务SQL统一XML规则。
+
+EmbeddingProperties统一 DEFAULT_BATCH_SIZE/MAX_BATCH_SIZE（均16），Service读取校验后的配置，Repository使用同一上限，因此调小配置不会产生层间冲突。IndexVersion模型和维度是业务权威快照：Service检查实际客户端配置，Repository按版本维度校验；SQL用绑定模型/维度条件匹配。VectorSchema.DIMENSION集中表达当前Flyway物理约束1024，任何其他维度在模型请求前拒绝，不能通过配置扩展schema支持范围。没有修改application.yml默认模型、持久化快照或Migration。
+
+写入前每条待写向量仅完整解析一次；条件更新为0时仅按ID读取对应Chunk，并重查Document/IndexVersion及归属、状态、发布时间、发布指针和快照，仍检查顺序和全部原文元数据；不再每次重载整个版本Chunk集合。
+
+新增离线测试覆盖模型ID不一致、客户端维度不一致及快照与物理维度不兼容，全部在请求前拒绝。真实PG组合场景使用11680个ASCII字符，经FIXED_CODE_POINT v1得到17条Chunk；模拟模型请求批次为16、1（失败）、1（重试），数据库首批16条已提交，重试只补最后1条，完成后再次调用不请求模型。另验证不同值不能覆盖已有向量，以及模型调用内将版本变为VERIFIED后写入失败且向量仍NULL。
+
+空白协议复现：原文为 `a + 2000个空格 + b`，固定窗口确实生成纯空白Chunk；Embedding当前整批输入校验拒绝、该批不请求模型。本次不改FIXED_CODE_POINT v1。后续须明确决定是否支持空白向量、改切分新协议或定义其他处理策略；不能静默跳过，否则数量和完整性协议失配。
+
+保留并发发布互斥/fencing和提交后网络断连故障注入边界；本次没有实现Worker、发布或新状态机，没有在线模型请求或全量clean verify。此前“真实PG跨批恢复尚未组合”的记录为历史状态，本节补充其组合验证。
+
+本轮实际验证：`mvn spotless:apply`、`mvn spotless:check`、`mvn -DskipTests test-compile` 成功；`mvn '-Dtest=EmbeddingServiceTests,EmbeddingBaselineTests,ModelCapabilityTests,EmbeddingPersistenceIT' test` 共18项通过（4+3+10+1），0失败、0错误、0跳过，包含真实PostgreSQL 17.6及V1～V4迁移、XML实际更新及跨批恢复。`git diff --check`通过。首次脚本受系统默认GBK编码影响，修正新增文件为UTF-8后重新格式化、编译和测试成功。

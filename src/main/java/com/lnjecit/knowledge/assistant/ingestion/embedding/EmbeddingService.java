@@ -4,6 +4,7 @@ import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelResponseChecks;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion;
+import com.lnjecit.knowledge.assistant.infrastructure.persistence.VectorSchema;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -38,9 +39,7 @@ public class EmbeddingService {
         properties.afterPropertiesSet();
         List<DocumentChunk> initial = repository.read(documentId, versionId);
         IndexVersion version = repository.version(versionId);
-        if (!Integer.valueOf(1024).equals(version.getEmbeddingDimension())
-                || !"text-embedding-v4".equals(version.getEmbeddingModel()))
-            throw new IllegalStateException("Embedding snapshot incompatible");
+        VectorSchema.requireCompatible(version.getEmbeddingDimension());
         EmbeddingOptions options = null;
         if (model instanceof OpenAiEmbeddingModel openai) {
             // 使用实际客户端配置校验快照，不修改全局模型或丢失超时配置。

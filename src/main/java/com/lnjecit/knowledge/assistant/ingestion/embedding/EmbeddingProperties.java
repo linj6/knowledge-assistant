@@ -11,10 +11,12 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConfigurationProperties("assistant.embedding")
 public class EmbeddingProperties implements InitializingBean {
-    private int batchSize = 16;
+    public static final int DEFAULT_BATCH_SIZE = 16;
+    public static final int MAX_BATCH_SIZE = 16;
+    private int batchSize = DEFAULT_BATCH_SIZE;
 
     public void afterPropertiesSet() {
-        if (batchSize < 1 || batchSize > 16)
+        if (batchSize < 1 || batchSize > MAX_BATCH_SIZE)
             throw new IllegalStateException("Embedding batch size must be between 1 and 16");
     }
 }

@@ -2,8 +2,10 @@ package com.lnjecit.knowledge.assistant.ingestion.embedding;
 
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.Document;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk;
+import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunkMapper;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersionStatus;
+import com.lnjecit.knowledge.assistant.infrastructure.persistence.VectorSchema;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkRepository;
 import java.util.HashSet;
 import java.util.List;
@@ -16,10 +18,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class EmbeddingRepository {
     private final ChunkRepository chunks;
     private final EmbeddingMapper mapper;
+    private final DocumentChunkMapper records;
 
-    public EmbeddingRepository(ChunkRepository chunks, EmbeddingMapper mapper) {
+    public EmbeddingRepository(ChunkRepository chunks, EmbeddingMapper mapper, DocumentChunkMapper records) {
         this.chunks = chunks;
         this.mapper = mapper;
+        this.records = records;
     }
 
     public IndexVersion version(Long id) {
@@ -36,6 +40,7 @@ public class EmbeddingRepository {
                 || v.getPublishedAt() != null
                 || v.getStatus() != IndexVersionStatus.BUILDING)
             throw new IllegalStateException("Embedding version unavailable");
+        VectorSchema.requireCompatible(v.getEmbeddingDimension());
         List<DocumentChunk> rows = chunks.find(versionId);
         if (v.getExpectedChunkCount() == null
                 || v.getExpectedChunkCount() < 1
@@ -44,7 +49,7 @@ public class EmbeddingRepository {
         Set<Long> ids = new HashSet<>();
         for (int i = 0; i < rows.size(); i++) {
             DocumentChunk c = rows.get(i);
-            if (c.getEmbedding() != null) validateVector(c.getEmbedding());
+            if (c.getEmbedding() != null) validateVector(c.getEmbedding(), v.getEmbeddingDimension());
             if (c.getId() == null
                     || !ids.add(c.getId())
                     || !Objects.equals(c.getChunkOrder(), i)
@@ -56,13 +61,13 @@ public class EmbeddingRepository {
         return rows;
     }
 
-    private static void validateVector(String vector) {
+    private static void validateVector(String vector, int dimension) {
         // 只接受与现有 TypeHandler 一致的有限 float 文本，禁止把原始值带入异常。
         try {
             if (vector == null || !vector.startsWith("[") || !vector.endsWith("]"))
                 throw new IllegalArgumentException();
             String[] values = vector.substring(1, vector.length() - 1).split(",", -1);
-            if (values.length != 1024) throw new IllegalArgumentException();
+            if (values.length != dimension) throw new IllegalArgumentException();
             for (String value : values)
                 if (!Float.isFinite(Float.parseFloat(value.trim()))) throw new IllegalArgumentException();
         } catch (RuntimeException failure) {
@@ -74,25 +79,42 @@ public class EmbeddingRepository {
     public void write(Long documentId, Long versionId, List<DocumentChunk> batch, List<String> vectors) {
         // 仅批次写入使用事务，外部模型调用不持有数据库事务。
         read(documentId, versionId);
-        if (batch.isEmpty() || batch.size() > 16 || batch.size() != vectors.size())
+        IndexVersion snapshot = version(versionId);
+        if (batch.isEmpty() || batch.size() > EmbeddingProperties.MAX_BATCH_SIZE || batch.size() != vectors.size())
             throw new IllegalStateException("Embedding batch invalid");
-        for (String vector : vectors) validateVector(vector);
+        for (String vector : vectors) validateVector(vector, snapshot.getEmbeddingDimension());
         for (int i = 0; i < batch.size(); i++) {
             DocumentChunk c = batch.get(i);
-            validateVector(vectors.get(i));
             if (!documentId.equals(c.getDocumentId()) || !versionId.equals(c.getIndexVersionId()))
                 throw new IllegalStateException("Embedding batch ownership invalid");
             int updated;
             try {
-                updated = mapper.write(c, vectors.get(i));
+                updated =
+                        mapper.write(c, vectors.get(i), snapshot.getEmbeddingModel(), snapshot.getEmbeddingDimension());
             } catch (RuntimeException failure) {
                 throw new IllegalStateException("Embedding database write failed");
             }
             if (updated != 1) {
-                DocumentChunk stored = read(documentId, versionId).stream()
-                        .filter(r -> r.getId().equals(c.getId()))
-                        .findFirst()
-                        .orElseThrow(() -> new IllegalStateException("Embedding record missing"));
+                Document document = chunks.document(documentId);
+                IndexVersion current = version(versionId);
+                if (document == null
+                        || current == null
+                        || !documentId.equals(current.getDocumentId())
+                        || document.getActiveVersionId() != null
+                        || current.getPublishedAt() != null
+                        || current.getStatus() != IndexVersionStatus.BUILDING
+                        || !Objects.equals(current.getEmbeddingModel(), snapshot.getEmbeddingModel())
+                        || !Objects.equals(current.getEmbeddingDimension(), snapshot.getEmbeddingDimension()))
+                    throw new IllegalStateException("Embedding version unavailable");
+                DocumentChunk stored = records.selectById(c.getId());
+                if (stored == null) throw new IllegalStateException("Embedding record missing");
+                if (!Objects.equals(stored.getKnowledgeBaseId(), document.getKnowledgeBaseId())
+                        || !documentId.equals(stored.getDocumentId())
+                        || !versionId.equals(stored.getIndexVersionId())
+                        || !Objects.equals(stored.getChunkOrder(), c.getChunkOrder()))
+                    throw new IllegalStateException("Embedding chunk ownership invalid");
+                if (stored.getEmbedding() != null)
+                    validateVector(stored.getEmbedding(), snapshot.getEmbeddingDimension());
                 if (!Objects.equals(stored.getContent(), c.getContent())
                         || !Objects.equals(stored.getHeadingPath(), c.getHeadingPath())
                         || !Objects.equals(stored.getSourceStart(), c.getSourceStart())
