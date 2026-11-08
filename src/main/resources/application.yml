@@ -12,6 +12,10 @@ spring:
     enabled: true
     baseline-on-migrate: false
 assistant:
+  elasticsearch:
+    enabled: false
+    endpoint: ${KA_ES_ENDPOINT:http://localhost:9200}
+    batch-size: 100
   upload:
     max-file-bytes: 2097152
   chunking:
