@@ -1,4 +1,8 @@
 spring:
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 12MB
   mvc:
     servlet:
       path: /api
@@ -8,6 +12,18 @@ spring:
     enabled: true
     baseline-on-migrate: false
 assistant:
+  upload:
+    max-file-bytes: 10485760
+  chunking:
+    version: 1
+    strategy: FIXED_CODE_POINT
+    chunk-size: 800
+    chunk-overlap: 120
+  minio:
+    endpoint: ${KA_MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${KA_INFRA_MINIO_USER:}
+    secret-key: ${KA_INFRA_MINIO_PASSWORD:}
+    bucket: ${KA_MINIO_BUCKET:knowledge-assistant}
   model:
     enabled: false
     online-authorized: false
