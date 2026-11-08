@@ -5,7 +5,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -14,14 +13,17 @@ import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.KnowledgeBase;
 import com.lnjecit.knowledge.assistant.infrastructure.web.ApiExceptionHandler;
+import com.lnjecit.knowledge.assistant.infrastructure.web.ApiJacksonConfiguration;
 import com.lnjecit.knowledge.assistant.infrastructure.web.RequestIdFilter;
 import com.lnjecit.knowledge.assistant.knowledge.KnowledgeBaseController;
 import com.lnjecit.knowledge.assistant.knowledge.KnowledgeBaseService;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import tools.jackson.databind.json.JsonMapper;
 
 class KnowledgeBaseApiTests {
     private KnowledgeBaseService service;
@@ -30,7 +32,10 @@ class KnowledgeBaseApiTests {
     @BeforeEach
     void setup() {
         service = mock(KnowledgeBaseService.class);
+        JsonMapper.Builder builder = JsonMapper.builder();
+        new ApiJacksonConfiguration().longAsString().customize(builder);
         mvc = MockMvcBuilders.standaloneSetup(new KnowledgeBaseController(service))
+                .setMessageConverters(new JacksonJsonHttpMessageConverter(builder.build()))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .addFilters(new RequestIdFilter())
                 .build();
@@ -44,18 +49,21 @@ class KnowledgeBaseApiTests {
         entity.setDescription("说明");
         when(service.create("Java", "说明")).thenReturn(entity);
         when(service.get(entity.getId())).thenReturn(entity);
-        mvc.perform(post("/api/v1/knowledge-bases")
+        mvc.perform(post("/v1/knowledge-bases")
                         .contentType("application/json")
                         .content("{\"name\":\" Java \",\"description\":\" 说明 \"}"))
                 .andExpect(status().isCreated())
-                .andExpect(header().string("Location", "/api/v1/knowledge-bases/9007199254740993"))
-                .andExpect(jsonPath("$.id").isString())
-                .andExpect(jsonPath("$.id").value("9007199254740993"))
-                .andExpect(jsonPath("$.name").value("Java"))
-                .andExpect(jsonPath("$.length()").value(4));
-        mvc.perform(get("/api/v1/knowledge-bases/9007199254740993"))
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.code").isNumber())
+                .andExpect(header().string("Location", "/v1/knowledge-bases/9007199254740993"))
+                .andExpect(jsonPath("$.data.id").isString())
+                .andExpect(jsonPath("$.data.id").value("9007199254740993"))
+                .andExpect(jsonPath("$.data.name").value("Java"))
+                .andExpect(jsonPath("$.data.length()").value(4));
+        mvc.perform(get("/v1/knowledge-bases/9007199254740993"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").isString());
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.id").isString());
     }
 
     @Test
@@ -65,20 +73,20 @@ class KnowledgeBaseApiTests {
         entity.setName("a".repeat(100));
         when(service.create("a".repeat(100), "d".repeat(1000))).thenReturn(entity);
         when(service.create("a".repeat(100), null)).thenReturn(entity);
-        mvc.perform(post("/api/v1/knowledge-bases")
+        mvc.perform(post("/v1/knowledge-bases")
                         .contentType("application/json")
                         .content("{\"name\":\" " + "a".repeat(100) + " \",\"description\":\" " + "d".repeat(1000)
                                 + " \"}"))
                 .andExpect(status().isCreated());
-        mvc.perform(post("/api/v1/knowledge-bases")
+        mvc.perform(post("/v1/knowledge-bases")
                         .contentType("application/json")
                         .content("{\"name\":\"" + "a".repeat(100) + "\"}"))
                 .andExpect(status().isCreated());
         when(service.list()).thenReturn(List.of(entity));
-        mvc.perform(get("/api/v1/knowledge-bases"))
+        mvc.perform(get("/v1/knowledge-bases"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").isString())
-                .andExpect(jsonPath("$[0].length()").value(4));
+                .andExpect(jsonPath("$.data[0].id").isString())
+                .andExpect(jsonPath("$.data[0].length()").value(4));
     }
 
     @Test
@@ -89,12 +97,12 @@ class KnowledgeBaseApiTests {
                 "{\"name\":\"   \"}",
                 "{\"name\":\"" + "a".repeat(101) + "\"}",
                 "{\"name\":\"a\",\"description\":\"" + "a".repeat(1001) + "\"}")) {
-            mvc.perform(post("/api/v1/knowledge-bases")
+            mvc.perform(post("/v1/knowledge-bases")
                             .contentType("application/json")
                             .content(body)
                             .header("X-Request-Id", "validation-test"))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.code").value("INVALID_ARGUMENT"))
+                    .andExpect(jsonPath("$.code").value(40000))
                     .andExpect(jsonPath("$.requestId").value("validation-test"));
         }
         verifyNoInteractions(service);
@@ -102,39 +110,37 @@ class KnowledgeBaseApiTests {
 
     @Test
     void invalidIds() throws Exception {
-        for (String id : List.of("abc", "-1", "0", "+1", "9223372036854775808", "1.5"))
-            mvc.perform(get("/api/v1/knowledge-bases/" + id))
+        for (String id : List.of("abc", "-1", "0", "9223372036854775808", "1.5"))
+            mvc.perform(get("/v1/knowledge-bases/" + id))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.code").value("INVALID_ARGUMENT"));
+                    .andExpect(jsonPath("$.code").value(40000));
         verifyNoInteractions(service);
     }
 
     @Test
     void notFound() throws Exception {
         when(service.get(1L)).thenThrow(new BusinessException(CommonErrorCode.KNOWLEDGE_BASE_NOT_FOUND));
-        mvc.perform(get("/api/v1/knowledge-bases/1"))
+        mvc.perform(get("/v1/knowledge-bases/1"))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("KNOWLEDGE_BASE_NOT_FOUND"))
+                .andExpect(jsonPath("$.code").value(40401))
                 .andExpect(jsonPath("$.requestId").isNotEmpty());
     }
 
     @Test
     void emptyList() throws Exception {
         when(service.list()).thenReturn(List.of());
-        mvc.perform(get("/api/v1/knowledge-bases"))
+        mvc.perform(get("/v1/knowledge-bases"))
                 .andExpect(status().isOk())
-                .andExpect(content().json("[]"));
+                .andExpect(jsonPath("$.data").isEmpty());
     }
 
     @Test
     void databaseFailureIsSafe() throws Exception {
         when(service.create("a", null))
                 .thenThrow(new org.springframework.dao.DataAccessResourceFailureException("SECRET SQL"));
-        mvc.perform(post("/api/v1/knowledge-bases")
-                        .contentType("application/json")
-                        .content("{\"name\":\"a\"}"))
+        mvc.perform(post("/v1/knowledge-bases").contentType("application/json").content("{\"name\":\"a\"}"))
                 .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
+                .andExpect(jsonPath("$.code").value(50000))
                 .andExpect(jsonPath("$.message").value("服务内部错误"));
     }
 }

@@ -26,14 +26,15 @@ class KnowledgeBasePersistenceTests {
             .withImagePullPolicy(image -> false);
 
     @Test
-    void persistenceOrderingAndTransactionBoundary() {
+    void persistenceOrderingAndTransactionBoundary() throws Exception {
         SpringApplication application = new SpringApplication(KnowledgeAssistantApplication.class);
-        application.setWebApplicationType(WebApplicationType.NONE);
+        application.setWebApplicationType(WebApplicationType.SERVLET);
         try (ConfigurableApplicationContext context = application.run(
                 "--spring.datasource.url=" + postgres.getJdbcUrl(),
                 "--spring.datasource.username=" + postgres.getUsername(),
                 "--spring.datasource.password=" + postgres.getPassword(),
                 "--assistant.model.enabled=false",
+                "--server.port=0",
                 "--assistant.rerank.enabled=false")) {
             KnowledgeBaseService service = context.getBean(KnowledgeBaseService.class);
             JdbcTemplate jdbc = new JdbcTemplate(context.getBean(DataSource.class));
@@ -63,6 +64,48 @@ class KnowledgeBasePersistenceTests {
             assertThat(jdbc.queryForObject("SELECT count(*) FROM knowledge_base", Integer.class))
                     .isEqualTo(2);
             assertThat(service.create("恢复", null).getId()).isPositive();
+            // 使用真实嵌入式服务器验证 YAML servlet 前缀、MVC Long 绑定和自动配置的 Jackson。
+            int port = ((org.springframework.boot.web.server.context.WebServerApplicationContext) context)
+                    .getWebServer()
+                    .getPort();
+            java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+            String base = "http://localhost:" + port;
+            java.net.http.HttpResponse<String> created = client.send(
+                    java.net.http.HttpRequest.newBuilder(java.net.URI.create(base + "/api/v1/knowledge-bases"))
+                            .header("Content-Type", "application/json")
+                            .header("X-Request-Id", "real-mvc")
+                            .POST(java.net.http.HttpRequest.BodyPublishers.ofString("{\"name\":\"HTTP\"}"))
+                            .build(),
+                    java.net.http.HttpResponse.BodyHandlers.ofString());
+            assertThat(created.statusCode()).isEqualTo(201);
+            tools.jackson.databind.json.JsonMapper mapper =
+                    context.getBean(tools.jackson.databind.json.JsonMapper.class);
+            tools.jackson.databind.JsonNode body = mapper.readTree(created.body());
+            assertThat(body.get("code").isInt()).isTrue();
+            assertThat(body.get("code").intValue()).isZero();
+            assertThat(body.get("requestId").asString())
+                    .isEqualTo(created.headers().firstValue("X-Request-Id").orElseThrow())
+                    .isEqualTo("real-mvc");
+            assertThat(body.get("data").get("id").isString()).isTrue();
+            String location = created.headers().firstValue("Location").orElseThrow();
+            assertThat(location).startsWith("/api/v1/knowledge-bases/");
+            assertThat(client.send(
+                                    java.net.http.HttpRequest.newBuilder(java.net.URI.create(base + location))
+                                            .GET()
+                                            .build(),
+                                    java.net.http.HttpResponse.BodyHandlers.ofString())
+                            .statusCode())
+                    .isEqualTo(200);
+            assertThat(client.send(
+                                    java.net.http.HttpRequest.newBuilder(
+                                                    java.net.URI.create(base + "/v1/knowledge-bases"))
+                                            .GET()
+                                            .build(),
+                                    java.net.http.HttpResponse.BodyHandlers.ofString())
+                            .statusCode())
+                    .isEqualTo(404);
+            assertThat(mapper.writeValueAsString(java.util.Map.of("count", 9007199254740993L)))
+                    .contains("\"9007199254740993\"");
         }
     }
 }

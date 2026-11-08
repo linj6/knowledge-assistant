@@ -29,12 +29,12 @@ class ApiBaselineTests {
     static class TestController {
         record Input(@NotBlank String name) {}
 
-        @PostMapping(value = "/api/test", consumes = "application/json")
+        @PostMapping(value = "/test", consumes = "application/json")
         Object post(@Valid @RequestBody Input input) {
             return input;
         }
 
-        @GetMapping("/api/fail")
+        @GetMapping("/fail")
         void fail() {
             throw new IllegalStateException("SECRET_TEST_PASSWORD");
         }
@@ -42,7 +42,7 @@ class ApiBaselineTests {
 
     @Test
     void generatedAndCleaned() throws Exception {
-        String id = mvc.perform(get("/api/fail"))
+        String id = mvc.perform(get("/fail"))
                 .andExpect(status().isInternalServerError())
                 .andReturn()
                 .getResponse()
@@ -53,7 +53,7 @@ class ApiBaselineTests {
 
     @Test
     void acceptedAndCorrelated() throws Exception {
-        mvc.perform(get("/api/fail").header("X-Request-Id", "safe-123"))
+        mvc.perform(get("/fail").header("X-Request-Id", "safe-123"))
                 .andExpect(header().string("X-Request-Id", "safe-123"))
                 .andExpect(jsonPath("$.requestId").value("safe-123"));
     }
@@ -61,7 +61,7 @@ class ApiBaselineTests {
     @Test
     void invalidIdsAndNoReuse() throws Exception {
         for (String id : new String[] {"", "bad\r\ninput", "x".repeat(65), "bad space"}) {
-            MockHttpServletResponse response = mvc.perform(get("/api/fail").header("X-Request-Id", id))
+            MockHttpServletResponse response = mvc.perform(get("/fail").header("X-Request-Id", id))
                     .andReturn()
                     .getResponse();
             assertThat(response.getHeader("X-Request-Id")).isNotEqualTo(id);
@@ -73,36 +73,35 @@ class ApiBaselineTests {
 
     @Test
     void validation() throws Exception {
-        mvc.perform(post("/api/test").contentType("application/json").content("{\"name\":\"\"}"))
+        mvc.perform(post("/test").contentType("application/json").content("{\"name\":\"\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_ARGUMENT"));
+                .andExpect(jsonPath("$.code").value(40000));
     }
 
     @Test
     void malformedJson() throws Exception {
-        mvc.perform(post("/api/test").contentType("application/json").content("{"))
-                .andExpect(status().isBadRequest());
+        mvc.perform(post("/test").contentType("application/json").content("{")).andExpect(status().isBadRequest());
     }
 
     @Test
     void method() throws Exception {
-        mvc.perform(get("/api/test"))
+        mvc.perform(get("/test"))
                 .andExpect(status().isMethodNotAllowed())
-                .andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"));
+                .andExpect(jsonPath("$.code").value(40500));
     }
 
     @Test
     void media() throws Exception {
-        mvc.perform(post("/api/test").contentType("text/plain").content("secret"))
+        mvc.perform(post("/test").contentType("text/plain").content("secret"))
                 .andExpect(status().isUnsupportedMediaType())
-                .andExpect(jsonPath("$.code").value("UNSUPPORTED_MEDIA_TYPE"));
+                .andExpect(jsonPath("$.code").value(41500));
     }
 
     @Test
     void safeError() throws Exception {
-        String body = mvc.perform(get("/api/fail"))
+        String body = mvc.perform(get("/fail"))
                 .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
+                .andExpect(jsonPath("$.code").value(50000))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();

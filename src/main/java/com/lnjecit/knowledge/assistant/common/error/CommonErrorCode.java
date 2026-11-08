@@ -1,21 +1,24 @@
 package com.lnjecit.knowledge.assistant.common.error;
 
 public enum CommonErrorCode implements ErrorCode {
-    KNOWLEDGE_BASE_NOT_FOUND("知识库不存在"),
-    INVALID_ARGUMENT("请求参数不合法"),
-    METHOD_NOT_ALLOWED("不支持的 HTTP 方法"),
-    UNSUPPORTED_MEDIA_TYPE("不支持的媒体类型"),
-    INTERNAL_ERROR("服务内部错误");
+    KNOWLEDGE_BASE_NOT_FOUND(40401, "知识库不存在"),
+    INVALID_ARGUMENT(40000, "请求参数不合法"),
+    METHOD_NOT_ALLOWED(40500, "不支持的 HTTP 方法"),
+    UNSUPPORTED_MEDIA_TYPE(41500, "不支持的媒体类型"),
+    NOT_FOUND(40400, "资源不存在"),
+    INTERNAL_ERROR(50000, "服务内部错误");
 
+    private final Integer code;
     private final String message;
 
-    CommonErrorCode(String message) {
+    CommonErrorCode(Integer code, String message) {
+        this.code = code;
         this.message = message;
     }
 
     @Override
-    public String getCode() {
-        return name();
+    public Integer getCode() {
+        return code;
     }
 
     @Override

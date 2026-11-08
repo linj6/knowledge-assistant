@@ -1,20 +1,23 @@
 package com.lnjecit.knowledge.assistant.knowledge;
 
-import com.lnjecit.knowledge.assistant.common.error.BusinessException;
-import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
+import com.lnjecit.knowledge.assistant.common.api.Result;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
-import java.net.URI;
+import jakarta.validation.constraints.Positive;
 import java.util.List;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 @RestController
-@RequestMapping("/api/v1/knowledge-bases")
+@RequestMapping("/v1/knowledge-bases")
 public class KnowledgeBaseController {
     private final KnowledgeBaseService service;
 
@@ -23,29 +26,32 @@ public class KnowledgeBaseController {
     }
 
     @PostMapping
-    public ResponseEntity<KnowledgeBaseResponse> create(@Valid @RequestBody CreateKnowledgeBaseRequest request) {
+    @ResponseStatus(HttpStatus.CREATED)
+    public Result<KnowledgeBaseResponse> create(
+            @Valid @RequestBody CreateKnowledgeBaseRequest request,
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse) {
         KnowledgeBaseResponse response =
                 KnowledgeBaseResponse.from(service.create(request.name(), request.description()));
-        return ResponseEntity.created(URI.create("/api/v1/knowledge-bases/" + response.id()))
-                .body(response);
+        // 从当前请求构建资源地址，自动保留公共 servlet 前缀和部署上下文。
+        httpResponse.setHeader(
+                "Location",
+                ServletUriComponentsBuilder.fromRequestUri(httpRequest)
+                        .path("/{id}")
+                        .buildAndExpand(response.id())
+                        .toUri()
+                        .getRawPath());
+        return Result.success(response);
     }
 
     @GetMapping
-    public List<KnowledgeBaseResponse> list() {
-        return service.list().stream().map(KnowledgeBaseResponse::from).toList();
+    public Result<List<KnowledgeBaseResponse>> list() {
+        return Result.success(
+                service.list().stream().map(KnowledgeBaseResponse::from).toList());
     }
 
     @GetMapping("/{id}")
-    public KnowledgeBaseResponse get(@PathVariable String id) {
-        Long value;
-        // 仅接受正十进制 Long，拒绝符号、溢出及非数字字符。
-        try {
-            if (!id.matches("[0-9]+")) throw new NumberFormatException();
-            value = Long.valueOf(id);
-            if (value <= 0) throw new NumberFormatException();
-        } catch (NumberFormatException ex) {
-            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT);
-        }
-        return KnowledgeBaseResponse.from(service.get(value));
+    public Result<KnowledgeBaseResponse> get(@PathVariable @Positive Long id) {
+        return Result.success(KnowledgeBaseResponse.from(service.get(id)));
     }
 }
