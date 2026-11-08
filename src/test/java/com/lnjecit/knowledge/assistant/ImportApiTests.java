@@ -9,8 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.lnjecit.knowledge.assistant.infrastructure.web.ApiExceptionHandler;
 import com.lnjecit.knowledge.assistant.infrastructure.web.ApiJacksonConfiguration;
-import com.lnjecit.knowledge.assistant.ingestion.ImportController;
-import com.lnjecit.knowledge.assistant.ingestion.ImportService;
+import com.lnjecit.knowledge.assistant.ingestion.DocumentImportController;
+import com.lnjecit.knowledge.assistant.ingestion.DocumentImportService;
 import com.lnjecit.knowledge.assistant.ingestion.ImportTaskResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
@@ -21,17 +21,19 @@ import tools.jackson.databind.json.JsonMapper;
 class ImportApiTests {
     @Test
     void acceptedDuplicateLookupAndErrors() throws Exception {
-        ImportService service = mock(ImportService.class);
+        DocumentImportService service = mock(DocumentImportService.class);
         JsonMapper.Builder builder = JsonMapper.builder();
         new ApiJacksonConfiguration().longAsString().customize(builder);
-        MockMvc mvc = MockMvcBuilders.standaloneSetup(new ImportController(service))
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new DocumentImportController(service))
                 .setMessageConverters(new JacksonJsonHttpMessageConverter(builder.build()))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .build();
         org.springframework.mock.web.MockMultipartFile file = ImportTests.file("a.md", new byte[] {65});
         ImportTaskResponse response = new ImportTaskResponse(9007199254740993L, 2L, "RECEIVED", null, null, null);
         when(service.receive(1L, file))
-                .thenReturn(new ImportService.Outcome(response, false), new ImportService.Outcome(response, true));
+                .thenReturn(
+                        new DocumentImportService.Outcome(response, false),
+                        new DocumentImportService.Outcome(response, true));
         mvc.perform(multipart("/v1/knowledge-bases/1/documents:import").file(file))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.data.status").value("RECEIVED"))

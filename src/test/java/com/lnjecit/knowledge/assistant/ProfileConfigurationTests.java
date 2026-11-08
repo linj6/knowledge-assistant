@@ -32,6 +32,11 @@ class ProfileConfigurationTests {
         assertThat(common.getProperty("spring.application.name")).isEqualTo("knowledge-assistant");
         assertThat(common.getProperty("assistant.model.enabled", Boolean.class)).isFalse();
         assertThat(common.getProperty("spring.datasource.url")).isNull();
+        ModelProperties commonModel = Binder.get(common)
+                .bind("assistant.model", ModelProperties.class)
+                .get();
+        assertThat(commonModel.getEmbeddingModel()).isEqualTo("text-embedding-v4");
+        assertThat(commonModel.getDimensions()).isEqualTo(1024);
         StandardEnvironment local = load("local", false);
         assertThat(local.getProperty("spring.datasource.url")).isEqualTo("jdbc:postgresql://localhost:5432/ka");
         ModelProperties properties =
@@ -40,6 +45,19 @@ class ProfileConfigurationTests {
         assertThat(properties.getDimensions()).isEqualTo(1024);
         assertThat(properties.getChatModel()).isEqualTo("qwen-plus");
         assertThat(properties.getBaseUrl()).isEqualTo(EmbeddingBaselineOnlineIT.ENDPOINT);
+        assertThat(properties.isEnabled()).isFalse();
+    }
+
+    @Test
+    void embeddingConfigurationCanBeOverriddenOffline() throws Exception {
+        Files.writeString(
+                directory.resolve("application-local.yml"),
+                "assistant.model.embedding-model: overridden-model\nassistant.model.dimensions: 768\n");
+        ModelProperties properties = Binder.get(load("local", true))
+                .bind("assistant.model", ModelProperties.class)
+                .get();
+        assertThat(properties.getEmbeddingModel()).isEqualTo("overridden-model");
+        assertThat(properties.getDimensions()).isEqualTo(768);
         assertThat(properties.isEnabled()).isFalse();
     }
 

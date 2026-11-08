@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
 import com.lnjecit.knowledge.assistant.ingestion.ChunkingConfig;
-import com.lnjecit.knowledge.assistant.ingestion.ImportService;
+import com.lnjecit.knowledge.assistant.ingestion.DocumentImportService;
 import com.lnjecit.knowledge.assistant.knowledge.KnowledgeBaseService;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
@@ -75,6 +75,56 @@ class ImportPersistenceTests {
     }
 
     @Test
+    void realMultipartBoundariesAndConfiguredSnapshots() throws Exception {
+        SpringApplication app = new SpringApplication(KnowledgeAssistantApplication.class, StorageConfig.class);
+        try (ConfigurableApplicationContext context = app.run(
+                "--spring.datasource.url=" + postgres.getJdbcUrl(),
+                "--spring.datasource.username=" + postgres.getUsername(),
+                "--spring.datasource.password=" + postgres.getPassword(),
+                "--server.port=0",
+                "--assistant.model.embedding-model=text-embedding-v4",
+                "--assistant.model.dimensions=1024")) {
+            Long kb = context.getBean(KnowledgeBaseService.class)
+                    .create("http", null)
+                    .getId();
+            int port = ((org.springframework.boot.web.server.context.WebServerApplicationContext) context)
+                    .getWebServer()
+                    .getPort();
+            String url = "http://localhost:" + port + "/api/v1/knowledge-bases/" + kb + "/documents:import";
+            assertThat(upload(url, "limit.md", 2097152, 'a').statusCode()).isEqualTo(202);
+            assertThat(upload(url, "large.txt", 2097153, 'a').statusCode()).isEqualTo(413);
+            context.getBean(com.lnjecit.knowledge.assistant.infrastructure.config.UploadProperties.class)
+                    .setMaxFileBytes(16);
+            assertThat(upload(url, "small.txt", 17, 'b').statusCode()).isEqualTo(400);
+            java.net.http.HttpResponse<String> txt = upload(url, "small.txt", 16, 'b');
+            assertThat(txt.statusCode()).isEqualTo(202);
+            assertThat(txt.body()).contains("RECEIVED", "importTaskId", "documentId");
+            JdbcTemplate jdbc = new JdbcTemplate(context.getBean(DataSource.class));
+            assertThat(jdbc.queryForObject(
+                            "SELECT count(*) FROM index_version WHERE embedding_model='text-embedding-v4' AND embedding_dimension=1024",
+                            Integer.class))
+                    .isEqualTo(2);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM document", Integer.class))
+                    .isEqualTo(2);
+        }
+    }
+
+    private static java.net.http.HttpResponse<String> upload(String url, String name, int size, char content)
+            throws Exception {
+        String boundary = "m103-boundary";
+        String body = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"file\"; filename=\"" + name
+                + "\"\r\nContent-Type: text/plain\r\n\r\n"
+                + String.valueOf(content).repeat(size) + "\r\n--" + boundary + "--\r\n";
+        return java.net.http.HttpClient.newHttpClient()
+                .send(
+                        java.net.http.HttpRequest.newBuilder(java.net.URI.create(url))
+                                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(body))
+                                .build(),
+                        java.net.http.HttpResponse.BodyHandlers.ofString());
+    }
+
+    @Test
     void transactionDeduplicationAndCompensation(org.springframework.boot.test.system.CapturedOutput output)
             throws Exception {
         SpringApplication app = new SpringApplication(KnowledgeAssistantApplication.class, StorageConfig.class);
@@ -83,14 +133,14 @@ class ImportPersistenceTests {
                 "--spring.datasource.username=" + postgres.getUsername(),
                 "--spring.datasource.password=" + postgres.getPassword(),
                 "--server.port=0")) {
-            ImportService service = context.getBean(ImportService.class);
+            DocumentImportService service = context.getBean(DocumentImportService.class);
             TestStore store = context.getBean(TestStore.class);
             JdbcTemplate jdbc = new JdbcTemplate(context.getBean(DataSource.class));
             KnowledgeBaseService knowledge = context.getBean(KnowledgeBaseService.class);
             Long kb = knowledge.create("one", null).getId();
             Long other = knowledge.create("two", null).getId();
             byte[] bytes = new byte[] {(byte) 0xef, (byte) 0xbb, (byte) 0xbf, 65};
-            ImportService.Outcome first = service.receive(kb, ImportTests.file("a.md", bytes));
+            DocumentImportService.Outcome first = service.receive(kb, ImportTests.file("a.md", bytes));
             assertThat(first.duplicate()).isFalse();
             String snapshot = jdbc.queryForObject(
                     "SELECT chunking_config FROM index_version WHERE document_id=?",
@@ -129,12 +179,12 @@ class ImportPersistenceTests {
             store.barrier = new CyclicBarrier(2);
             ExecutorService executor = Executors.newFixedThreadPool(2);
             try {
-                Callable<ImportService.Outcome> request =
+                Callable<DocumentImportService.Outcome> request =
                         () -> service.receive(kb, ImportTests.file("race.txt", new byte[] {66}));
-                Future<ImportService.Outcome> a = executor.submit(request);
-                Future<ImportService.Outcome> b = executor.submit(request);
-                ImportService.Outcome x = a.get(30, TimeUnit.SECONDS);
-                ImportService.Outcome y = b.get(30, TimeUnit.SECONDS);
+                Future<DocumentImportService.Outcome> a = executor.submit(request);
+                Future<DocumentImportService.Outcome> b = executor.submit(request);
+                DocumentImportService.Outcome x = a.get(30, TimeUnit.SECONDS);
+                DocumentImportService.Outcome y = b.get(30, TimeUnit.SECONDS);
                 assertThat(x.task().documentId()).isEqualTo(y.task().documentId());
                 assertThat(x.duplicate()).isNotEqualTo(y.duplicate());
             } finally {

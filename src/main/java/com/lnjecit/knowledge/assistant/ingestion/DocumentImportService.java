@@ -3,6 +3,7 @@ package com.lnjecit.knowledge.assistant.ingestion;
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
 import com.lnjecit.knowledge.assistant.infrastructure.config.ChunkingProperties;
+import com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties;
 import com.lnjecit.knowledge.assistant.infrastructure.config.UploadProperties;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
@@ -25,23 +26,25 @@ import org.springframework.web.multipart.MultipartFile;
 import tools.jackson.databind.json.JsonMapper;
 
 @Service
-public class ImportService {
-    private static final Logger LOG = LoggerFactory.getLogger(ImportService.class);
-    private final ImportRepository repository;
+public class DocumentImportService {
+    private static final Logger LOG = LoggerFactory.getLogger(DocumentImportService.class);
+    private final DocumentImportRepository repository;
     private final KnowledgeBaseService knowledge;
     private final OriginalFileStore store;
     private final UploadProperties upload;
     private final ChunkingProperties chunking;
     private final JsonMapper json;
+    private final ModelProperties model;
     private final TransactionTemplate transaction;
 
-    public ImportService(
-            ImportRepository repository,
+    public DocumentImportService(
+            DocumentImportRepository repository,
             KnowledgeBaseService knowledge,
             OriginalFileStore store,
             UploadProperties upload,
             ChunkingProperties chunking,
             JsonMapper json,
+            ModelProperties model,
             PlatformTransactionManager manager) {
         this.repository = repository;
         this.knowledge = knowledge;
@@ -49,6 +52,7 @@ public class ImportService {
         this.upload = upload;
         this.chunking = chunking;
         this.json = json;
+        this.model = model;
         transaction = new TransactionTemplate(manager);
         transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -86,6 +90,12 @@ public class ImportService {
                 HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
         ImportTask existing = repository.findExisting(kbId, hash);
         if (existing != null) return new Outcome(ImportTaskResponse.from(existing), true);
+        // 在上传前校验并捕获模型参数，后续配置变化不得改写该版本快照。
+        String embeddingModel = model.getEmbeddingModel();
+        Integer dimensions = model.getDimensions();
+        if (embeddingModel == null || embeddingModel.isBlank() || dimensions == null || dimensions <= 0) {
+            throw new IllegalStateException("Invalid embedding model configuration");
+        }
         String snapshot = json.writeValueAsString(chunking.snapshot());
         String key = "originals/" + UUID.randomUUID();
         // 网络上传在数据库事务之外；只补偿本请求生成的唯一对象 Key。
@@ -96,7 +106,8 @@ public class ImportService {
             throw ex;
         }
         try {
-            ImportTask task = transaction.execute(status -> repository.create(kbId, filename, hash, key, snapshot));
+            ImportTask task = transaction.execute(
+                    status -> repository.create(kbId, filename, hash, key, snapshot, embeddingModel, dimensions));
             return new Outcome(ImportTaskResponse.from(task), false);
         } catch (RuntimeException ex) {
             cleanup(key);

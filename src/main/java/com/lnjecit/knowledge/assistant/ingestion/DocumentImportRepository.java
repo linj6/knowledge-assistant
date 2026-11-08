@@ -13,12 +13,12 @@ import java.time.Instant;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public class ImportRepository {
+public class DocumentImportRepository {
     private final DocumentMapper documents;
     private final IndexVersionMapper versions;
     private final ImportTaskMapper tasks;
 
-    public ImportRepository(DocumentMapper documents, IndexVersionMapper versions, ImportTaskMapper tasks) {
+    public DocumentImportRepository(DocumentMapper documents, IndexVersionMapper versions, ImportTaskMapper tasks) {
         this.documents = documents;
         this.versions = versions;
         this.tasks = tasks;
@@ -42,7 +42,14 @@ public class ImportRepository {
         return tasks.selectById(id);
     }
 
-    public ImportTask create(Long kbId, String filename, String hash, String key, String snapshot) {
+    public ImportTask create(
+            Long kbId,
+            String filename,
+            String hash,
+            String key,
+            String snapshot,
+            String embeddingModel,
+            int dimensions) {
         Instant now = Instant.now();
         Document document = new Document();
         document.setKnowledgeBaseId(kbId);
@@ -55,8 +62,8 @@ public class ImportRepository {
         version.setDocumentId(document.getId());
         version.setStatus(IndexVersionStatus.BUILDING);
         version.setExpectedChunkCount(0);
-        version.setEmbeddingModel("text-embedding-v4");
-        version.setEmbeddingDimension(1024);
+        version.setEmbeddingModel(embeddingModel);
+        version.setEmbeddingDimension(dimensions);
         version.setChunkingConfig(snapshot);
         version.setCreatedAt(now);
         versions.insert(version);

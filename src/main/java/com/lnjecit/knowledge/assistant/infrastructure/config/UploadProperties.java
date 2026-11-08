@@ -11,10 +11,11 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConfigurationProperties("assistant.upload")
 public class UploadProperties implements InitializingBean {
-    private int maxFileBytes = 10485760;
+    private int maxFileBytes = 2097152;
 
     @Override
     public void afterPropertiesSet() {
-        if (maxFileBytes < 1 || maxFileBytes > 10485760) throw new IllegalArgumentException("Invalid upload limit");
+        if (maxFileBytes < 1 || maxFileBytes > 2097152)
+            throw new IllegalArgumentException("assistant.upload.max-file-bytes must be between 1 and 2097152");
     }
 }

@@ -1,8 +1,8 @@
 spring:
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 12MB
+      max-file-size: 2MB
+      max-request-size: 3MB
   mvc:
     servlet:
       path: /api
@@ -13,7 +13,7 @@ spring:
     baseline-on-migrate: false
 assistant:
   upload:
-    max-file-bytes: 10485760
+    max-file-bytes: 2097152
   chunking:
     version: 1
     strategy: FIXED_CODE_POINT
@@ -25,6 +25,8 @@ assistant:
     secret-key: ${KA_INFRA_MINIO_PASSWORD:}
     bucket: ${KA_MINIO_BUCKET:knowledge-assistant}
   model:
+    embedding-model: ${ASSISTANT_MODEL_EMBEDDING_MODEL:text-embedding-v4}
+    dimensions: ${ASSISTANT_MODEL_DIMENSIONS:1024}
     enabled: false
     online-authorized: false
     api-key: ""

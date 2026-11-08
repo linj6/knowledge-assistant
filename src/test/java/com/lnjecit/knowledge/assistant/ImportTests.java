@@ -14,8 +14,8 @@ import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTaskStatus;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
 import com.lnjecit.knowledge.assistant.ingestion.ChunkingConfig;
-import com.lnjecit.knowledge.assistant.ingestion.ImportRepository;
-import com.lnjecit.knowledge.assistant.ingestion.ImportService;
+import com.lnjecit.knowledge.assistant.ingestion.DocumentImportRepository;
+import com.lnjecit.knowledge.assistant.ingestion.DocumentImportService;
 import com.lnjecit.knowledge.assistant.ingestion.ImportTaskResponse;
 import com.lnjecit.knowledge.assistant.knowledge.KnowledgeBaseService;
 import java.nio.charset.StandardCharsets;
@@ -41,18 +41,19 @@ class ImportTests {
 
     @Test
     void validationAndBom() throws Exception {
-        ImportRepository repository = mock(ImportRepository.class);
+        DocumentImportRepository repository = mock(DocumentImportRepository.class);
         KnowledgeBaseService knowledge = mock(KnowledgeBaseService.class);
         OriginalFileStore store = mock(OriginalFileStore.class);
         UploadProperties upload = new UploadProperties();
         upload.setMaxFileBytes(16);
-        ImportService service = new ImportService(
+        DocumentImportService service = new DocumentImportService(
                 repository,
                 knowledge,
                 store,
                 upload,
                 new ChunkingProperties(),
                 JsonMapper.builder().build(),
+                new com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties(),
                 mock(PlatformTransactionManager.class));
         for (MockMultipartFile file : new MockMultipartFile[] {
             file("a.md", new byte[0]),
@@ -92,6 +93,70 @@ class ImportTests {
         }
         assertThatThrownBy(() -> service.get(99L))
                 .isInstanceOf(com.lnjecit.knowledge.assistant.common.error.BusinessException.class);
+    }
+
+    @Test
+    void uploadPropertiesRange() {
+        UploadProperties properties = new UploadProperties();
+        assertThat(properties.getMaxFileBytes()).isEqualTo(2097152);
+        for (int value : new int[] {1, 16, 2097152}) {
+            properties.setMaxFileBytes(value);
+            properties.afterPropertiesSet();
+        }
+        for (int value : new int[] {0, -1, 2097153}) {
+            properties.setMaxFileBytes(value);
+            assertThatThrownBy(properties::afterPropertiesSet).hasMessageContaining("1 and 2097152");
+        }
+    }
+
+    @Test
+    void modelOverridesAreCapturedBeforePersistence() throws Exception {
+        DocumentImportRepository repository = mock(DocumentImportRepository.class);
+        OriginalFileStore store = mock(OriginalFileStore.class);
+        com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties model =
+                new com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties();
+        model.setEmbeddingModel("configured-model");
+        model.setDimensions(768);
+        ChunkingProperties chunking = new ChunkingProperties();
+        chunking.setVersion(1);
+        chunking.setStrategy("FIXED_CODE_POINT");
+        chunking.setChunkSize(800);
+        chunking.setChunkOverlap(120);
+        ImportTask task = new ImportTask();
+        task.setId(2L);
+        task.setDocumentId(3L);
+        task.setStatus(ImportTaskStatus.PENDING);
+        when(repository.create(
+                        org.mockito.ArgumentMatchers.anyLong(),
+                        anyString(),
+                        anyString(),
+                        anyString(),
+                        anyString(),
+                        anyString(),
+                        org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(task);
+        DocumentImportService service = new DocumentImportService(
+                repository,
+                mock(KnowledgeBaseService.class),
+                store,
+                new UploadProperties(),
+                chunking,
+                JsonMapper.builder().build(),
+                model,
+                mock(PlatformTransactionManager.class));
+        assertThat(service.receive(1L, file("a.txt", new byte[] {65})).task().status())
+                .isEqualTo("RECEIVED");
+        org.mockito.Mockito.verify(repository)
+                .create(eq(1L), eq("a.txt"), anyString(), anyString(), anyString(), eq("configured-model"), eq(768));
+        model.setEmbeddingModel(" ");
+        assertThatThrownBy(() -> service.receive(1L, file("a.txt", new byte[] {66})))
+                .hasMessageContaining("Invalid embedding");
+        model.setEmbeddingModel("configured-model");
+        for (Integer dimensions : new Integer[] {null, 0, -1}) {
+            model.setDimensions(dimensions);
+            assertThatThrownBy(() -> service.receive(1L, file("a.txt", new byte[] {66})))
+                    .hasMessageContaining("Invalid embedding");
+        }
     }
 
     static MockMultipartFile file(String name, byte[] bytes) {

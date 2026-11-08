@@ -10,7 +10,7 @@
 - 状态映射：PENDING→RECEIVED、RUNNING→PROCESSING、SUCCEEDED→READY、FAILED→FAILED。仅 FAILED 返回固定 `IMPORT_FAILED`；不公开自由文本诊断、租约或内部 Entity。
 - 文件名非空、最多 255 个 UTF-16 单元，拒绝目录分隔符及控制字符，扩展名忽略大小写且仅 `.md`/`.txt`。MIME 不作为内容可信依据。严格 UTF-8 解码验证，拒绝错误和截断字节序列，不解析正文。
 - UTF-8 BOM 允许并原样保存，参与原始字节哈希；有无 BOM 是不同原文件。后续原文位置按原始解码文本的 Unicode 码点计量，包括开头 U+FEFF；解析若忽略 BOM，必须保留回原文的映射。
-- 落实 M0 初始基线：业务上限 10 MiB，Servlet 单文件 10 MiB、请求总量 12 MiB，为 multipart 开销留余量。业务配置 `assistant.upload.max-file-bytes` 可降低（启动校验 1..10485760），不能绕过 Servlet 上限；若未来提高硬上限，需同时调整并验证这三处限制。按上限加一读取，避免仅信任声明大小。解码临时内存与原始字节均有界，未做并发内存压力测试。
+- 按本次评审授权将 M0 初始上传值调整为：业务上限 2 MiB，Servlet 单文件 2 MiB、请求总量 3 MiB，为 multipart 开销留余量。业务配置 `assistant.upload.max-file-bytes` 可降低（启动校验 1..2097152），不能绕过 Servlet 上限；若未来提高硬上限，需同时调整并验证这三处限制。按上限加一读取，避免仅信任声明大小。解码临时内存与原始字节均有界，未做并发内存压力测试。
 - Bucket 由 `KA_MINIO_BUCKET` 配置，默认 knowledge-assistant；须由操作者预建，应用不自动创建 Bucket。Endpoint 为 `KA_MINIO_ENDPOINT`，凭据沿用 Compose 的 `KA_INFRA_MINIO_USER`、`KA_INFRA_MINIO_PASSWORD`。未配置凭据可离线启动，实际上传明确失败。对象 Key 为服务端生成的 `originals/{UUID}`，不包含客户端文件名；按原始字节保存。
 - 上传在 PG 事务外。TransactionTemplate 的 REQUIRES_NEW 边界创建 Document、BUILDING IndexVersion、PENDING ImportTask，使用 ASSIGN_ID；初始次数和代际为零，activeVersionId/publishedAt 为空，不创建 Chunk、Embedding、ES 或发布事实。
 - 先查重用于减少上传；最终裁决为数据库唯一约束。并发冲突在新事务回滚后重新查询赢家，清理仅使用输家本请求 UUID 对象 Key。数据库失败执行即时尽力删除，删除失败记录 `ORIGINAL_OBJECT_CLEANUP_FAILED` 和服务端 Key，不掩盖数据库异常。上传失败也尝试清理本请求对象。
@@ -54,3 +54,30 @@ PostgreSQL 使用 Testcontainers 固定 pgvector 0.8.0-pg17 镜像，实际 Post
 PG 测试使用内存文件存储隔离故障注入，不据此宣称 MinIO 已验证。MinioIT 使用仓库已有本地固定镜像及独立临时 Bucket，实际通过 SDK 上传、读取 BOM/CRLF 原始字节、校验完全一致、删除并确认无法再读取，另保留现有 mc 往返测试。仅启动临时测试容器，未启动 Compose 或清理持久卷。
 
 未执行全量测试、真实供应商 API、ES、Worker 或后续索引功能；本任务不涉及这些链路。没有执行并发内存压力、断电/提交应答丢失或线上环境端到端验证；延迟孤儿对象清理留待 M1-12。进程崩溃仍可能留下孤儿对象，即时补偿不构成跨存储原子事务。
+
+## M1-03 评审修正（2026-11-08）
+
+起点 `2ba143505002293dff7c5c16d404639cef67d2a7`，分支不变，初始工作区干净。
+
+- 三类调整为 DocumentImportController、DocumentImportService、DocumentImportRepository，测试引用同步；API 路径、Result 和状态映射保持不变。
+- UploadProperties 默认值及合法区间调整为 2097152 和 1..2097152，错误消息包含配置名与范围；更低业务上限仍有效。
+- application.yml 和 application-local.yml 提供离线模型默认值，支持 ASSISTANT_MODEL_EMBEDDING_MODEL、ASSISTANT_MODEL_DIMENSIONS 和常规外部配置覆盖，模型开关仍为 false。
+- Service 从 ModelProperties 捕获 embeddingModel、dimensions，在上传前拒绝空白/缺失模型及 null/非正维度，经参数传入 Repository 并固化到新 IndexVersion；Repository 不依赖 ModelProperties。不会更新已有版本。数据库 V2 对模型及维度的 V1 冻结约束仍然生效，不因配置可覆盖就允许持久化其他模型空间。
+- 真实 HTTP multipart 经内嵌 Tomcat 和 Controller 验证：Markdown 恰好 2 MiB 返回 202，超过 1 字节返回 413；业务限制降为 16 字节、Servlet 仍为 2 MiB，17 字节 TXT 返回 400、16 字节 TXT 返回 202；真实 PG 确认仅两份成功导入及模型快照。保留原三表关联、ChunkingConfig 快照、并发去重、事务回滚和 MinIO 补偿测试。
+- 配置测试验证 common/local 离线默认值与外部覆盖；Service 单测验证覆盖的模型/维度确实传入 Repository，以及非法模型配置拒绝创建。其他模型空间的传参测试使用 Mock Repository，不宣称绕过真实数据库约束。
+
+本次最终执行成功：
+
+```powershell
+mvn spotless:apply
+mvn spotless:check
+mvn -DskipTests test-compile
+mvn "-Dtest=ImportTests,ImportApiTests,ImportPersistenceTests,ProfileConfigurationTests,KnowledgeBaseApiTests" test
+mvn "-Dit.test=DatabaseIT,MinioIT" failsafe:integration-test failsafe:verify
+git diff --check
+git diff --cached --check
+```
+
+局部测试 20 项通过（ImportTests 4、ImportApiTests 1、ImportPersistenceTests 2、ProfileConfigurationTests 6、KnowledgeBaseApiTests 7），0 失败、0 错误、0 跳过；真实基础设施集成测试 4 项通过（DatabaseIT 2、MinioIT 2），0 失败、0 错误、0 跳过。PostgreSQL 17.6 / pgvector 固定镜像执行 V1→V3；MinIO 使用既有本地镜像，SDK 与 mc 原始字节读写及删除实际通过。已检查完整 diff，未修改依赖、迁移、数据库字段或冻结规范。
+
+未执行全量测试、真实模型 API 或后续阶段功能，原因及原有即时补偿限制同上。无新增阻断问题；非 V1 模型配置仍会被既有数据库约束拒绝。完成后等待人工评审，不进入 M1-04。

@@ -14,10 +14,10 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
-public class ImportController {
-    private final ImportService service;
+public class DocumentImportController {
+    private final DocumentImportService service;
 
-    public ImportController(ImportService service) {
+    public DocumentImportController(DocumentImportService service) {
         this.service = service;
     }
 
@@ -27,7 +27,7 @@ public class ImportController {
         if (files.size() != 1) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT);
         }
-        ImportService.Outcome outcome = service.receive(kbId, files.getFirst());
+        DocumentImportService.Outcome outcome = service.receive(kbId, files.getFirst());
         return ResponseEntity.status(outcome.duplicate() ? 200 : 202).body(Result.success(outcome.task()));
     }
 
