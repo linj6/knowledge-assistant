@@ -1,0 +1,25 @@
+package com.lnjecit.knowledge.assistant.ingestion.embedding;
+
+import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Update;
+
+@Mapper
+public interface EmbeddingMapper {
+    @Update(
+            """
+        UPDATE document_chunk c SET embedding=#{vector,typeHandler=com.lnjecit.knowledge.assistant.infrastructure.persistence.VectorTypeHandler}
+        FROM document_index_version v, document d
+        WHERE c.id=#{c.id} AND c.index_version_id=#{c.indexVersionId}
+          AND c.document_id=#{c.documentId} AND c.knowledge_base_id=#{c.knowledgeBaseId}
+          AND c.content=#{c.content} AND c.chunk_order=#{c.chunkOrder}
+          AND c.source_start=#{c.sourceStart} AND c.source_end=#{c.sourceEnd}
+          AND c.heading_path IS NOT DISTINCT FROM #{c.headingPath}
+          AND v.embedding_model='text-embedding-v4' AND v.embedding_dimension=1024
+          AND c.embedding IS NULL AND v.id=c.index_version_id AND v.document_id=d.id
+          AND d.id=c.document_id AND d.knowledge_base_id=c.knowledge_base_id
+          AND v.status='BUILDING' AND v.published_at IS NULL AND d.active_version_id IS NULL
+        """)
+    int write(@Param("c") DocumentChunk chunk, @Param("vector") String vector);
+}
