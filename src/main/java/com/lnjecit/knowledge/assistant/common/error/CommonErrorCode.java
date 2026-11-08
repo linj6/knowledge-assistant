@@ -1,6 +1,7 @@
 package com.lnjecit.knowledge.assistant.common.error;
 
 public enum CommonErrorCode implements ErrorCode {
+    KNOWLEDGE_BASE_NOT_FOUND("知识库不存在"),
     INVALID_ARGUMENT("请求参数不合法"),
     METHOD_NOT_ALLOWED("不支持的 HTTP 方法"),
     UNSUPPORTED_MEDIA_TYPE("不支持的媒体类型"),

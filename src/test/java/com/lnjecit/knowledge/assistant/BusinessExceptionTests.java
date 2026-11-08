@@ -55,7 +55,7 @@ class BusinessExceptionTests {
     @Test
     void commonStatuses() throws Exception {
         CommonErrorCode[] codes = CommonErrorCode.values();
-        int[] statuses = {400, 405, 415, 500};
+        int[] statuses = {404, 400, 405, 415, 500};
         for (int i = 0; i < codes.length; i++) {
             mvc.perform(get("/api/business/" + codes[i].getCode()))
                     .andExpect(status().is(statuses[i]))
