@@ -43,3 +43,23 @@ ParsedDocument 校验建立一次码点到 UTF-16 边界数组，O(N) 时间与�
 本次执行 mvn spotless:apply、mvn spotless:check、mvn -DskipTests test-compile，以及 DocumentParserTests、ImportTests、ImportApiTests 局部测试。未执行全量/数据库/MinIO/ES/在线模型验证，本次未改这些链路。原有 Markdown 支持范围及限制保持不变。
 
 修正后局部测试总计 22 项通过（解析 17、导入单元 4、API 1），0 失败、0 错误、0 跳过。完整修改已审阅，git diff --check 与暂存检查通过。
+
+## commonmark 生产适配（基线 d92943e）
+
+MarkdownDocumentParser 使用 commonmark-java 0.32.0 的公开 Parser/Node/Heading/SourceSpans API，移除标题正则和围栏状态机。严格解码、接口、Factory、TXT、ParsedDocument、SourceSpan 与切分协议均不变。依赖候选改为编译范围进行源码验证；仅在下述测试通过后提交为正式依赖。
+
+原文完整保留；仅 AST 解析视图跳过开头一个 BOM，所有库 UTF-16 inputIndex 加回 BOM 宽度，再使用一次构建的边界表转换至原文码点。代理对内部边界和越界拒绝 UNRELIABLE_MAPPING。正文 Fragment 保持逐原始行连续覆盖，包括 BOM、CRLF、空白和所有语法标记，不使用 AST literal 或渲染文本作为正文。
+
+标题文字取首末行内子节点的源码包络；普通 ATX/Setext 标题去掉外围标题语法，内部强调、链接、转义保留原样。多行或容器内标题包络包含中间换行、容器前缀与标记，展示文字严格等于该连续范围回取。这样不拼接多个离散 SourceSpans，不声称展示为纯渲染文本。空标题更新层级但不新增空 Heading。
+
+标题路径作用域按 AST 父容器隔离：文档标题影响之后同级正文；进入引用块、列表及每个列表项时继承当时外层路径，但内部标题只更新本容器后续兄弟内容；退出后恢复外层，兄弟列表项不继承前项标题。内部同级/高级标题可替换继承路径，但不会修改外层。空白行按所在容器可用源码范围及外层路径保留；不作为语义 Chunk 边界。
+
+新行为：识别 Setext、列表/引用块内标题，代码块判断服从 CommonMark AST；旧手写识别中的不符合 CommonMark 行为不再维持。GFM 表格仍无扩展支持。正文映射不受语义限制影响。多行标题可能显示原始容器前缀，这是单一连续 SourceSpan 协议下明确选择的原文语义，不是清理后的展示标题。
+
+新增容器作用域和多行 Setext 连续包络测试；原有 17 项保留。实验测试中对“旧实现不识别三个容器/Setext 标题”的断言更新为新实现识别三个；实验中 raw commonmark 的 BOM 差异断言保留。大规模基准从 CommonMarkFeasibilityTests 移除，新建 MarkdownPerformanceIT，仅显式 -Dtest=MarkdownPerformanceIT 执行；默认 *Tests 路径不运行 2 MiB 实验。原 50,001 短行正确性回归保留。
+
+性能测量以相同 2 MiB 固定输入，预热 3 次、测量 7 次，使用 -Xmx512m 独立测试 JVM；记录完整生产解析（含严格解码、AST、坐标适配、ParsedDocument 构造）的 min/median/max 和 JVM heap used/max。heap used 含未回收临时对象，不是对象保留大小或峰值；不与历史不同条件数据推导速度结论。未做 profiler，极深恶意容器的递归栈资源界限尚未压测。
+
+实际验证：mvn spotless:apply、mvn spotless:check、mvn -DskipTests test-compile 成功；mvn "-Dtest=DocumentParserTests,CommonMarkFeasibilityTests,ImportTests,ImportApiTests" test 共 26 项通过（19+2+4+1），0 失败/错误/跳过。首次候选验证因并发编辑测试文件触发格式检查失败，随后重新格式化并完整执行上述命令通过，无绕过检查。
+
+显式 mvn "-Dtest=MarkdownPerformanceIT" "-DargLine=-Xmx512m" test：1 项通过。输入 2,097,220 bytes，min/median/max=593.2754/751.0073/890.7766 ms，测量末尾 heap used=394,571,024 bytes，heap max=536,870,912 bytes。Java 21.0.10 / Windows 11。通过位置回归后确认 commonmark 依赖正式采用 compile 范围。未执行全量、数据库、MinIO、ES、模型服务；无相关链路变更。git diff --check 和暂存检查通过，完整变更已审阅。未进入 M1-05。

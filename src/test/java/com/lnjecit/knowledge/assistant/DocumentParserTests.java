@@ -117,6 +117,40 @@ class DocumentParserTests {
                 "SHORT_LINES lines=50001 codePoints=" + cursor + " parseAndValidationMs=" + elapsed / 1_000_000.0);
     }
 
+    @Test
+    void containerScopesAndSetext() {
+        String source =
+                "\uFEFF# 外😀\r\n正文\r\n\r\n> ## 引用𠀀\r\n> 内容\r\n\r\n外文\r\n\r\n- ## 列表\r\n  内容\r\n- 兄弟\r\n\r\n尾文\r\n\r\n标题 **原样**\r\n===\r\n正文";
+        ParsedDocument parsed = parse("a.md", source);
+        assertEquals(List.of("外😀", "引用𠀀"), titles(parsed, 4));
+        assertEquals(List.of("外😀"), titles(parsed, 6));
+        assertEquals(List.of("外😀", "列表"), titles(parsed, 9));
+        assertEquals(List.of("外😀"), titles(parsed, 10));
+        assertEquals(List.of("外😀"), titles(parsed, 12));
+        assertEquals(List.of("标题 **原样**"), titles(parsed, 16));
+        assertEquals(parsed, parse("a.md", source));
+        StringBuilder result = new StringBuilder();
+        for (ParsedDocument.Fragment fragment : parsed.fragments()) {
+            result.append(fragment.span().extract(source));
+            for (ParsedDocument.Heading heading : fragment.headingPath())
+                assertEquals(heading.text(), heading.span().extract(source));
+        }
+        assertEquals(source, result.toString());
+    }
+
+    @Test
+    void multilineHeadingKeepsContinuousEnvelope() {
+        String source = "> 第一😀\r\n> 第二𠀀\r\n> ===\r\n> 文本\r\n\r\n外部";
+        ParsedDocument parsed = parse("a.md", source);
+        assertEquals(List.of("第一😀\r\n> 第二𠀀"), titles(parsed, 3));
+        assertEquals(List.of(), titles(parsed, 5));
+        assertEquals(
+                source,
+                parsed.fragments().stream()
+                        .map(f -> f.span().extract(source))
+                        .collect(java.util.stream.Collectors.joining()));
+    }
+
     private ParsedDocument parse(String name, String source) {
         return parser.parse(name, source.getBytes(StandardCharsets.UTF_8));
     }

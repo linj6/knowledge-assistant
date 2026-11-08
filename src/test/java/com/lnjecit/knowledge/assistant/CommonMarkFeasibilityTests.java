@@ -3,10 +3,7 @@ package com.lnjecit.knowledge.assistant;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.lnjecit.knowledge.assistant.ingestion.MarkdownDocumentParser;
-import java.lang.management.ManagementFactory;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -149,7 +146,7 @@ class CommonMarkFeasibilityTests {
         assertTrue(first.getInputIndex() + first.getLength() < second.getInputIndex());
         assertEquals("多行😀", source.substring(first.getInputIndex(), first.getInputIndex() + first.getLength()));
         assertEquals(
-                0,
+                3,
                 new MarkdownDocumentParser()
                         .parse(source.getBytes(StandardCharsets.UTF_8)).fragments().stream()
                                 .flatMap(f -> f.headingPath().stream())
@@ -159,47 +156,5 @@ class CommonMarkFeasibilityTests {
         assertTrue(nodes(inline).stream().anyMatch(Emphasis.class::isInstance));
         assertTrue(nodes(inline).stream().anyMatch(Link.class::isInstance));
         assertInstanceOf(Paragraph.class, spans.parse("a | b\n--- | ---\nx | y").getFirstChild());
-    }
-
-    @Test
-    void performance() throws Exception {
-        String small = Files.readString(Path.of("docs/engineering/m1-04-verification.md"));
-        String block =
-                "# 中文😀\r\n\r\n段落 **强调** [链接](url)𠀀\r\n下一行\r\n\r\n- item\r\n> quote\r\n\r\n```java\r\n# code\r\n```\r\n";
-        String large = block.repeat((2 * 1024 * 1024) / block.getBytes(StandardCharsets.UTF_8).length + 1);
-        List<String> inputs = List.of(
-                small,
-                block.repeat(400),
-                large,
-                "# title\n" + "中😀𠀀\r\n".repeat(50000),
-                ("###### deep\n" + "> ".repeat(30) + "quote\n\n- a\n  - b\n    - c\n\n").repeat(300));
-        for (int sample = 0; sample < inputs.size(); sample++) {
-            String source = inputs.get(sample);
-            byte[] bytes = source.getBytes(StandardCharsets.UTF_8);
-            List<Runnable> operations = List.of(
-                    () -> sink = new MarkdownDocumentParser().parse(bytes),
-                    () -> sink = plain.parse(source),
-                    () -> sink = spans.parse(source),
-                    () -> {
-                        Node ast = spans.parse(source);
-                        sink = validate(source, ast, false);
-                    });
-            double[][] times = new double[4][7];
-            for (int round = -3; round < 7; round++)
-                for (int order = 0; order < 4; order++) {
-                    int mode = Math.floorMod(order + round, 4);
-                    long begin = System.nanoTime();
-                    operations.get(mode).run();
-                    if (round >= 0) times[mode][round] = (System.nanoTime() - begin) / 1_000_000.0;
-                }
-            for (int mode = 0; mode < 4; mode++) {
-                Arrays.sort(times[mode]);
-                System.out.println("BENCH sample=" + sample + " bytes=" + bytes.length + " mode=" + mode + " medianMs="
-                        + times[mode][3] + " minMs=" + times[mode][0] + " maxMs=" + times[mode][6]);
-            }
-            System.out.println("HEAP sample=" + sample + " usedBytes="
-                    + ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed());
-        }
-        System.out.println("JVM " + System.getProperty("java.version") + " " + System.getProperty("os.name"));
     }
 }

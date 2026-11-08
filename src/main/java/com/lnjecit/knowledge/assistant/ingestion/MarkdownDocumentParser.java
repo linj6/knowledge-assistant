@@ -1,13 +1,18 @@
 package com.lnjecit.knowledge.assistant.ingestion;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import org.commonmark.node.Heading;
+import org.commonmark.node.Node;
+import org.commonmark.parser.IncludeSourceSpans;
+import org.commonmark.parser.Parser;
 
+/** AST 只决定结构和标题作用域；正文始终来自完整原文。 */
 public final class MarkdownDocumentParser implements DocumentParser {
-    private static final Pattern HEADING = Pattern.compile("^ {0,3}(#{1,6})(?:[ \\t]+(.*)|$)");
-    private static final Pattern FENCE = Pattern.compile("^ {0,3}(`{3,}|~{3,})(.*)$");
+    private final Parser parser = Parser.builder()
+            .includeSourceSpans(IncludeSourceSpans.BLOCKS_AND_INLINES)
+            .build();
 
     public String extension() {
         return "md";
@@ -15,50 +20,91 @@ public final class MarkdownDocumentParser implements DocumentParser {
 
     public ParsedDocument parse(byte[] bytes) {
         String source = ParserSource.decode(bytes);
-        int[] points = source.codePoints().toArray();
+        int bom = source.charAt(0) == '\uFEFF' ? 1 : 0;
+        String view = source.substring(bom);
+        int[] coordinates = new int[source.length() + 1];
+        Arrays.fill(coordinates, -1);
+        int count = 0;
+        for (int character = 0; character < source.length(); ) {
+            coordinates[character] = count++;
+            character += Character.charCount(source.codePointAt(character));
+        }
+        coordinates[source.length()] = count;
+        List<Integer> starts = new ArrayList<>();
+        starts.add(0);
+        for (int i = 0; i < source.length(); i++) {
+            if (source.charAt(i) == '\r') {
+                if (i + 1 < source.length() && source.charAt(i + 1) == '\n') i++;
+                if (i + 1 < source.length()) starts.add(i + 1);
+            } else if (source.charAt(i) == '\n' && i + 1 < source.length()) starts.add(i + 1);
+        }
+        List<List<ParsedDocument.Heading>> paths = new ArrayList<>();
+        for (int i = 0; i < starts.size(); i++) paths.add(List.of());
+        Node root = parser.parse(view);
+        assign(root, new ArrayList<>(), paths, source, coordinates, bom);
         List<ParsedDocument.Fragment> fragments = new ArrayList<>();
-        List<ParsedDocument.Heading> path = new ArrayList<>();
-        char fence = 0;
-        int fenceLength = 0;
-        int start = 0;
-        // 直接沿码点扫描，不以搜索正文的方式反推位置；保留 BOM 和原始换行。
-        while (start < points.length) {
-            int end = start;
-            while (end < points.length && points[end] != '\r' && points[end] != '\n') end++;
-            int next = end;
-            if (next < points.length && points[next++] == '\r' && next < points.length && points[next] == '\n') next++;
-            int visibleStart = start == 0 && points[0] == 0xFEFF ? 1 : start;
-            String line = new String(points, visibleStart, end - visibleStart);
-            Matcher marker = FENCE.matcher(line);
-            if (fence != 0) {
-                if (marker.matches()
-                        && marker.group(1).charAt(0) == fence
-                        && marker.group(1).length() >= fenceLength
-                        && marker.group(2).isBlank()) fence = 0;
-            } else if (marker.matches()
-                    && (marker.group(1).charAt(0) != '`' || !marker.group(2).contains("`"))) {
-                fence = marker.group(1).charAt(0);
-                fenceLength = marker.group(1).length();
-            } else {
-                Matcher heading = HEADING.matcher(line);
-                if (heading.matches()) {
-                    int level = heading.group(1).length();
-                    String text = heading.group(2) == null ? "" : heading.group(2);
-                    // 仅去掉 ATX 尾部语法；展示文字仍对应单一连续源码范围。
-                    text = text.replaceFirst("[ \\t]+#+[ \\t]*$", "").stripTrailing();
-                    while (!path.isEmpty() && path.getLast().level() >= level) path.removeLast();
-                    if (!text.isEmpty()) {
-                        int textStart = visibleStart + line.codePointCount(0, heading.start(2));
-                        path.add(new ParsedDocument.Heading(
-                                text,
-                                level,
-                                new SourceSpan(textStart, textStart + text.codePointCount(0, text.length()))));
-                    }
-                }
-            }
-            fragments.add(new ParsedDocument.Fragment(new SourceSpan(start, next), path));
-            start = next;
+        for (int line = 0; line < starts.size(); line++) {
+            int start = starts.get(line);
+            int end = line + 1 < starts.size() ? starts.get(line + 1) : source.length();
+            fragments.add(
+                    new ParsedDocument.Fragment(new SourceSpan(coordinates[start], coordinates[end]), paths.get(line)));
         }
         return new ParsedDocument(source, fragments);
+    }
+
+    private void assign(
+            Node container,
+            List<ParsedDocument.Heading> inherited,
+            List<List<ParsedDocument.Heading>> paths,
+            String source,
+            int[] coordinates,
+            int bom) {
+        List<ParsedDocument.Heading> path = new ArrayList<>(inherited);
+        int nextLine = container.getSourceSpans().isEmpty()
+                ? 0
+                : container.getSourceSpans().getFirst().getLineIndex();
+        for (Node node = container.getFirstChild(); node != null; node = node.getNext()) {
+            if (node.getSourceSpans().isEmpty()) continue;
+            int firstLine = node.getSourceSpans().getFirst().getLineIndex();
+            for (int line = nextLine; line < firstLine; line++) paths.set(line, List.copyOf(path));
+            if (node instanceof Heading heading) {
+                while (!path.isEmpty() && path.getLast().level() >= heading.getLevel()) path.removeLast();
+                // 使用行内节点源码的连续包络，保留其中的 Markdown 标记和容器前缀。
+                // 多行标题不拼接去前缀后的离散文本，而保留包络内全部原文。
+                Node first = heading.getFirstChild();
+                Node last = heading.getLastChild();
+                if (first != null && last != null) {
+                    if (first.getSourceSpans().isEmpty()
+                            || last.getSourceSpans().isEmpty())
+                        throw new ParseException(ParseException.Kind.UNRELIABLE_MAPPING);
+                    org.commonmark.node.SourceSpan left = first.getSourceSpans().getFirst();
+                    org.commonmark.node.SourceSpan right = last.getSourceSpans().getLast();
+                    int start = left.getInputIndex() + bom;
+                    int end = right.getInputIndex() + right.getLength() + bom;
+                    if (start < 0
+                            || end >= coordinates.length
+                            || coordinates[start] < 0
+                            || coordinates[end] < 0
+                            || end <= start) throw new ParseException(ParseException.Kind.UNRELIABLE_MAPPING);
+                    path.add(new ParsedDocument.Heading(
+                            source.substring(start, end),
+                            heading.getLevel(),
+                            new SourceSpan(coordinates[start], coordinates[end])));
+                }
+            }
+            for (org.commonmark.node.SourceSpan span : node.getSourceSpans()) {
+                int start = span.getInputIndex() + bom;
+                int end = start + span.getLength();
+                if (start < 0 || end >= coordinates.length || coordinates[start] < 0 || coordinates[end] < 0)
+                    throw new ParseException(ParseException.Kind.UNRELIABLE_MAPPING);
+                paths.set(span.getLineIndex(), List.copyOf(path));
+            }
+            // 每个容器单独复制路径；引用块、列表项中的标题不会修改外层或兄弟项。
+            if (!(node instanceof Heading) && node.getFirstChild() != null)
+                assign(node, path, paths, source, coordinates, bom);
+            nextLine = node.getSourceSpans().getLast().getLineIndex() + 1;
+        }
+        if (container.getParent() == null)
+            for (int line = nextLine; line < paths.size(); line++) paths.set(line, List.copyOf(path));
     }
 }
