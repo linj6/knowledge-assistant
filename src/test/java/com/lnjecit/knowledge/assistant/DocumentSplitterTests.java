@@ -2,11 +2,11 @@ package com.lnjecit.knowledge.assistant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.lnjecit.knowledge.assistant.ingestion.ChunkingConfig;
-import com.lnjecit.knowledge.assistant.ingestion.DocumentParserFactory;
-import com.lnjecit.knowledge.assistant.ingestion.DocumentSplitter;
-import com.lnjecit.knowledge.assistant.ingestion.FixedCodePointSplitter;
-import com.lnjecit.knowledge.assistant.ingestion.ParsedDocument;
+import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingConfig;
+import com.lnjecit.knowledge.assistant.ingestion.chunk.DocumentSplitter;
+import com.lnjecit.knowledge.assistant.ingestion.chunk.FixedCodePointSplitter;
+import com.lnjecit.knowledge.assistant.ingestion.parser.DocumentParserFactory;
+import com.lnjecit.knowledge.assistant.ingestion.parser.ParsedDocument;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -18,13 +18,13 @@ class DocumentSplitterTests {
                 .parse("a.md", ("\uFEFF# 一级\r\n## 二级😀\n" + "正文".repeat(900)).getBytes(StandardCharsets.UTF_8));
         tools.jackson.databind.json.JsonMapper json =
                 tools.jackson.databind.json.JsonMapper.builder().build();
-        com.lnjecit.knowledge.assistant.ingestion.ChunkService.HeadingPath path =
-                new com.lnjecit.knowledge.assistant.ingestion.ChunkService.HeadingPath(
+        com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkService.HeadingPath path =
+                new com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkService.HeadingPath(
                         1, parsed.fragments().get(2).headingPath());
         assertThat(path.headings()).hasSize(2);
         assertThat(json.readValue(
                         json.writeValueAsString(path),
-                        com.lnjecit.knowledge.assistant.ingestion.ChunkService.HeadingPath.class))
+                        com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkService.HeadingPath.class))
                 .isEqualTo(path);
     }
 
@@ -38,7 +38,8 @@ class DocumentSplitterTests {
             ParsedDocument parsed =
                     new DocumentParserFactory().parse("a." + extension, source.getBytes(StandardCharsets.UTF_8));
             DocumentSplitter splitter = new FixedCodePointSplitter();
-            ChunkingConfig config = new ChunkingConfig(1, "FIXED_CODE_POINT", 800, 120);
+            ChunkingConfig config = new ChunkingConfig(
+                    1, com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy.FIXED_CODE_POINT, 800, 120);
             java.util.List<DocumentSplitter.Chunk> chunks = splitter.split(parsed, config);
             assertThat(splitter.split(parsed, config)).isEqualTo(chunks);
             int previousEnd = 0;

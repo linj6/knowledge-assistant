@@ -1,8 +1,10 @@
 package com.lnjecit.knowledge.assistant.infrastructure.web;
 
+import com.lnjecit.knowledge.assistant.common.RequestIdContext;
 import com.lnjecit.knowledge.assistant.common.api.Result;
 import com.lnjecit.knowledge.assistant.common.error.*;
-import org.slf4j.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.request.WebRequest;
@@ -32,7 +34,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         // 不记录异常消息或堆栈：其中可能包含密钥、SQL 或文档正文。
         LOG.error(
                 "requestId={} code=INTERNAL_ERROR exceptionType={}",
-                MDC.get("requestId"),
+                RequestIdContext.current(),
                 ex.getClass().getName());
         return ResponseEntity.status(500).body(error(CommonErrorCode.INTERNAL_ERROR));
     }
@@ -40,7 +42,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Result<Void>> business(BusinessException ex) {
         ErrorCode code = ex.getErrorCode();
-        LOG.warn("requestId={} code={}", MDC.get("requestId"), code.getCode());
+        LOG.warn("requestId={} code={}", RequestIdContext.current(), code.getCode());
         return ResponseEntity.status(statusFor(code)).body(error(code));
     }
 

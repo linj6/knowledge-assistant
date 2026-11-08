@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.ingestion;
+package com.lnjecit.knowledge.assistant.ingestion.chunk;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;

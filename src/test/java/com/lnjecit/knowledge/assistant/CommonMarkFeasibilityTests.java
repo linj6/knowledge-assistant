@@ -2,7 +2,7 @@ package com.lnjecit.knowledge.assistant;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.lnjecit.knowledge.assistant.ingestion.MarkdownDocumentParser;
+import com.lnjecit.knowledge.assistant.ingestion.parser.MarkdownDocumentParser;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;

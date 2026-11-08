@@ -27,3 +27,19 @@ ChunkService 定义事务边界，ChunkRepository 封装 Mapper。首次插入�
 未实现并发写入互斥、发布竞态互斥、Worker/fencing；唯一约束和数量条件更新不代表并发重试完全安全，并发冲突可能明确失败，留待 M1-09。未执行全量测试、模型、MinIO、ES 或后续索引阶段。200000 码点测试是有限资源正确性检查，不是生产峰值内存或吞吐承诺；未做 profiler。冻结架构 Boot 3.x 与 pom 4.1.2 已知差异保持原样。
 
 补充实际结果：mvn "-Dtest=DocumentSplitterTests" "-DargLine=-Xmx512m" test 共 11 项通过，0 失败/错误/跳过，包含标题 JSON 往返。git diff --check 通过。
+
+## M1-05 评审修正（基线 552407f）
+
+按职责移动至 ingestion.upload、ingestion.parser、ingestion.chunk；ParserSource 仍为包内类，仅解码逻辑留在 Parser。码点边界表原样提取为 ingestion.text.UnicodeOffsets，供 ParsedDocument 与 Splitter 复用，严格 UTF-8 和原文范围协议不变。没有新增 Worker/Embedding/ES/Publication 包。
+
+ChunkingStrategy 目前仅 FIXED_CODE_POINT，ChunkingConfig 和配置绑定改用枚举。JSON 仍保存同名字符串，旧数据库快照可直接读取，未知策略拒绝；application.yml 值未修改。RequestIdContext 统一私有 MDC Key，Filter 设置/清理、Result 读取、异常日志读取共同复用，Header、校验规则、响应字段和脱敏保持不变。
+
+ChunkService 只允许 BUILDING 初始化及一致性重试；VERIFIED/PUBLISHED/FAILED 均拒绝。Document.activeVersionId 与 publishedAt 防护保留，不实现 FAILED 恢复。现有数据库 VERIFIED/PUBLISHED 必须具有正数量的约束保持不变，状态拒绝测试使用已初始化版本。
+
+原文归属边界：initialize(documentId,versionId,parsed) 校验持久化对象之间的归属，但不能证明任意调用方提供的 parsed 来自 Document 原文件。后续 ProcessingService 必须先按 Document.objectKey 在数据库事务之外读取原始字节，以与上传一致的 SHA-256 规则核验 Document.contentHash，再严格解析并调用初始化；失败必须终止，不得把其他原文绑定至该版本。本次增加方法说明，不新增对象存储请求或完整编排。
+
+验证：mvn spotless:apply、mvn spotless:check、mvn -DskipTests test-compile 均成功。受影响测试命令：mvn "-Dtest=ChunkingStrategyTests,DocumentParserTests,DocumentSplitterTests,CommonMarkFeasibilityTests,ImportTests,ImportApiTests,ApiBaselineTests,BusinessExceptionTests,ChunkPersistenceIT,ImportPersistenceTests" test，共 53 项通过，0 失败/错误/跳过。包含真实 PostgreSQL 17.6/Testcontainers、V1～V4 迁移、初始化及 ID 重试、事务回滚、唯一约束、三种非 BUILDING 状态拒绝；上传集成使用 Fake 存储，不访问真实 MinIO。保留 TXT/Markdown/Factory/Unicode 回归及请求响应/MDC 清理测试，新增旧快照和枚举 JSON 往返、真实 YAML 绑定及非法策略测试。
+
+重构过程中首次脚本遇到本机默认编码读取失败、首次编译暴露缺失 import，修正后重新格式化及编译通过。未修改迁移、依赖、冻结架构或 API。未执行全量测试、在线模型、MinIO、ES；并发互斥和原文来源认证仍是上述明确边界，不宣称 M1-09 已完成。
+
+补充：mvn spotless:apply 后执行 mvn "-Dtest=RequestIdContextTests" test，1 项通过，0 失败/错误/跳过；证明过滤链抛出 ServletException 时上下文与底层 MDC 均清理，链内 Result.requestId 与响应 Header 一致。该构建同时通过 Spotless 检查及测试编译。git diff --check 和 git diff --cached --check 通过。

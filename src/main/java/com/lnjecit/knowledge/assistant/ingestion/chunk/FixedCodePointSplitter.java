@@ -1,15 +1,18 @@
-package com.lnjecit.knowledge.assistant.ingestion;
+package com.lnjecit.knowledge.assistant.ingestion.chunk;
 
+import com.lnjecit.knowledge.assistant.ingestion.parser.ParsedDocument;
+import com.lnjecit.knowledge.assistant.ingestion.parser.SourceSpan;
+import com.lnjecit.knowledge.assistant.ingestion.text.UnicodeOffsets;
 import java.util.ArrayList;
 import java.util.List;
 
 public final class FixedCodePointSplitter implements DocumentSplitter {
     public List<Chunk> split(ParsedDocument document, ChunkingConfig config) {
-        if (config.version() != 1 || !config.strategy().equals("FIXED_CODE_POINT")) {
+        if (config.version() != 1 || config.strategy() != ChunkingStrategy.FIXED_CODE_POINT) {
             throw new IllegalArgumentException("Unsupported chunking protocol");
         }
         String source = document.source();
-        int[] boundaries = ParserSource.boundaries(source);
+        int[] boundaries = UnicodeOffsets.boundaries(source);
         int length = boundaries.length - 1;
         List<Chunk> chunks = new ArrayList<>();
         int fragment = 0;

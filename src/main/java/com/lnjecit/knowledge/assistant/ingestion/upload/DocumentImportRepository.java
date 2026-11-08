@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.ingestion;
+package com.lnjecit.knowledge.assistant.ingestion.upload;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.Document;

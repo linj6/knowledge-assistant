@@ -2,7 +2,12 @@ package com.lnjecit.knowledge.assistant;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.lnjecit.knowledge.assistant.ingestion.*;
+import com.lnjecit.knowledge.assistant.ingestion.parser.DocumentParserFactory;
+import com.lnjecit.knowledge.assistant.ingestion.parser.MarkdownDocumentParser;
+import com.lnjecit.knowledge.assistant.ingestion.parser.ParseException;
+import com.lnjecit.knowledge.assistant.ingestion.parser.ParsedDocument;
+import com.lnjecit.knowledge.assistant.ingestion.parser.SourceSpan;
+import com.lnjecit.knowledge.assistant.ingestion.parser.TxtDocumentParser;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.junit.jupiter.api.Test;

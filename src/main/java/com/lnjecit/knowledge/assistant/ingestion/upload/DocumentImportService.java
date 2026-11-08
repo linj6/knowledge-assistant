@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.ingestion;
+package com.lnjecit.knowledge.assistant.ingestion.upload;
 
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;

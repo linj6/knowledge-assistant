@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
-import com.lnjecit.knowledge.assistant.ingestion.ChunkingConfig;
-import com.lnjecit.knowledge.assistant.ingestion.DocumentImportService;
+import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingConfig;
+import com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportService;
 import com.lnjecit.knowledge.assistant.knowledge.KnowledgeBaseService;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
@@ -151,7 +151,11 @@ class ImportPersistenceTests {
             properties.setChunkSize(900);
             assertThat(context.getBean(tools.jackson.databind.json.JsonMapper.class)
                             .readValue(snapshot, ChunkingConfig.class))
-                    .isEqualTo(new ChunkingConfig(1, "FIXED_CODE_POINT", 800, 120));
+                    .isEqualTo(new ChunkingConfig(
+                            1,
+                            com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy.FIXED_CODE_POINT,
+                            800,
+                            120));
             assertThat(first.task().status()).isEqualTo("RECEIVED");
             assertThat(service.receive(kb, ImportTests.file("b.txt", bytes))
                             .task()

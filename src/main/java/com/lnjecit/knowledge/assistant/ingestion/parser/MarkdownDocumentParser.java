@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.ingestion;
+package com.lnjecit.knowledge.assistant.ingestion.parser;
 
 import java.util.ArrayList;
 import java.util.Arrays;

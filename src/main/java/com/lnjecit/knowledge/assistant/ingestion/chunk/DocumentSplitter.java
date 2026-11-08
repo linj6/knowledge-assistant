@@ -1,5 +1,7 @@
-package com.lnjecit.knowledge.assistant.ingestion;
+package com.lnjecit.knowledge.assistant.ingestion.chunk;
 
+import com.lnjecit.knowledge.assistant.ingestion.parser.ParsedDocument;
+import com.lnjecit.knowledge.assistant.ingestion.parser.SourceSpan;
 import java.util.List;
 
 public interface DocumentSplitter {

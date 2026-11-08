@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.ingestion;
+package com.lnjecit.knowledge.assistant.ingestion.parser;
 
 public final class ParseException extends RuntimeException {
     public enum Kind {

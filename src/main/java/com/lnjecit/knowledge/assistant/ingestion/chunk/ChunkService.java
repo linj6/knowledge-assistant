@@ -1,9 +1,10 @@
-package com.lnjecit.knowledge.assistant.ingestion;
+package com.lnjecit.knowledge.assistant.ingestion.chunk;
 
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.Document;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersionStatus;
+import com.lnjecit.knowledge.assistant.ingestion.parser.ParsedDocument;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -28,6 +29,7 @@ public class ChunkService {
         }
     }
 
+    /** 调用方须先按 Document.objectKey 读取原始字节并核验 contentHash，再解析传入；此方法不读取对象存储。 */
     @Transactional
     public List<DocumentChunk> initialize(Long documentId, Long versionId, ParsedDocument parsed) {
         Document document = repository.document(documentId);
@@ -36,7 +38,7 @@ public class ChunkService {
         // 发布指针、时间与诊断状态均检查；不能只凭 BUILDING 状态允许重写。
         if (document.getActiveVersionId() != null
                 || version.getPublishedAt() != null
-                || version.getStatus() == IndexVersionStatus.PUBLISHED) fail();
+                || version.getStatus() != IndexVersionStatus.BUILDING) fail();
         ChunkingConfig config = json.readValue(version.getChunkingConfig(), ChunkingConfig.class);
         List<DocumentSplitter.Chunk> split = new FixedCodePointSplitter().split(parsed, config);
         List<DocumentChunk> existing = repository.find(versionId);

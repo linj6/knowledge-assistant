@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.ingestion;
+package com.lnjecit.knowledge.assistant.ingestion.parser;
 
 /** 原文 Unicode 码点坐标，end 为独占边界。 */
 public record SourceSpan(int start, int end) {

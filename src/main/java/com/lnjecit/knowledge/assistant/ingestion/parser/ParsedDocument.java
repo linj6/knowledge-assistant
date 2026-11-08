@@ -1,5 +1,6 @@
-package com.lnjecit.knowledge.assistant.ingestion;
+package com.lnjecit.knowledge.assistant.ingestion.parser;
 
+import com.lnjecit.knowledge.assistant.ingestion.text.UnicodeOffsets;
 import java.util.List;
 
 /** 每个片段均保留连续原文，不拼接不连续区间，也不清理正文标记。 */
@@ -14,7 +15,7 @@ public record ParsedDocument(String source, List<Fragment> fragments) {
 
     public ParsedDocument {
         fragments = List.copyOf(fragments);
-        int[] boundaries = ParserSource.boundaries(source);
+        int[] boundaries = UnicodeOffsets.boundaries(source);
         java.util.Set<Heading> checked = new java.util.HashSet<>();
         int cursor = 0;
         for (Fragment fragment : fragments) {

@@ -3,9 +3,9 @@ package com.lnjecit.knowledge.assistant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.lnjecit.knowledge.assistant.ingestion.ChunkService;
-import com.lnjecit.knowledge.assistant.ingestion.ParsedDocument;
-import com.lnjecit.knowledge.assistant.ingestion.TxtDocumentParser;
+import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkService;
+import com.lnjecit.knowledge.assistant.ingestion.parser.ParsedDocument;
+import com.lnjecit.knowledge.assistant.ingestion.parser.TxtDocumentParser;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringApplication;
@@ -78,6 +78,11 @@ class ChunkPersistenceIT {
                             () -> jdbc.update(
                                     "INSERT INTO document_chunk(id,knowledge_base_id,document_id,index_version_id,chunk_order,content,source_start,source_end) VALUES(999,1,2,3,0,'x',0,1)"))
                     .isInstanceOf(org.springframework.dao.DuplicateKeyException.class);
+            for (String state : new String[] {"VERIFIED", "PUBLISHED", "FAILED"}) {
+                jdbc.update("UPDATE document_index_version SET status=? WHERE id=3", state);
+                assertThatThrownBy(() -> service.initialize(2L, 3L, parsed)).isInstanceOf(IllegalStateException.class);
+            }
+            jdbc.update("UPDATE document_index_version SET status='BUILDING' WHERE id=3");
             jdbc.update("UPDATE document SET active_version_id=3 WHERE id=2");
             assertThatThrownBy(() -> service.initialize(2L, 3L, parsed)).isInstanceOf(IllegalStateException.class);
         }

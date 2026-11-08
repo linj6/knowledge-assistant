@@ -13,10 +13,10 @@ import com.lnjecit.knowledge.assistant.infrastructure.config.UploadProperties;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTaskStatus;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
-import com.lnjecit.knowledge.assistant.ingestion.ChunkingConfig;
-import com.lnjecit.knowledge.assistant.ingestion.DocumentImportRepository;
-import com.lnjecit.knowledge.assistant.ingestion.DocumentImportService;
-import com.lnjecit.knowledge.assistant.ingestion.ImportTaskResponse;
+import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingConfig;
+import com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportRepository;
+import com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportService;
+import com.lnjecit.knowledge.assistant.ingestion.upload.ImportTaskResponse;
 import com.lnjecit.knowledge.assistant.knowledge.KnowledgeBaseService;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
@@ -27,16 +27,22 @@ import tools.jackson.databind.json.JsonMapper;
 class ImportTests {
     @Test
     void configProtocol() {
-        ChunkingConfig config = new ChunkingConfig(1, "FIXED_CODE_POINT", 800, 120);
+        ChunkingConfig config = new ChunkingConfig(
+                1, com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy.FIXED_CODE_POINT, 800, 120);
         JsonMapper json = JsonMapper.builder().build();
         assertThat(json.readValue(json.writeValueAsString(config), ChunkingConfig.class))
                 .isEqualTo(config);
         for (int[] values : new int[][] {{0, 0}, {800, -1}, {800, 800}})
-            assertThatThrownBy(() -> new ChunkingConfig(1, "FIXED_CODE_POINT", values[0], values[1]))
+            assertThatThrownBy(() -> new ChunkingConfig(
+                            1,
+                            com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy.FIXED_CODE_POINT,
+                            values[0],
+                            values[1]))
                     .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new ChunkingConfig(2, "FIXED_CODE_POINT", 800, 120))
+        assertThatThrownBy(() -> new ChunkingConfig(
+                        2, com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy.FIXED_CODE_POINT, 800, 120))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new ChunkingConfig(1, "OTHER", 800, 120)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new ChunkingConfig(1, null, 800, 120)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -119,7 +125,7 @@ class ImportTests {
         model.setDimensions(768);
         ChunkingProperties chunking = new ChunkingProperties();
         chunking.setVersion(1);
-        chunking.setStrategy("FIXED_CODE_POINT");
+        chunking.setStrategy(com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy.FIXED_CODE_POINT);
         chunking.setChunkSize(800);
         chunking.setChunkOverlap(120);
         ImportTask task = new ImportTask();

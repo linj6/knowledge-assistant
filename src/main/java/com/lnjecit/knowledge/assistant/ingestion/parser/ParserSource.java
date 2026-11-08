@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.ingestion;
+package com.lnjecit.knowledge.assistant.ingestion.parser;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -20,15 +20,5 @@ final class ParserSource {
         if (source.codePoints().allMatch(cp -> cp == 0xFEFF || Character.isWhitespace(cp) || Character.isSpaceChar(cp)))
             throw new ParseException(ParseException.Kind.NO_CONTENT);
         return source;
-    }
-    // 一次顺序扫描建立码点边界表，后续范围校验不再从全文开头扫描。
-    static int[] boundaries(String source) {
-        int[] offsets = new int[source.codePointCount(0, source.length()) + 1];
-        int character = 0;
-        for (int point = 1; point < offsets.length; point++) {
-            character += Character.charCount(source.codePointAt(character));
-            offsets[point] = character;
-        }
-        return offsets;
     }
 }
