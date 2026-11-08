@@ -3,6 +3,7 @@ package com.lnjecit.knowledge.assistant.knowledge;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.KnowledgeBase;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.KnowledgeBaseMapper;
+import java.time.Instant;
 import java.util.List;
 import org.springframework.stereotype.Repository;
 
@@ -18,9 +19,10 @@ public class KnowledgeBaseRepository {
         KnowledgeBase entity = new KnowledgeBase();
         entity.setName(name);
         entity.setDescription(description);
+        // 应用生成创建时间，ASSIGN_ID 在插入时生成并回填主键，无需回查。
+        entity.setCreatedAt(Instant.now());
         mapper.insert(entity);
-        // 回读数据库生成的创建时间，与插入处于同一业务事务。
-        return mapper.selectById(entity.getId());
+        return entity;
     }
 
     public KnowledgeBase find(Long id) {

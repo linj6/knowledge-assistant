@@ -42,6 +42,14 @@ class KnowledgeBasePersistenceTests {
             KnowledgeBase first = service.create(" Java ", " 说明 ");
             assertThat(first.getId()).isPositive();
             assertThat(first.getCreatedAt()).isNotNull();
+            java.time.Instant savedAt = jdbc.queryForObject(
+                            "SELECT created_at FROM knowledge_base WHERE id=?",
+                            java.time.OffsetDateTime.class,
+                            first.getId())
+                    .toInstant();
+            // PostgreSQL 以微秒保存，JDBC 可能对应用的纳秒部分舍入。
+            assertThat(java.time.Duration.between(first.getCreatedAt(), savedAt).abs())
+                    .isLessThan(java.time.Duration.ofNanos(1000));
             assertThat(service.get(first.getId()).getName()).isEqualTo("Java");
             assertThat(jdbc.queryForObject(
                             "SELECT description FROM knowledge_base WHERE id=?", String.class, first.getId()))
