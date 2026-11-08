@@ -56,3 +56,16 @@ validate 阶段绑定 check，格式不合规构建失败；正常构建只检�
 ## Git Commit Message
 
 Git Commit Message 默认使用中文描述变更意图，保留 `feat`、`fix`、`docs`、`test`、`refactor` 等 Conventional Commits 类型前缀及必要英文技术术语。优先说明为什么修改以及修改了什么。无需改写已有提交历史。
+
+## 持久化分层约定
+
+调用方向为 Controller → Service → Repository → Mapper。
+
+- Controller 负责 HTTP 协议、参数和 API DTO，不直接暴露数据库实体。
+- Service 负责业务流程和事务边界。
+- Repository 负责持久化语义和数据访问封装，按实际业务需要组合查询与更新，不机械转发所有 Mapper 方法。
+- Mapper 负责 SQL 与 MyBatis-Plus 映射。
+
+按真实业务需要引入 Repository，不为每张表预建空壳。M1-01 仅提供 Entity 和 Mapper，后续 M1-02 随业务引入所需 Repository。
+
+持久化实体优先使用 Lombok @Getter、@Setter，避免默认使用 @Data 或生成 equals/hashCode/toString；保留映射注解与明确的字段类型。Lombok 版本遵循 Spring Boot BOM，编译器显式配置注解处理器。

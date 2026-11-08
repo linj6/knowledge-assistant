@@ -4,141 +4,39 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.Instant;
+import lombok.Getter;
+import lombok.Setter;
 
-/** ImportTask 持久化记录；时间统一为 UTC 瞬时，不作为 API DTO。 */
+/** 持久化导入任务，保存重试和租约诊断信息；领取、fencing 与状态流转由后续 Worker 实现。 */
+@Getter
+@Setter
 @TableName("import_task")
 public class ImportTask {
+    /** 服务端生成的 Snowflake 主键，数据库不自增。 */
     @TableId(type = IdType.ASSIGN_ID)
     private Long id;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long value) {
-        this.id = value;
-    }
-
-    /** 所属文档；写入事务必须校验关联。 */
+    /** 所属文档标识；关联存在性与版本归属由业务事务校验。 */
     private Long documentId;
-
-    public Long getDocumentId() {
-        return documentId;
-    }
-
-    public void setDocumentId(Long value) {
-        this.documentId = value;
-    }
-
-    /** 所属索引版本；跨记录归属由后续事务校验。 */
+    /** 所属索引版本标识；必须与任务或 Chunk 的文档归属一致，由业务事务校验。 */
     private Long indexVersionId;
-
-    public Long getIndexVersionId() {
-        return indexVersionId;
-    }
-
-    public void setIndexVersionId(Long value) {
-        this.indexVersionId = value;
-    }
-
+    /** 导入编排状态；数据库仅限制合法取值，合法状态转换由业务事务保证。 */
     private ImportTaskStatus status;
-
-    public ImportTaskStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(ImportTaskStatus value) {
-        this.status = value;
-    }
-
+    /** 任务执行尝试次数，初始为零；领取与重试时的递增由后续 Worker 实现。 */
     private Integer attemptCount;
-
-    public Integer getAttemptCount() {
-        return attemptCount;
-    }
-
-    public void setAttemptCount(Integer value) {
-        this.attemptCount = value;
-    }
-
-    /** 领取代际，由后续 Worker 原子递增并用于 fencing。 */
+    /** 领取代际，初始为零；后续领取事务须单调递增并用于条件更新校验，仅保留字段不代表 fencing 已实现。 */
     private Long claimEpoch;
-
-    public Long getClaimEpoch() {
-        return claimEpoch;
-    }
-
-    public void setClaimEpoch(Long value) {
-        this.claimEpoch = value;
-    }
-
+    /** 当前领取执行者标识，未领取时允许为空。 */
     private String leaseOwner;
-
-    public String getLeaseOwner() {
-        return leaseOwner;
-    }
-
-    public void setLeaseOwner(String value) {
-        this.leaseOwner = value;
-    }
-
+    /** 租约到期时刻；到期不意味着旧 Worker 已停止，写入还需互斥和代际校验。 */
     private Instant leaseUntil;
-
-    public Instant getLeaseUntil() {
-        return leaseUntil;
-    }
-
-    public void setLeaseUntil(Instant value) {
-        this.leaseUntil = value;
-    }
-
+    /** 下次允许重试的时刻，未安排重试时允许为空。 */
     private Instant nextRetryAt;
-
-    public Instant getNextRetryAt() {
-        return nextRetryAt;
-    }
-
-    public void setNextRetryAt(Instant value) {
-        this.nextRetryAt = value;
-    }
-
+    /** 最近失败的脱敏错误分类码，未失败时允许为空。 */
     private String lastErrorCode;
-
-    public String getLastErrorCode() {
-        return lastErrorCode;
-    }
-
-    public void setLastErrorCode(String value) {
-        this.lastErrorCode = value;
-    }
-
+    /** 最近失败的脱敏诊断信息，不得保存密钥或供应商敏感原文。 */
     private String lastErrorMessage;
-
-    public String getLastErrorMessage() {
-        return lastErrorMessage;
-    }
-
-    public void setLastErrorMessage(String value) {
-        this.lastErrorMessage = value;
-    }
-
+    /** 记录创建时刻，使用 Instant 表达 UTC 时间线上的瞬时。 */
     private Instant createdAt;
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(Instant value) {
-        this.createdAt = value;
-    }
-
+    /** 记录最后更新时刻，由后续业务更新显式维护，不由数据库自动刷新。 */
     private Instant updatedAt;
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(Instant value) {
-        this.updatedAt = value;
-    }
 }

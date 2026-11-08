@@ -54,7 +54,7 @@ class MybatisCompatibilityTests {
             assertThat(context.getBean(org.flywaydb.core.Flyway.class).migrate().migrationsExecuted)
                     .isZero();
             assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class))
-                    .isEqualTo(2);
+                    .isEqualTo(3);
             assertThat(jdbc.queryForObject(
                             "SELECT count(*) FROM pg_constraint WHERE contype='f' AND connamespace='public'::regnamespace",
                             Integer.class))
@@ -116,6 +116,40 @@ class MybatisCompatibilityTests {
             assertThat(bases.insert(base)).isEqualTo(1);
             assertThat(base.getId()).isPositive();
             assertThat(bases.selectById(base.getId()).getCreatedAt()).isEqualTo(base.getCreatedAt());
+            // 检查 V3 覆盖五表及每一个实际业务列，避免遗漏新增字段的注释。
+            for (String table :
+                    java.util.List.of("knowledge_base", "document", "index_version", "document_chunk", "import_task")) {
+                assertThat(jdbc.queryForObject("SELECT obj_description(?::regclass, 'pg_class')", String.class, table))
+                        .isNotBlank();
+                assertThat(jdbc.queryForList(
+                                "SELECT col_description(attrelid,attnum) FROM pg_attribute WHERE attrelid=?::regclass AND attnum>0 AND NOT attisdropped",
+                                String.class,
+                                table))
+                        .allSatisfy(comment -> assertThat(comment).isNotBlank());
+            }
+            com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunkMapper chunks = context.getBean(
+                    com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunkMapper.class);
+            com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk chunk =
+                    new com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk();
+            chunk.setKnowledgeBaseId(1L);
+            chunk.setDocumentId(1L);
+            chunk.setIndexVersionId(1L);
+            chunk.setChunkOrder(10);
+            chunk.setContent("向量映射");
+            chunk.setSourceStart(0);
+            chunk.setSourceEnd(4);
+            chunk.setEmbedding(vector);
+            assertThat(chunks.insert(chunk)).isEqualTo(1);
+            assertThat(chunk.getId()).isPositive();
+            assertThat(chunks.selectById(chunk.getId()).getEmbedding()).isEqualTo(vector);
+            TransactionTemplate entityTransaction =
+                    new TransactionTemplate(context.getBean(PlatformTransactionManager.class));
+            entityTransaction.executeWithoutResult(status -> {
+                base.setName("回滚更新");
+                bases.updateById(base);
+                status.setRollbackOnly();
+            });
+            assertThat(bases.selectById(base.getId()).getName()).isEqualTo("模型持久化");
             ProbeMapper mapper = context.getBean(ProbeMapper.class);
             Probe probe = new Probe();
             probe.content = "中文😀 ' OR 1=1 --";

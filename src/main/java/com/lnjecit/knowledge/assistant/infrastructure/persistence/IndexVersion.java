@@ -4,100 +4,31 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.Instant;
+import lombok.Getter;
+import lombok.Setter;
 
-/** IndexVersion 持久化记录；时间统一为 UTC 瞬时，不作为 API DTO。 */
+/** 单次索引构建版本；模型、维度和切分配置创建后不可变，已发布版本不得重写。 */
+@Getter
+@Setter
 @TableName("index_version")
 public class IndexVersion {
+    /** 服务端生成的 Snowflake 主键，数据库不自增。 */
     @TableId(type = IdType.ASSIGN_ID)
     private Long id;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long value) {
-        this.id = value;
-    }
-
-    /** 所属文档；写入事务必须校验关联。 */
+    /** 所属文档标识；关联存在性与版本归属由业务事务校验。 */
     private Long documentId;
-
-    public Long getDocumentId() {
-        return documentId;
-    }
-
-    public void setDocumentId(Long value) {
-        this.documentId = value;
-    }
-
+    /** 索引构建诊断状态；不能单独赋予检索可见性，发布事实以文档 activeVersionId 为准。 */
     private IndexVersionStatus status;
-
-    public IndexVersionStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(IndexVersionStatus value) {
-        this.status = value;
-    }
-
+    /** 预期 Chunk 数；构建初始可为零，验证或发布时必须大于零。 */
     private Integer expectedChunkCount;
-
-    public Integer getExpectedChunkCount() {
-        return expectedChunkCount;
-    }
-
-    public void setExpectedChunkCount(Integer value) {
-        this.expectedChunkCount = value;
-    }
-
+    /** 创建时固化的向量模型，V1 固定 text-embedding-v4，后续业务不得修改。 */
     private String embeddingModel;
-
-    public String getEmbeddingModel() {
-        return embeddingModel;
-    }
-
-    public void setEmbeddingModel(String value) {
-        this.embeddingModel = value;
-    }
-
+    /** 创建时固化的向量维度，V1 固定 1024。 */
     private Integer embeddingDimension;
-
-    public Integer getEmbeddingDimension() {
-        return embeddingDimension;
-    }
-
-    public void setEmbeddingDimension(Integer value) {
-        this.embeddingDimension = value;
-    }
-
-    /** 创建时固化的切分配置，后续业务不得修改。 */
+    /** 创建时固化的切分配置文本快照，具体配置协议由切分任务定义，后续业务不得修改。 */
     private String chunkingConfig;
-
-    public String getChunkingConfig() {
-        return chunkingConfig;
-    }
-
-    public void setChunkingConfig(String value) {
-        this.chunkingConfig = value;
-    }
-
+    /** 记录创建时刻，使用 Instant 表达 UTC 时间线上的瞬时。 */
     private Instant createdAt;
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(Instant value) {
-        this.createdAt = value;
-    }
-
+    /** 版本发布时刻，发布前允许为空，由发布事务写入。 */
     private Instant publishedAt;
-
-    public Instant getPublishedAt() {
-        return publishedAt;
-    }
-
-    public void setPublishedAt(Instant value) {
-        this.publishedAt = value;
-    }
 }

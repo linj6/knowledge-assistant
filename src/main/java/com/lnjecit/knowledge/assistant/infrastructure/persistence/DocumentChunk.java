@@ -4,115 +4,34 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.Getter;
+import lombok.Setter;
 
-/** DocumentChunk 持久化记录；时间统一为 UTC 瞬时，不作为 API DTO。 */
+/** 索引版本内的正文片段及向量，稳定主键供 PostgreSQL、ES 和引用共同使用；发布后不得重写。 */
+@Getter
+@Setter
 @TableName("document_chunk")
 public class DocumentChunk {
+    /** 服务端生成的 Snowflake 主键，数据库不自增。 */
     @TableId(type = IdType.ASSIGN_ID)
     private Long id;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long value) {
-        this.id = value;
-    }
-
-    /** 所属知识库；无外键，写入事务必须校验归属。 */
+    /** 所属知识库标识；无外键，关联存在性与归属由业务事务校验。 */
     private Long knowledgeBaseId;
-
-    public Long getKnowledgeBaseId() {
-        return knowledgeBaseId;
-    }
-
-    public void setKnowledgeBaseId(Long value) {
-        this.knowledgeBaseId = value;
-    }
-
-    /** 所属文档；写入事务必须校验关联。 */
+    /** 所属文档标识；关联存在性与版本归属由业务事务校验。 */
     private Long documentId;
-
-    public Long getDocumentId() {
-        return documentId;
-    }
-
-    public void setDocumentId(Long value) {
-        this.documentId = value;
-    }
-
-    /** 所属索引版本；跨记录归属由后续事务校验。 */
+    /** 所属索引版本标识；必须与任务或 Chunk 的文档归属一致，由业务事务校验。 */
     private Long indexVersionId;
-
-    public Long getIndexVersionId() {
-        return indexVersionId;
-    }
-
-    public void setIndexVersionId(Long value) {
-        this.indexVersionId = value;
-    }
-
+    /** 版本内从零开始的 Chunk 顺序，同版本内唯一。 */
     private Integer chunkOrder;
-
-    public Integer getChunkOrder() {
-        return chunkOrder;
-    }
-
-    public void setChunkOrder(Integer value) {
-        this.chunkOrder = value;
-    }
-
+    /** Chunk 正文，供索引构建和引用使用。 */
     private String content;
-
-    public String getContent() {
-        return content;
-    }
-
-    public void setContent(String value) {
-        this.content = value;
-    }
-
-    /** 原始文本 Unicode 码点起点，包含。 */
+    /** 解析前原始文本的 Unicode 码点起点，包含该位置且不得小于零，不是 UTF-16 下标。 */
     private Integer sourceStart;
-
-    public Integer getSourceStart() {
-        return sourceStart;
-    }
-
-    public void setSourceStart(Integer value) {
-        this.sourceStart = value;
-    }
-
-    /** 原始文本 Unicode 码点终点，不包含。 */
+    /** 解析前原始文本的 Unicode 码点终点，不包含该位置，必须大于起点，构成 [start,end) 区间。 */
     private Integer sourceEnd;
-
-    public Integer getSourceEnd() {
-        return sourceEnd;
-    }
-
-    public void setSourceEnd(Integer value) {
-        this.sourceEnd = value;
-    }
-
+    /** Markdown 标题路径等辅助定位信息，允许为空。 */
     private String headingPath;
-
-    public String getHeadingPath() {
-        return headingPath;
-    }
-
-    public void setHeadingPath(String value) {
-        this.headingPath = value;
-    }
-
+    /** 1024 维 PostgreSQL vector 的文本表示，由 TypeHandler 绑定；构建时可空，发布前非空由业务校验。 */
     @TableField(typeHandler = VectorTypeHandler.class)
-    /** 1024 维向量文本，构建阶段允许为空。 */
     private String embedding;
-
-    public String getEmbedding() {
-        return embedding;
-    }
-
-    public void setEmbedding(String value) {
-        this.embedding = value;
-    }
 }
