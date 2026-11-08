@@ -10,7 +10,7 @@ import lombok.Setter;
 /** 持久化导入任务，保存重试和租约诊断信息；领取、fencing 与状态流转由后续 Worker 实现。 */
 @Getter
 @Setter
-@TableName("import_task")
+@TableName("document_import_task")
 public class ImportTask {
     /** 服务端生成的 Snowflake 主键，数据库不自增。 */
     @TableId(type = IdType.ASSIGN_ID)

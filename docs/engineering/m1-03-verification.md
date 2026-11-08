@@ -1,5 +1,7 @@
 # M1-03 文件接收与导入任务验收
 
+本文保留 M1-03 发生时的验收事实。后续 V4 将物理表名规范为 `document_index_version`、`document_import_task`，当前命名及升级证据见[表名规范化验收](m1-03-table-rename-verification.md)。
+
 日期：2026-11-08。分支 `feature/m1-ingestion-indexing`，起点 `116fc1a6e70a24187d3f04483d0c82abb34accb4`，初始工作区干净。未修改冻结规范、Flyway 或既有依赖版本。
 
 ## 实现与接口

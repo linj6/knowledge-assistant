@@ -10,7 +10,7 @@ import lombok.Setter;
 /** 单次索引构建版本；模型、维度和切分配置创建后不可变，已发布版本不得重写。 */
 @Getter
 @Setter
-@TableName("index_version")
+@TableName("document_index_version")
 public class IndexVersion {
     /** 服务端生成的 Snowflake 主键，数据库不自增。 */
     @TableId(type = IdType.ASSIGN_ID)

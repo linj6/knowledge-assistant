@@ -101,7 +101,7 @@ class ImportPersistenceTests {
             assertThat(txt.body()).contains("RECEIVED", "importTaskId", "documentId");
             JdbcTemplate jdbc = new JdbcTemplate(context.getBean(DataSource.class));
             assertThat(jdbc.queryForObject(
-                            "SELECT count(*) FROM index_version WHERE embedding_model='text-embedding-v4' AND embedding_dimension=1024",
+                            "SELECT count(*) FROM document_index_version WHERE embedding_model='text-embedding-v4' AND embedding_dimension=1024",
                             Integer.class))
                     .isEqualTo(2);
             assertThat(jdbc.queryForObject("SELECT count(*) FROM document", Integer.class))
@@ -143,7 +143,7 @@ class ImportPersistenceTests {
             DocumentImportService.Outcome first = service.receive(kb, ImportTests.file("a.md", bytes));
             assertThat(first.duplicate()).isFalse();
             String snapshot = jdbc.queryForObject(
-                    "SELECT chunking_config FROM index_version WHERE document_id=?",
+                    "SELECT chunking_config FROM document_index_version WHERE document_id=?",
                     String.class,
                     first.task().documentId());
             com.lnjecit.knowledge.assistant.infrastructure.config.ChunkingProperties properties =
@@ -163,11 +163,11 @@ class ImportPersistenceTests {
                             "SELECT count(*) FROM document WHERE active_version_id IS NULL", Integer.class))
                     .isEqualTo(2);
             assertThat(jdbc.queryForObject(
-                            "SELECT count(*) FROM index_version WHERE status='BUILDING' AND published_at IS NULL AND expected_chunk_count=0 AND chunking_config LIKE '%FIXED_CODE_POINT%'",
+                            "SELECT count(*) FROM document_index_version WHERE status='BUILDING' AND published_at IS NULL AND expected_chunk_count=0 AND chunking_config LIKE '%FIXED_CODE_POINT%'",
                             Integer.class))
                     .isEqualTo(2);
             assertThat(jdbc.queryForObject(
-                            "SELECT count(*) FROM import_task t JOIN index_version v ON t.index_version_id=v.id AND t.document_id=v.document_id WHERE t.status='PENDING'",
+                            "SELECT count(*) FROM document_import_task t JOIN document_index_version v ON t.index_version_id=v.id AND t.document_id=v.document_id WHERE t.status='PENDING'",
                             Integer.class))
                     .isEqualTo(2);
             assertThat(jdbc.queryForObject("SELECT count(*) FROM document_chunk", Integer.class))
@@ -192,13 +192,13 @@ class ImportPersistenceTests {
                 store.barrier = null;
             }
             assertThat(store.objects).hasSize(3);
-            jdbc.execute("ALTER TABLE import_task ADD CONSTRAINT test_reject_task CHECK (false) NOT VALID");
+            jdbc.execute("ALTER TABLE document_import_task ADD CONSTRAINT test_reject_task CHECK (false) NOT VALID");
             assertThatThrownBy(() -> service.receive(kb, ImportTests.file("fail.txt", new byte[] {67})))
                     .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
             assertThat(store.objects).hasSize(3);
             assertThat(jdbc.queryForObject("SELECT count(*) FROM document", Integer.class))
                     .isEqualTo(3);
-            assertThat(jdbc.queryForObject("SELECT count(*) FROM index_version", Integer.class))
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM document_index_version", Integer.class))
                     .isEqualTo(3);
             store.failDelete.set(true);
             assertThatThrownBy(() -> service.receive(kb, ImportTests.file("fail.txt", new byte[] {68})))
@@ -209,7 +209,7 @@ class ImportPersistenceTests {
             store.failPut.set(true);
             assertThatThrownBy(() -> service.receive(kb, ImportTests.file("fail.txt", new byte[] {69})))
                     .isInstanceOf(IllegalStateException.class);
-            assertThat(jdbc.queryForObject("SELECT count(*) FROM import_task", Integer.class))
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM document_import_task", Integer.class))
                     .isEqualTo(3);
         }
     }

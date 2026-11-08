@@ -54,7 +54,7 @@ class MybatisCompatibilityTests {
             assertThat(context.getBean(org.flywaydb.core.Flyway.class).migrate().migrationsExecuted)
                     .isZero();
             assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class))
-                    .isEqualTo(3);
+                    .isEqualTo(4);
             assertThat(jdbc.queryForObject(
                             "SELECT count(*) FROM pg_constraint WHERE contype='f' AND connamespace='public'::regnamespace",
                             Integer.class))
@@ -66,7 +66,7 @@ class MybatisCompatibilityTests {
                             () -> jdbc.execute(
                                     "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key) VALUES (3,1,'a','hash','key')"))
                     .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
-            jdbc.execute("INSERT INTO index_version(id,document_id,chunking_config) VALUES (1,1,'{}')");
+            jdbc.execute("INSERT INTO document_index_version(id,document_id,chunking_config) VALUES (1,1,'{}')");
             String vector = "[" + "0,".repeat(1023) + "1]";
             jdbc.update(
                     "INSERT INTO document_chunk(id,knowledge_base_id,document_id,index_version_id,chunk_order,content,source_start,source_end,embedding) VALUES (1,1,1,1,0,'中文😀',0,3,?::vector)",
@@ -78,25 +78,25 @@ class MybatisCompatibilityTests {
                     "UPDATE document_chunk SET embedding='[1,2,3]' WHERE id=1",
                     "UPDATE document_chunk SET source_start=-1 WHERE id=1",
                     "UPDATE document_chunk SET source_end=0 WHERE id=1",
-                    "UPDATE index_version SET status='UNKNOWN' WHERE id=1",
-                    "UPDATE import_task SET status='UNKNOWN'",
+                    "UPDATE document_index_version SET status='UNKNOWN' WHERE id=1",
+                    "UPDATE document_import_task SET status='UNKNOWN'",
                     "INSERT INTO document_chunk(id,knowledge_base_id,document_id,index_version_id,chunk_order,content,source_start,source_end) VALUES (2,1,1,1,0,'重复',0,2)")) {
-                if (!sql.startsWith("UPDATE import_task")) {
+                if (!sql.startsWith("UPDATE document_import_task")) {
                     org.assertj.core.api.Assertions.assertThatThrownBy(() -> jdbc.execute(sql))
                             .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
                 }
             }
-            jdbc.execute("INSERT INTO import_task(id,document_id,index_version_id) VALUES (1,1,1)");
+            jdbc.execute("INSERT INTO document_import_task(id,document_id,index_version_id) VALUES (1,1,1)");
             org.assertj.core.api.Assertions.assertThatThrownBy(
-                            () -> jdbc.execute("UPDATE import_task SET status='UNKNOWN' WHERE id=1"))
+                            () -> jdbc.execute("UPDATE document_import_task SET status='UNKNOWN' WHERE id=1"))
                     .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
             // 负面边界：无外键时数据库接受错误归属，后续业务事务必须拒绝这些写入。
             jdbc.execute("UPDATE document SET knowledge_base_id=999,active_version_id=999 WHERE id=1");
-            jdbc.execute("UPDATE index_version SET document_id=999 WHERE id=1");
-            assertThat(jdbc.queryForObject("SELECT document_id FROM index_version WHERE id=1", Long.class))
+            jdbc.execute("UPDATE document_index_version SET document_id=999 WHERE id=1");
+            assertThat(jdbc.queryForObject("SELECT document_id FROM document_index_version WHERE id=1", Long.class))
                     .isEqualTo(999L);
-            for (String table :
-                    java.util.List.of("knowledge_base", "document", "index_version", "document_chunk", "import_task")) {
+            for (String table : java.util.List.of(
+                    "knowledge_base", "document", "document_index_version", "document_chunk", "document_import_task")) {
                 assertThat(jdbc.queryForObject(
                                 "SELECT format_type(atttypid,atttypmod) FROM pg_attribute WHERE attrelid=?::regclass AND attname='id'",
                                 String.class,
@@ -117,8 +117,8 @@ class MybatisCompatibilityTests {
             assertThat(base.getId()).isPositive();
             assertThat(bases.selectById(base.getId()).getCreatedAt()).isEqualTo(base.getCreatedAt());
             // 检查 V3 覆盖五表及每一个实际业务列，避免遗漏新增字段的注释。
-            for (String table :
-                    java.util.List.of("knowledge_base", "document", "index_version", "document_chunk", "import_task")) {
+            for (String table : java.util.List.of(
+                    "knowledge_base", "document", "document_index_version", "document_chunk", "document_import_task")) {
                 assertThat(jdbc.queryForObject("SELECT obj_description(?::regclass, 'pg_class')", String.class, table))
                         .isNotBlank();
                 assertThat(jdbc.queryForList(
