@@ -42,16 +42,59 @@ class IngestionPipelineIT extends ElasticsearchIT {
 
     @Test
     void markdownAndTextThroughProductionScheduler() throws Exception {
+        runPipeline("normal");
+    }
+
+    @Test
+    void retryAfterChunkCommit() throws Exception {
+        runPipeline("retry");
+    }
+
+    @Test
+    void permanentSourceMismatch() throws Exception {
+        runPipeline("permanent");
+    }
+
+    @Test
+    void fourAttemptsOnly() throws Exception {
+        runPipeline("exhaust");
+    }
+
+    @Test
+    void partialEmbeddingRecovery() throws Exception {
+        runPipeline("partial");
+    }
+
+    @Test
+    void partialEsRecovery() throws Exception {
+        runPipeline("es-partial");
+    }
+
+    @Test
+    void esCommittedBeforeVerification() throws Exception {
+        runPipeline("es-complete");
+    }
+
+    @Test
+    void verifiedBeforePublish() throws Exception {
+        runPipeline("verified");
+    }
+
+    void runPipeline(String mode) throws Exception {
         JsonMapper json = JsonMapper.builder().build();
         java.util.concurrent.atomic.AtomicBoolean unavailable = new java.util.concurrent.atomic.AtomicBoolean();
+        java.util.concurrent.atomic.AtomicInteger requests = new java.util.concurrent.atomic.AtomicInteger();
+        List<String> requested = new java.util.concurrent.CopyOnWriteArrayList<>();
         HttpServer stub = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         stub.createContext("/", exchange -> {
-            if (unavailable.get()) {
+            JsonNode request = json.readTree(exchange.getRequestBody().readAllBytes());
+            int call = requests.incrementAndGet();
+            request.path("input").forEach(text -> requested.add(text.asString()));
+            if (unavailable.get() || (mode.equals("partial") && call >= 2)) {
                 exchange.sendResponseHeaders(503, -1);
                 exchange.close();
                 return;
             }
-            JsonNode request = json.readTree(exchange.getRequestBody().readAllBytes());
             assertThat(request.path("model").asString()).isEqualTo("text-embedding-v4");
             JsonNode input = request.path("input");
             int count = input.isArray() ? input.size() : 1;
@@ -72,10 +115,46 @@ class IngestionPipelineIT extends ElasticsearchIT {
                 .endpoint(endpoint)
                 .credentials("storage-user", "storage-test-password")
                 .build();
-        client.makeBucket(
-                io.minio.MakeBucketArgs.builder().bucket("pipeline-test").build());
+        if (!client.bucketExists(
+                io.minio.BucketExistsArgs.builder().bucket("pipeline-test").build()))
+            client.makeBucket(
+                    io.minio.MakeBucketArgs.builder().bucket("pipeline-test").build());
         SpringApplication app = new SpringApplication(KnowledgeAssistantApplication.class);
         app.setWebApplicationType(WebApplicationType.NONE);
+        java.util.concurrent.atomic.AtomicBoolean armed = new java.util.concurrent.atomic.AtomicBoolean();
+        java.util.Map<String, Integer> calls = new java.util.concurrent.ConcurrentHashMap<>();
+        app.addInitializers(context -> context.getBeanFactory()
+                .addBeanPostProcessor(new org.springframework.beans.factory.config.BeanPostProcessor() {
+                    @Override
+                    public Object postProcessAfterInitialization(Object bean, String name) {
+                        if (!(bean instanceof com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkService
+                                || bean instanceof com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingService
+                                || bean instanceof com.lnjecit.knowledge.assistant.ingestion.indexing.EsIndexService
+                                || bean instanceof com.lnjecit.knowledge.assistant.ingestion.indexing.EsIndexRepository
+                                || bean
+                                        instanceof
+                                        com.lnjecit.knowledge.assistant.ingestion.verification
+                                                .IndexVerificationService)) return bean;
+                        org.springframework.aop.framework.ProxyFactory proxy =
+                                new org.springframework.aop.framework.ProxyFactory(bean);
+                        proxy.setProxyTargetClass(true);
+                        proxy.addAdvice((org.aopalliance.intercept.MethodInterceptor) invocation -> {
+                            String method = invocation.getMethod().getName();
+                            calls.merge(method, 1, Integer::sum);
+                            Object result = invocation.proceed();
+                            // 仅测试代理：真实方法返回意味着其持久化事务已提交。
+                            boolean inject = mode.equals("es-partial") && method.equals("create")
+                                    || mode.equals("es-complete") && method.equals("index")
+                                    || mode.equals("verified") && method.equals("verify");
+                            if (inject && armed.compareAndSet(true, false))
+                                throw new com.lnjecit.knowledge.assistant.ingestion.task.TaskExecutionException(
+                                        com.lnjecit.knowledge.assistant.ingestion.task.TaskExecutionException.Code
+                                                .SEARCH_UNAVAILABLE);
+                            return result;
+                        });
+                        return proxy.getProxy();
+                    }
+                }));
         try (ConfigurableApplicationContext c = app.run(
                 "--spring.datasource.url=" + postgres.getJdbcUrl(),
                 "--spring.datasource.username=" + postgres.getUsername(),
@@ -91,6 +170,8 @@ class IngestionPipelineIT extends ElasticsearchIT {
                 "--assistant.model.chat-model=unused",
                 "--assistant.model.base-url=http://127.0.0.1:"
                         + stub.getAddress().getPort() + "/v1",
+                "--assistant.embedding.batch-size=1",
+                "--assistant.elasticsearch.batch-size=1",
                 "--assistant.worker.enabled=true",
                 "--assistant.worker.scan-interval=24h")) {
             // 初次空扫描后取消后台触发，测试只串行调用真实调度入口。
@@ -100,11 +181,17 @@ class IngestionPipelineIT extends ElasticsearchIT {
             JdbcTemplate jdbc = c.getBean(JdbcTemplate.class);
             ElasticsearchClient es = c.getBean(ElasticsearchClient.class);
             for (String extension : List.of("md", "txt")) {
+                requests.set(0);
+                armed.set(true);
+                calls.clear();
+                requested.clear();
                 long kb = c.getBean(KnowledgeBaseService.class)
                         .create("pipeline-" + extension, null)
                         .getId();
                 String source = "# 中文知识库 Spring Boot " + extension + "\n\n"
-                        + "知识库 PostgreSQL Elasticsearch 向量检索 😀。\n\n".repeat(100);
+                        + java.util.stream.IntStream.range(0, 160)
+                                .mapToObj(i -> "段落" + i + " 知识库 PostgreSQL Elasticsearch 向量检索 😀。\n\n")
+                                .collect(java.util.stream.Collectors.joining());
                 byte[] bytes = source.getBytes(StandardCharsets.UTF_8);
                 MockMultipartFile file = new MockMultipartFile("file", "fixture." + extension, "text/plain", bytes);
                 JsonNode response = json.readTree(mvc.perform(multipart("/v1/knowledge-bases/{id}/documents:import", kb)
@@ -132,27 +219,121 @@ class IngestionPipelineIT extends ElasticsearchIT {
                 String key = jdbc.queryForObject("SELECT object_key FROM document WHERE id=?", String.class, document);
                 assertThat(key).startsWith("originals/");
                 assertThat(c.getBean(OriginalFileStore.class).read(key)).isEqualTo(bytes);
-                // Chunk 已真实提交后，模型返回 503；只推进测试重试时间，不重置状态。
-                unavailable.set(true);
-                c.getBean(TaskScheduler.class).scan();
-                assertThat(jdbc.queryForObject(
-                                "SELECT status='FAILED' AND attempt_count=1 AND last_error_code='MODEL_UNAVAILABLE' AND next_retry_at IS NOT NULL FROM document_import_task WHERE id=?",
-                                Boolean.class,
-                                task))
-                        .isTrue();
-                List<Long> interruptedIds = jdbc.queryForList(
-                        "SELECT id FROM document_chunk WHERE index_version_id=? ORDER BY id", Long.class, version);
-                assertThat(interruptedIds).isNotEmpty();
-                assertThat(jdbc.queryForObject(
-                                "SELECT active_version_id FROM document WHERE id=?", Long.class, document))
-                        .isNull();
-                assertThat(c.getBean(com.lnjecit.knowledge.assistant.ingestion.task.TaskService.class)
-                                .claimNext("early-retry"))
-                        .isEmpty();
-                unavailable.set(false);
-                jdbc.update(
-                        "UPDATE document_import_task SET next_retry_at=statement_timestamp()-interval '1 second' WHERE id=?",
-                        task);
+                String chunkSnapshot = null;
+                String persistedSnapshot = null;
+                java.util.Map<String, Object> esBefore = new java.util.HashMap<>();
+                java.util.Map<String, Integer> beforeCalls = null;
+                java.util.Map<Long, String> completed = new java.util.HashMap<>();
+                if (mode.equals("permanent")) {
+                    byte[] corrupt = "changed".getBytes(StandardCharsets.UTF_8);
+                    client.putObject(io.minio.PutObjectArgs.builder().bucket("pipeline-test").object(key).stream(
+                                    new java.io.ByteArrayInputStream(corrupt), corrupt.length, -1)
+                            .build());
+                    c.getBean(TaskScheduler.class).scan();
+                    assertThat(jdbc.queryForObject(
+                                    "SELECT status='FAILED' AND attempt_count=1 AND last_error_code='VALIDATION_FAILED' AND next_retry_at IS NULL FROM document_import_task WHERE id=?",
+                                    Boolean.class,
+                                    task))
+                            .isTrue();
+                    c.getBean(TaskScheduler.class).scan();
+                    unpublished(jdbc, mvc, document, version, task);
+                    continue;
+                }
+                if (!mode.equals("normal")) {
+                    unavailable.set(mode.equals("retry") || mode.equals("exhaust"));
+                    int attempts = mode.equals("exhaust") ? 4 : 1;
+                    for (int attempt = 1; attempt <= attempts; attempt++) {
+                        c.getBean(TaskScheduler.class).scan();
+                        assertThat(jdbc.queryForObject(
+                                        "SELECT status='FAILED' AND last_error_code=? FROM document_import_task WHERE id=?",
+                                        Boolean.class,
+                                        mode.startsWith("es-") || mode.equals("verified")
+                                                ? "SEARCH_UNAVAILABLE"
+                                                : "MODEL_UNAVAILABLE",
+                                        task))
+                                .isTrue();
+                        assertThat(jdbc.queryForObject(
+                                        "SELECT attempt_count FROM document_import_task WHERE id=?",
+                                        Integer.class,
+                                        task))
+                                .isEqualTo(attempt);
+                        assertThat(jdbc.queryForObject(
+                                        "SELECT claim_epoch FROM document_import_task WHERE id=?", Long.class, task))
+                                .isEqualTo((long) attempt);
+                        assertThat(jdbc.queryForObject(
+                                        "SELECT next_retry_at IS NULL FROM document_import_task WHERE id=?",
+                                        Boolean.class,
+                                        task))
+                                .isEqualTo(attempt == 4);
+                        String now = chunks(jdbc, version);
+                        if (chunkSnapshot == null) chunkSnapshot = now;
+                        assertThat(now).isEqualTo(chunkSnapshot);
+                        unpublished(jdbc, mvc, document, version, task);
+                        assertThat(c.getBean(com.lnjecit.knowledge.assistant.ingestion.task.TaskService.class)
+                                        .claimNext("early-retry"))
+                                .isEmpty();
+                        if (attempt < 4)
+                            jdbc.update(
+                                    "UPDATE document_import_task SET next_retry_at=statement_timestamp()-interval '1 second' WHERE id=?",
+                                    task);
+                    }
+                    if (mode.equals("exhaust")) {
+                        c.getBean(TaskScheduler.class).scan();
+                        assertThat(jdbc.queryForObject(
+                                        "SELECT attempt_count FROM document_import_task WHERE id=?",
+                                        Integer.class,
+                                        task))
+                                .isEqualTo(4);
+                        continue;
+                    }
+                    if (mode.equals("partial")) {
+                        jdbc.query(
+                                "SELECT id,embedding::text FROM document_chunk WHERE index_version_id=? AND embedding IS NOT NULL",
+                                rs -> {
+                                    completed.put(rs.getLong(1), rs.getString(2));
+                                },
+                                version);
+                        assertThat(completed).hasSize(1);
+                        assertThat(jdbc.queryForObject(
+                                        "SELECT count(*) FROM document_chunk WHERE index_version_id=? AND embedding IS NULL",
+                                        Integer.class,
+                                        version))
+                                .isPositive();
+                    }
+                    if (mode.startsWith("es-") || mode.equals("verified")) {
+                        assertThat(jdbc.queryForObject(
+                                        "SELECT status FROM document_index_version WHERE id=?", String.class, version))
+                                .isEqualTo(mode.equals("verified") ? "VERIFIED" : "BUILDING");
+                        es.indices().refresh(r -> r.index("ka-chunks-v1"));
+                        long esCount = es.count(r -> r.index("ka-chunks-v1")
+                                        .query(q -> q.term(
+                                                t -> t.field("index_version_id").value(Long.toString(version)))))
+                                .count();
+                        assertThat(esCount).isPositive();
+                        es.search(
+                                        r -> r.index("ka-chunks-v1")
+                                                .size(100)
+                                                .query(q -> q.term(t -> t.field("index_version_id")
+                                                        .value(Long.toString(version)))),
+                                        Object.class)
+                                .hits()
+                                .hits()
+                                .forEach(hit -> esBefore.put(hit.id(), hit.source()));
+                        int pgCount = jdbc.queryForObject(
+                                "SELECT count(*) FROM document_chunk WHERE index_version_id=?", Integer.class, version);
+                        if (mode.equals("es-partial")) assertThat(esCount).isLessThan(pgCount);
+                        else assertThat(esCount).isEqualTo(pgCount);
+                        persistedSnapshot = jdbc.queryForObject(
+                                "SELECT json_agg(t ORDER BY id)::text FROM document_chunk t WHERE index_version_id=?",
+                                String.class,
+                                version);
+                        beforeCalls = new java.util.HashMap<>(calls);
+                    }
+                    unavailable.set(false);
+                    // 测试 Stub 恢复：负值保证本次剩余请求不会再次触发第二批故障。
+                    requests.set(-10000);
+                    requested.clear();
+                }
                 c.getBean(TaskScheduler.class).scan();
                 assertThat(jdbc.queryForObject(
                                 "SELECT status FROM document_import_task WHERE id=?", String.class, task))
@@ -164,15 +345,44 @@ class IngestionPipelineIT extends ElasticsearchIT {
                                 version))
                         .isGreaterThan(1);
                 assertThat(jdbc.queryForObject(
-                                "SELECT attempt_count=2 AND last_error_code IS NULL AND last_error_message IS NULL AND next_retry_at IS NULL FROM document_import_task WHERE id=?",
+                                "SELECT attempt_count FROM document_import_task WHERE id=?", Integer.class, task))
+                        .isEqualTo(mode.equals("normal") ? 1 : 2);
+                assertThat(jdbc.queryForObject(
+                                "SELECT last_error_code IS NULL AND last_error_message IS NULL AND next_retry_at IS NULL FROM document_import_task WHERE id=?",
                                 Boolean.class,
                                 task))
                         .isTrue();
-                assertThat(jdbc.queryForList(
-                                "SELECT id FROM document_chunk WHERE index_version_id=? ORDER BY id",
-                                Long.class,
+                if (chunkSnapshot != null) assertThat(chunks(jdbc, version)).isEqualTo(chunkSnapshot);
+                for (java.util.Map.Entry<Long, String> entry : completed.entrySet()) {
+                    assertThat(jdbc.queryForObject(
+                                    "SELECT embedding::text FROM document_chunk WHERE id=?",
+                                    String.class,
+                                    entry.getKey()))
+                            .isEqualTo(entry.getValue());
+                    assertThat(requested)
+                            .doesNotContain(jdbc.queryForObject(
+                                    "SELECT content FROM document_chunk WHERE id=?", String.class, entry.getKey()));
+                }
+                if (persistedSnapshot != null)
+                    assertThat(jdbc.queryForObject(
+                                    "SELECT json_agg(t ORDER BY id)::text FROM document_chunk t WHERE index_version_id=?",
+                                    String.class,
+                                    version))
+                            .isEqualTo(persistedSnapshot);
+                if (mode.equals("verified")) {
+                    for (String skipped : List.of("initialize", "embed", "index"))
+                        assertThat(calls.get(skipped)).isEqualTo(beforeCalls.get(skipped));
+                    assertThat(calls.get("verify")).isEqualTo(beforeCalls.get("verify") + 1);
+                }
+                for (java.util.Map.Entry<String, Object> entry : esBefore.entrySet())
+                    assertThat(es.get(r -> r.index("ka-chunks-v1").id(entry.getKey()), Object.class)
+                                    .source())
+                            .isEqualTo(entry.getValue());
+                assertThat(jdbc.queryForObject(
+                                "SELECT count(*) FROM document_chunk WHERE index_version_id=? AND (embedding IS NULL OR vector_dims(embedding)<>1024)",
+                                Integer.class,
                                 version))
-                        .isEqualTo(interruptedIds);
+                        .isZero();
                 List<Long> ids = new ArrayList<>();
                 jdbc.query(
                         "SELECT id,content,source_start,source_end FROM document_chunk WHERE index_version_id=?",
@@ -251,7 +461,7 @@ class IngestionPipelineIT extends ElasticsearchIT {
                     assertThat(jdbc.queryForObject("SELECT count(*) FROM " + table, Integer.class))
                             .isEqualTo(before);
                 }
-                assertThat(storage.keys(client, "pipeline-test").size()).isEqualTo(before);
+
                 long otherKb = c.getBean(KnowledgeBaseService.class)
                         .create("isolated-" + extension, null)
                         .getId();
@@ -266,5 +476,26 @@ class IngestionPipelineIT extends ElasticsearchIT {
         } finally {
             stub.stop(0);
         }
+    }
+
+    static String chunks(JdbcTemplate jdbc, long version) {
+        return jdbc.queryForObject(
+                "SELECT json_agg(t ORDER BY id)::text FROM (SELECT id,chunk_order,content,heading_path,source_start,source_end FROM document_chunk WHERE index_version_id=?) t",
+                String.class,
+                version);
+    }
+
+    static void unpublished(JdbcTemplate jdbc, MockMvc mvc, long document, long version, long task) throws Exception {
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM document WHERE id=?", Integer.class, document))
+                .isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM document_index_version WHERE document_id=?", Integer.class, document))
+                .isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT active_version_id FROM document WHERE id=?", Long.class, document))
+                .isNull();
+        assertThat(jdbc.queryForObject("SELECT status FROM document_index_version WHERE id=?", String.class, version))
+                .isNotEqualTo("PUBLISHED");
+        mvc.perform(get("/v1/import-tasks/{id}", task))
+                .andExpect(jsonPath("$.data.status").value("FAILED"));
     }
 }
