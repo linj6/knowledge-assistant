@@ -175,6 +175,7 @@
                         <include>**/DatabaseIT.java</include>
                         <include>**/ElasticsearchIT.java</include>
                         <include>**/EsIndexIT.java</include>
+                        <include>**/EsIntegrityIT.java</include>
                         <include>**/PgIntegrityIT.java</include>
                         <include>**/MinioIT.java</include>
                     </includes>

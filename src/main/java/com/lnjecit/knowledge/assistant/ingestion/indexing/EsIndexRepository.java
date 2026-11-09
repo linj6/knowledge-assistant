@@ -26,8 +26,18 @@ public class EsIndexRepository {
     }
 
     public void ensureIndex(String index) {
+        checkIndex(index, true);
+    }
+
+    /** 验证入口只检查已有索引，不创建或修复任何 ES 数据。 */
+    public void validateIndex(String index) {
+        checkIndex(index, false);
+    }
+
+    private void checkIndex(String index, boolean createIfMissing) {
         try {
             if (!client.indices().exists(r -> r.index(index)).value()) {
+                if (!createIfMissing) throw failure("ES_INDEX_MISSING");
                 try {
                     client.indices().create(r -> r.index(index)
                             .settings(s -> s.numberOfReplicas("0"))
