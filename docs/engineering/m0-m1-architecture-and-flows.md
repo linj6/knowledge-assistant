@@ -1,4 +1,4 @@
-# M0～M1 架构与核心流程
+﻿# M0～M1 架构与核心流程
 
 基线：`feature/m1-ingestion-indexing`，`29af0d444ce9f0baa762f2574b1ac1205119f965`。依据生产 Java、Mapper SQL、V1～V5 迁移和 application 配置整理；不是未来 V1 全景。
 
@@ -198,4 +198,3 @@ TaskStateMachine 只管理领取和失败；SUCCEEDED 由 IndexPublishService �
 5. 架构全景包含后续 Retrieval/RAG/Evaluation，不能作为 M1 已实现清单。
 
 验证：依据源码逐项审阅。Mermaid 实际渲染检查尚未完成，不标记通过。未运行 Maven；本阶段仅新增文档。未修改冻结架构。
-
