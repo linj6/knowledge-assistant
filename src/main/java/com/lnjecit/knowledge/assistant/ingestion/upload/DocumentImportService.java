@@ -6,7 +6,9 @@ import com.lnjecit.knowledge.assistant.infrastructure.config.ChunkingProperties;
 import com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties;
 import com.lnjecit.knowledge.assistant.infrastructure.config.UploadProperties;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask;
+import com.lnjecit.knowledge.assistant.infrastructure.storage.ObjectKeyPrefixes;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
+import com.lnjecit.knowledge.assistant.ingestion.task.ImportEvents;
 import com.lnjecit.knowledge.assistant.knowledge.KnowledgeBaseService;
 import java.nio.ByteBuffer;
 import java.nio.charset.CodingErrorAction;
@@ -60,6 +62,7 @@ public class DocumentImportService {
     public Outcome receive(Long kbId, MultipartFile file) throws Exception {
         if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive())
             throw new IllegalStateException("Upload cannot execute inside transaction");
+        long started = System.nanoTime();
         knowledge.get(kbId);
         String filename = file.getOriginalFilename();
         if (filename == null
@@ -89,7 +92,7 @@ public class DocumentImportService {
         String hash =
                 HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
         ImportTask existing = repository.findExisting(kbId, hash);
-        if (existing != null) return new Outcome(ImportTaskResponse.from(existing), true);
+        if (existing != null) return outcome(existing, true, started);
         // 在上传前校验并捕获模型参数，后续配置变化不得改写该版本快照。
         String embeddingModel = model.getEmbeddingModel();
         Integer dimensions = model.getDimensions();
@@ -97,8 +100,8 @@ public class DocumentImportService {
             throw new IllegalStateException("Invalid embedding model configuration");
         }
         String snapshot = json.writeValueAsString(chunking.snapshot());
-        String stagingKey = "staging/" + UUID.randomUUID();
-        String finalKey = "originals/" + UUID.randomUUID();
+        String stagingKey = ObjectKeyPrefixes.STAGING + UUID.randomUUID();
+        String finalKey = ObjectKeyPrefixes.ORIGINALS + UUID.randomUUID();
         // 上传、复制和补偿均在PG事务之外；每个请求只处理自己的随机Key。
         try {
             try {
@@ -112,18 +115,20 @@ public class DocumentImportService {
             try {
                 ImportTask task = transaction.execute(status ->
                         repository.create(kbId, filename, hash, finalKey, snapshot, embeddingModel, dimensions));
-                return new Outcome(ImportTaskResponse.from(task), false);
+                return outcome(task, false, started);
             } catch (RuntimeException ex) {
                 // 提交异常不等于已回滚。查询主库确认无引用后才可删除，查询失败则保留并告警。
                 try {
                     if (!repository.isObjectReferenced(finalKey)) cleanup(finalKey);
-                    else LOG.warn("code=ORIGINAL_OBJECT_REFERENCED_AFTER_COMMIT_ERROR objectKey={}", finalKey);
+                    else
+                        ImportEvents.warn(
+                                LOG, "code=ORIGINAL_OBJECT_REFERENCED_AFTER_COMMIT_ERROR objectKey={}", finalKey);
                 } catch (RuntimeException checkFailure) {
-                    LOG.warn("code=ORIGINAL_OBJECT_REFERENCE_UNKNOWN objectKey={}", finalKey);
+                    ImportEvents.warn(LOG, "code=ORIGINAL_OBJECT_REFERENCE_UNKNOWN objectKey={}", finalKey);
                 }
                 if (ex instanceof DuplicateKeyException) {
                     ImportTask winner = repository.findExisting(kbId, hash);
-                    if (winner != null) return new Outcome(ImportTaskResponse.from(winner), true);
+                    if (winner != null) return outcome(winner, true, started);
                 }
                 throw ex;
             }
@@ -133,13 +138,29 @@ public class DocumentImportService {
         }
     }
 
+    private Outcome outcome(ImportTask task, boolean duplicate, long started) {
+        ImportEvents.info(
+                LOG,
+                "event={} taskId={} documentId={} indexVersionId={} attemptCount={} elapsedMs={}",
+                duplicate ? "IMPORT_DUPLICATE" : "IMPORT_RECEIVED",
+                task.getId(),
+                task.getDocumentId(),
+                task.getIndexVersionId(),
+                task.getAttemptCount(),
+                ImportEvents.elapsed(started));
+        return new Outcome(ImportTaskResponse.from(task), duplicate);
+    }
+
     private void cleanup(String key) {
         try {
             store.delete(key);
         } catch (RuntimeException ex) {
-            LOG.warn(
+            ImportEvents.warn(
+                    LOG,
                     "code={} objectKey={}",
-                    key.startsWith("originals/") ? "ORIGINAL_OBJECT_CLEANUP_FAILED" : "STAGING_OBJECT_CLEANUP_FAILED",
+                    key.startsWith(ObjectKeyPrefixes.ORIGINALS)
+                            ? "ORIGINAL_OBJECT_CLEANUP_FAILED"
+                            : "STAGING_OBJECT_CLEANUP_FAILED",
                     key);
         }
     }

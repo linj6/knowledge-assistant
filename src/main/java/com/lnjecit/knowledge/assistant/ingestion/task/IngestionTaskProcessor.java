@@ -4,6 +4,7 @@ import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.Document;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersionStatus;
+import com.lnjecit.knowledge.assistant.infrastructure.storage.ObjectKeyPrefixes;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkRepository;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkService;
@@ -27,6 +28,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
         name = {"assistant.model.enabled", "assistant.elasticsearch.enabled"},
         havingValue = "true")
 public class IngestionTaskProcessor implements TaskProcessor {
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(IngestionTaskProcessor.class);
     private final TaskProcessingRepository tasks;
     private final ChunkRepository records;
     private final OriginalFileStore files;
@@ -85,7 +87,7 @@ public class IngestionTaskProcessor implements TaskProcessor {
             if (document.getActiveVersionId() != null
                     || version.getPublishedAt() != null
                     || version.getStatus() == IndexVersionStatus.PUBLISHED) {
-                publish(task, context);
+                publish(task, context, true);
                 return;
             }
             if (current.getStatus()
@@ -95,7 +97,9 @@ public class IngestionTaskProcessor implements TaskProcessor {
                     && version.getStatus() != IndexVersionStatus.VERIFIED) invalid();
             if (version.getStatus() == IndexVersionStatus.BUILDING) {
                 String key = document.getObjectKey();
-                if (key == null || !key.matches("originals/[A-Za-z0-9-]+") || document.getFilename() == null) invalid();
+                if (key == null
+                        || !key.matches(ObjectKeyPrefixes.ORIGINALS + "[A-Za-z0-9-]+")
+                        || document.getFilename() == null) invalid();
                 // 对象位置只取数据库；先校验原始字节摘要，再解析和初始化。
                 context.checkTimeout();
                 byte[] bytes = files.read(key);
@@ -103,22 +107,31 @@ public class IngestionTaskProcessor implements TaskProcessor {
                 if (!sha256(bytes).equals(document.getContentHash())) invalid();
                 ParsedDocument parsed = parsers.parse(document.getFilename(), bytes);
                 context.checkTimeout();
-                chunks.initialize(document.getId(), version.getId(), parsed);
+                long started = System.nanoTime();
+                int chunkCount = chunks.initialize(document.getId(), version.getId(), parsed)
+                        .size();
+                stage("IMPORT_CHUNK_COMPLETED", task, current.getAttemptCount(), chunkCount, started);
+                started = System.nanoTime();
                 context.checkTimeout();
                 embeddings.embed(document.getId(), version.getId(), context::checkTimeout);
                 context.checkTimeout();
+                stage("IMPORT_EMBEDDING_COMPLETED", task, current.getAttemptCount(), chunkCount, started);
+                started = System.nanoTime();
                 es.index(document.getId(), version.getId());
+                stage("IMPORT_ES_COMPLETED", task, current.getAttemptCount(), chunkCount, started);
                 context.checkTimeout();
             }
             // VERIFIED 仍需重新核验；最终领取权由发布事务使用数据库时间裁决。
             context.checkTimeout();
+            long started = System.nanoTime();
             IndexVerificationService.Result result = verification.verify(document.getId(), version.getId());
             if (result == null
                     || !"VERIFIED".equals(result.verificationStatus())
                     || !Objects.equals(result.documentId(), document.getId())
                     || !Objects.equals(result.indexVersionId(), version.getId())) invalid();
             context.checkTimeout();
-            publish(task, context);
+            stage("IMPORT_VERIFIED", task, current.getAttemptCount(), result.expectedChunkCount(), started);
+            publish(task, context, false);
             // 发布提交后不再检查截止时间，也不执行任何可能触发失败转换的阶段。
         } catch (ParseException failure) {
             throw new TaskExecutionException(
@@ -140,11 +153,21 @@ public class IngestionTaskProcessor implements TaskProcessor {
         }
     }
 
-    private void publish(ClaimedTask task, TaskExecutionContext context) {
+    private void publish(ClaimedTask task, TaskExecutionContext context, boolean confirmed) {
+        long started = System.nanoTime();
+        String outcome = confirmed ? "EXISTING_FACTS_CONFIRMED" : "FIRST_PUBLISH";
         try {
             publisher.publish(task);
         } catch (org.springframework.transaction.TransactionSystemException
                 | org.springframework.dao.DataAccessResourceFailureException uncertain) {
+            ImportEvents.warn(
+                    LOG,
+                    "event=IMPORT_PUBLISH_OUTCOME_UNKNOWN taskId={} documentId={} indexVersionId={} errorCode=PUBLISH_OUTCOME_UNKNOWN exceptionType={}",
+                    task.taskId(),
+                    task.documentId(),
+                    task.indexVersionId(),
+                    uncertain.getClass().getName());
+            outcome = "UNCERTAIN_RESULT_RESOLVED";
             // 提交响应丢失时先读任务事实，再由发布事务核对完整发布事实。
             com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask current = tasks.task(task.taskId());
             if (current == null
@@ -153,6 +176,28 @@ public class IngestionTaskProcessor implements TaskProcessor {
                 context.checkTimeout();
             publisher.publish(task);
         }
+        // 代理事务方法返回后才记录发布成功；日志异常不会触发失败转换。
+        ImportEvents.info(
+                LOG,
+                "event=IMPORT_PUBLISHED taskId={} documentId={} indexVersionId={} outcome={} elapsedMs={}",
+                task.taskId(),
+                task.documentId(),
+                task.indexVersionId(),
+                outcome,
+                ImportEvents.elapsed(started));
+    }
+
+    private static void stage(String event, ClaimedTask task, Integer attemptCount, int count, long started) {
+        ImportEvents.info(
+                LOG,
+                "event={} taskId={} documentId={} indexVersionId={} attemptCount={} chunkCount={} elapsedMs={}",
+                event,
+                task.taskId(),
+                task.documentId(),
+                task.indexVersionId(),
+                attemptCount,
+                count,
+                ImportEvents.elapsed(started));
     }
 
     private static void invalid() {

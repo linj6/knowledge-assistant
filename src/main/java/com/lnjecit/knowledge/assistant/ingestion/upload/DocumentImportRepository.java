@@ -9,6 +9,7 @@ import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTaskStat
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersionMapper;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersionStatus;
+import com.lnjecit.knowledge.assistant.infrastructure.storage.ObjectKeyPrefixes;
 import java.time.Instant;
 import org.springframework.stereotype.Repository;
 
@@ -54,7 +55,9 @@ public class DocumentImportRepository {
             String snapshot,
             String embeddingModel,
             int dimensions) {
-        if (key == null || !key.startsWith("originals/") || key.length() <= 10)
+        if (key == null
+                || !key.startsWith(ObjectKeyPrefixes.ORIGINALS)
+                || key.length() <= ObjectKeyPrefixes.ORIGINALS.length())
             throw new IllegalArgumentException("Invalid final object key");
         Instant now = Instant.now();
         Document document = new Document();

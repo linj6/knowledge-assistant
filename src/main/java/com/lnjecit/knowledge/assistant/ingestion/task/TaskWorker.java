@@ -4,6 +4,7 @@ import com.lnjecit.knowledge.assistant.infrastructure.config.WorkerProperties;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 public class TaskWorker {
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(TaskWorker.class);
     private final TaskService tasks;
     private final TaskProcessor processor;
     private final java.time.Duration duration;
@@ -21,6 +22,7 @@ public class TaskWorker {
     public void execute(ClaimedTask task) {
         if (TransactionSynchronizationManager.isActualTransactionActive())
             throw new IllegalStateException("Worker cannot execute inside transaction");
+        long started = System.nanoTime();
         try {
             TaskExecutionContext context = new TaskExecutionContext(duration);
             context.checkTimeout();
@@ -28,11 +30,33 @@ public class TaskWorker {
             processor.process(task, context);
         } catch (RuntimeException failure) {
             // 永不持久化异常正文；条件更新只允许当前且未过期的执行者报告失败。
-            tasks.fail(
-                    task,
-                    failure instanceof TaskExecutionException known
-                            ? known.code()
-                            : TaskExecutionException.Code.EXECUTION_FAILED);
+            TaskExecutionException.Code code = failure instanceof TaskExecutionException known
+                    ? known.code()
+                    : TaskExecutionException.Code.EXECUTION_FAILED;
+            try {
+                tasks.fail(task, code);
+            } catch (RuntimeException updateFailure) {
+                ImportEvents.warn(
+                        LOG,
+                        "event=IMPORT_TASK_FAILURE_UPDATE_FAILED taskId={} documentId={} indexVersionId={} errorCode={} exceptionType={} updateExceptionType={} elapsedMs={}",
+                        task.taskId(),
+                        task.documentId(),
+                        task.indexVersionId(),
+                        code.name(),
+                        failure.getClass().getName(),
+                        updateFailure.getClass().getName(),
+                        ImportEvents.elapsed(started));
+                throw updateFailure;
+            }
+            ImportEvents.warn(
+                    LOG,
+                    "event=IMPORT_TASK_FAILED taskId={} documentId={} indexVersionId={} errorCode={} exceptionType={} elapsedMs={}",
+                    task.taskId(),
+                    task.documentId(),
+                    task.indexVersionId(),
+                    code.name(),
+                    failure.getClass().getName(),
+                    ImportEvents.elapsed(started));
         }
         // 处理器返回不代表已发布，不允许在这里标记 SUCCEEDED。
     }

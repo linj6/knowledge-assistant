@@ -56,11 +56,12 @@ public class MinioOriginalFileStore implements OriginalFileStore {
 
     public void copy(String sourceKey, String targetKey) {
         if (sourceKey == null
-                || !sourceKey.startsWith("staging/")
+                || !sourceKey.startsWith(ObjectKeyPrefixes.STAGING)
                 || targetKey == null
-                || !targetKey.startsWith("originals/")
-                || sourceKey.length() == 8
-                || targetKey.length() == 10) throw new IllegalArgumentException("Invalid object copy prefixes");
+                || !targetKey.startsWith(ObjectKeyPrefixes.ORIGINALS)
+                || sourceKey.length() == ObjectKeyPrefixes.STAGING.length()
+                || targetKey.length() == ObjectKeyPrefixes.ORIGINALS.length())
+            throw new IllegalArgumentException("Invalid object copy prefixes");
         try {
             client().copyObject(io.minio.CopyObjectArgs.builder()
                     .bucket(bucket)

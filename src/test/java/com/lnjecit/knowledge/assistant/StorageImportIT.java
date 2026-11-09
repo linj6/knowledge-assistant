@@ -7,6 +7,7 @@ import com.lnjecit.knowledge.assistant.infrastructure.config.ChunkingProperties;
 import com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties;
 import com.lnjecit.knowledge.assistant.infrastructure.config.UploadProperties;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.MinioOriginalFileStore;
+import com.lnjecit.knowledge.assistant.infrastructure.storage.ObjectKeyPrefixes;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
 import com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportRepository;
 import com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportService;
@@ -71,7 +72,7 @@ class StorageImportIT {
 
         public void put(String k, byte[] b) {
             outside();
-            assertThat(k).startsWith("staging/");
+            assertThat(k).startsWith(ObjectKeyPrefixes.STAGING);
             staged.add(k);
             real.put(k, b);
             if (barrier != null)
@@ -96,7 +97,8 @@ class StorageImportIT {
 
         public void delete(String k) {
             outside();
-            if ((k.startsWith("staging/") && stagingDelete) || (k.startsWith("originals/") && finalDelete))
+            if ((k.startsWith(ObjectKeyPrefixes.STAGING) && stagingDelete)
+                    || (k.startsWith(ObjectKeyPrefixes.ORIGINALS) && finalDelete))
                 throw new IllegalStateException("injected delete");
             real.delete(k);
         }
@@ -172,23 +174,26 @@ class StorageImportIT {
         assertThat(ilm(true)).contains("\"verified\": true");
         assertThat(mc("ilm", "rule", "export", "probe/" + bucket)).isEqualTo(rules);
         assertThat(rules.replaceAll("\\s", ""))
-                .contains("\"Prefix\":\"staging/\"", "\"Days\":2", "\"Prefix\":\"archive/\"")
-                .doesNotContain("originals/");
+                .contains("\"Prefix\":\"" + ObjectKeyPrefixes.STAGING + "\"", "\"Days\":2", "\"Prefix\":\"archive/\"")
+                .doesNotContain(ObjectKeyPrefixes.ORIGINALS);
         byte[] bytes = {65, 66, 67};
-        real.put("staging/probe", bytes);
-        real.copy("staging/probe", "originals/probe");
-        assertThat(real.read("staging/probe")).isEqualTo(real.read("originals/probe"));
-        real.delete("staging/probe");
-        assertThat(real.read("originals/probe")).isEqualTo(bytes);
-        assertThatThrownBy(() -> real.copy("originals/probe", "originals/invalid"))
+        real.put(ObjectKeyPrefixes.STAGING + "probe", bytes);
+        real.copy(ObjectKeyPrefixes.STAGING + "probe", ObjectKeyPrefixes.ORIGINALS + "probe");
+        assertThat(real.read(ObjectKeyPrefixes.STAGING + "probe"))
+                .isEqualTo(real.read(ObjectKeyPrefixes.ORIGINALS + "probe"));
+        real.delete(ObjectKeyPrefixes.STAGING + "probe");
+        assertThat(real.read(ObjectKeyPrefixes.ORIGINALS + "probe")).isEqualTo(bytes);
+        assertThatThrownBy(
+                        () -> real.copy(ObjectKeyPrefixes.ORIGINALS + "probe", ObjectKeyPrefixes.ORIGINALS + "invalid"))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> real.copy("staging/probe", "staging/invalid"))
+        assertThatThrownBy(() -> real.copy(ObjectKeyPrefixes.STAGING + "probe", ObjectKeyPrefixes.STAGING + "invalid"))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> real.copy("staging/missing", "originals/missing"))
+        assertThatThrownBy(
+                        () -> real.copy(ObjectKeyPrefixes.STAGING + "missing", ObjectKeyPrefixes.ORIGINALS + "missing"))
                 .hasMessage("Object copy failed");
         // 旧正式对象仍使用原读取路径，不需要迁移。
-        real.put("originals/legacy", bytes);
-        assertThat(real.read("originals/legacy")).isEqualTo(bytes);
+        real.put(ObjectKeyPrefixes.ORIGINALS + "legacy", bytes);
+        assertThat(real.read(ObjectKeyPrefixes.ORIGINALS + "legacy")).isEqualTo(bytes);
         SpringApplication app = new SpringApplication(KnowledgeAssistantApplication.class);
         app.setWebApplicationType(WebApplicationType.NONE);
         try (ConfigurableApplicationContext c = app.run(
@@ -210,9 +215,9 @@ class StorageImportIT {
                     "SELECT object_key FROM document WHERE id=?",
                     String.class,
                     first.task().documentId());
-            assertThat(key).startsWith("originals/");
+            assertThat(key).startsWith(ObjectKeyPrefixes.ORIGINALS);
             assertThat(real.read(key)).isEqualTo(bytes);
-            assertThat(keys(client, bucket)).noneMatch(k -> k.startsWith("staging/"));
+            assertThat(keys(client, bucket)).noneMatch(k -> k.startsWith(ObjectKeyPrefixes.STAGING));
             store.stagingDelete = true;
             DocumentImportService.Outcome committed = upload.receive(kb, ImportTests.file("kept.txt", new byte[] {68}));
             assertThat(committed.task().status()).isEqualTo("RECEIVED");

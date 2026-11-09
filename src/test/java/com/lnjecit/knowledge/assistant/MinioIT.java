@@ -2,6 +2,7 @@ package com.lnjecit.knowledge.assistant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.lnjecit.knowledge.assistant.infrastructure.storage.ObjectKeyPrefixes;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.GenericContainer;
@@ -41,7 +42,7 @@ class MinioIT {
         com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore store =
                 new com.lnjecit.knowledge.assistant.infrastructure.storage.MinioOriginalFileStore(
                         endpoint, "m007-user", "m007-test-password", bucket);
-        String key = "originals/" + java.util.UUID.randomUUID();
+        String key = ObjectKeyPrefixes.ORIGINALS + java.util.UUID.randomUUID();
         byte[] bytes = new byte[] {(byte) 0xef, (byte) 0xbb, (byte) 0xbf, 65, 13, 10};
         try {
             store.put(key, bytes);

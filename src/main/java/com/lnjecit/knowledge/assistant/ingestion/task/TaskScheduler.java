@@ -32,6 +32,7 @@ public class TaskScheduler {
 
     @Scheduled(fixedDelayString = "${assistant.worker.scan-interval:5s}")
     public synchronized void scan() {
+        com.lnjecit.knowledge.assistant.common.RequestIdContext.clear();
         // 整轮串行执行；只有上一轮处理函数退出后才换 owner，仍在执行的任务不会被本进程恢复。
         String owner = UUID.randomUUID().toString();
         // 没有安全生产处理器时连领取也不执行，避免无意义地消耗租约。
@@ -39,12 +40,29 @@ public class TaskScheduler {
         if (processor == null) return;
         for (int i = 0; i < batchSize; i++) {
             try {
-                tasks.recoverNext(owner);
+                long started = System.nanoTime();
+                if (tasks.recoverNext(owner)) {
+                    ImportEvents.warn(
+                            LOG,
+                            "event=IMPORT_TASK_RECOVERED errorCode=WORKER_INTERRUPTED elapsedMs={}",
+                            ImportEvents.elapsed(started));
+                }
                 Optional<ClaimedTask> task = tasks.claimNext(owner);
                 if (task.isEmpty()) return;
+                ClaimedTask claimed = task.orElseThrow();
+                ImportEvents.info(
+                        LOG,
+                        "event=IMPORT_TASK_CLAIMED taskId={} documentId={} indexVersionId={} elapsedMs={}",
+                        claimed.taskId(),
+                        claimed.documentId(),
+                        claimed.indexVersionId(),
+                        ImportEvents.elapsed(started));
                 new TaskWorker(tasks, processor, properties).execute(task.orElseThrow());
             } catch (RuntimeException failure) {
-                LOG.warn("IMPORT_TASK_SCAN_FAILED");
+                ImportEvents.warn(
+                        LOG,
+                        "event=IMPORT_TASK_SCAN_FAILED errorCode=SCAN_FAILED exceptionType={}",
+                        failure.getClass().getName());
                 return;
             }
         }

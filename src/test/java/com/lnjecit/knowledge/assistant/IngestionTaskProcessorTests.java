@@ -16,6 +16,7 @@ import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTaskStatus;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersionStatus;
+import com.lnjecit.knowledge.assistant.infrastructure.storage.ObjectKeyPrefixes;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkRepository;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkService;
@@ -37,6 +38,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+@org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
 class IngestionTaskProcessorTests {
     TaskProcessingRepository tasks = mock(TaskProcessingRepository.class);
     ChunkRepository records = mock(ChunkRepository.class);
@@ -65,23 +67,54 @@ class IngestionTaskProcessorTests {
         when(tasks.task(1L)).thenReturn(task);
         document.setId(2L);
         document.setFilename("test.txt");
-        document.setObjectKey("originals/abc");
+        document.setObjectKey(ObjectKeyPrefixes.ORIGINALS + "abc");
         document.setContentHash("2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824");
         version.setId(3L);
         version.setDocumentId(2L);
         version.setStatus(IndexVersionStatus.BUILDING);
         when(records.document(2L)).thenReturn(document);
         when(records.version(3L)).thenReturn(version);
-        when(files.read("originals/abc")).thenReturn("hello".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        when(files.read(ObjectKeyPrefixes.ORIGINALS + "abc"))
+                .thenReturn("hello".getBytes(java.nio.charset.StandardCharsets.UTF_8));
         when(verification.verify(2L, 3L))
                 .thenReturn(new IndexVerificationService.Result(2L, 3L, 1, 1, 1, null, "VERIFIED"));
+    }
+
+    @Test
+    void logsStagesAndDistinguishesExistingPublication(org.springframework.boot.test.system.CapturedOutput output) {
+        processor.process(claim, context);
+        org.assertj.core.api.Assertions.assertThat(output.getOut())
+                .contains(
+                        "event=IMPORT_CHUNK_COMPLETED",
+                        "event=IMPORT_EMBEDDING_COMPLETED",
+                        "event=IMPORT_ES_COMPLETED",
+                        "event=IMPORT_VERIFIED",
+                        "event=IMPORT_PUBLISHED",
+                        "outcome=FIRST_PUBLISH")
+                .doesNotContain("hello");
+        version.setStatus(IndexVersionStatus.PUBLISHED);
+        document.setActiveVersionId(3L);
+        processor.process(claim, context);
+        org.assertj.core.api.Assertions.assertThat(output.getOut()).contains("outcome=EXISTING_FACTS_CONFIRMED");
+    }
+
+    @Test
+    void uncertainPublishIsNeverLoggedAsFirstPublish(org.springframework.boot.test.system.CapturedOutput output) {
+        doThrow(new org.springframework.transaction.TransactionSystemException("secret"))
+                .doNothing()
+                .when(publisher)
+                .publish(claim);
+        processor.process(claim, context);
+        org.assertj.core.api.Assertions.assertThat(output.getOut())
+                .contains("IMPORT_PUBLISH_OUTCOME_UNKNOWN", "outcome=UNCERTAIN_RESULT_RESOLVED")
+                .doesNotContain("outcome=FIRST_PUBLISH", "secret");
     }
 
     @Test
     void buildingOrder() {
         processor.process(claim, context);
         InOrder order = inOrder(files, chunks, embeddings, es, verification, publisher);
-        order.verify(files).read("originals/abc");
+        order.verify(files).read(ObjectKeyPrefixes.ORIGINALS + "abc");
         order.verify(chunks).initialize(eq(2L), eq(3L), any());
         order.verify(embeddings).embed(eq(2L), eq(3L), any(Runnable.class));
         order.verify(es).index(2L, 3L);

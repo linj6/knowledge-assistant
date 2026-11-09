@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import com.lnjecit.knowledge.assistant.infrastructure.storage.ObjectKeyPrefixes;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
 import com.lnjecit.knowledge.assistant.ingestion.task.TaskScheduler;
 import com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportController;
@@ -335,7 +336,7 @@ class IngestionPipelineIT extends ElasticsearchIT {
                 mvc.perform(get("/v1/import-tasks/{id}", task))
                         .andExpect(jsonPath("$.data.status").value("RECEIVED"));
                 String key = jdbc.queryForObject("SELECT object_key FROM document WHERE id=?", String.class, document);
-                assertThat(key).startsWith("originals/");
+                assertThat(key).startsWith(ObjectKeyPrefixes.ORIGINALS);
                 assertThat(c.getBean(OriginalFileStore.class).read(key)).isEqualTo(bytes);
                 String chunkSnapshot = null;
                 String persistedSnapshot = null;
