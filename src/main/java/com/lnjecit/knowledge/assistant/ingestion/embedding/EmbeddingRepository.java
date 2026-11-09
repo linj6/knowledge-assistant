@@ -35,6 +35,15 @@ public class EmbeddingRepository {
     }
 
     public List<DocumentChunk> read(Long documentId, Long versionId) {
+        return read(documentId, versionId, false);
+    }
+
+    /** 统一验证允许复核未发布的 VERIFIED 版本；原有构建读取入口仍只接受 BUILDING。 */
+    public List<DocumentChunk> readForVerification(Long documentId, Long versionId) {
+        return read(documentId, versionId, true);
+    }
+
+    private List<DocumentChunk> read(Long documentId, Long versionId, boolean allowVerified) {
         Document d = chunks.document(documentId);
         IndexVersion v = chunks.version(versionId);
         if (d == null
@@ -42,7 +51,8 @@ public class EmbeddingRepository {
                 || !documentId.equals(v.getDocumentId())
                 || d.getActiveVersionId() != null
                 || v.getPublishedAt() != null
-                || v.getStatus() != IndexVersionStatus.BUILDING)
+                || (v.getStatus() != IndexVersionStatus.BUILDING
+                        && !(allowVerified && v.getStatus() == IndexVersionStatus.VERIFIED)))
             throw new IllegalStateException("Embedding version unavailable");
         VectorSchema.requireCompatible(v.getEmbeddingDimension());
         List<DocumentChunk> rows = chunks.find(versionId);
