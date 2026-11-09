@@ -38,6 +38,10 @@ public class DocumentImportRepository {
         return task;
     }
 
+    public boolean isObjectReferenced(String key) {
+        return documents.selectCount(new LambdaQueryWrapper<Document>().eq(Document::getObjectKey, key)) > 0;
+    }
+
     public ImportTask find(Long id) {
         return tasks.selectById(id);
     }
@@ -50,6 +54,8 @@ public class DocumentImportRepository {
             String snapshot,
             String embeddingModel,
             int dimensions) {
+        if (key == null || !key.startsWith("originals/") || key.length() <= 10)
+            throw new IllegalArgumentException("Invalid final object key");
         Instant now = Instant.now();
         Document document = new Document();
         document.setKnowledgeBaseId(kbId);

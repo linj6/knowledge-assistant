@@ -52,11 +52,11 @@ M0 状态与剩余验收缺口见 [验收报告](m0-verification-report.md)。�
 
 ## M1-12 单 Worker 运行基线
 
-M1-12 替代 M1-09 的120秒租约现状及历史续租规划。统一由 WorkerProperties 绑定 assistant.worker，启动校验，即使开关关闭也拒绝非法参数。未注册生产 TaskProcessor；开关开启但无处理器仍不领取。恢复随任务扫描执行，清理独立定时执行，二者均由同一开关控制。
+M1-12 替代 M1-09 的120秒租约现状及历史续租规划。统一由 WorkerProperties 绑定 assistant.worker，启动校验，即使开关关闭也拒绝非法参数。未注册生产 TaskProcessor；开关开启但无处理器仍不领取。恢复随任务扫描执行；存储清理由MinIO ILM和即时补偿负责，与Worker开关无关。
 
 | 配置 | 默认值 | 约束与含义 |
 |---|---|---|
-| enabled | false | 默认关闭任务扫描及孤儿清理 |
+| enabled | false | 默认关闭任务扫描 |
 | scan-interval | 5s | 正数，固定延迟 |
 | batch-size | 1 | 1～10，顺序执行 |
 | lease-duration | 15m | PG statement_timestamp() 加配置时长 |
@@ -64,12 +64,10 @@ M1-12 替代 M1-09 的120秒租约现状及历史续租规划。统一由 Worker
 | max-attempts | 4 | 大于0；attempt_count 是已开始执行的总次数 |
 | retry-backoff | [5s, 15s, 45s] | 正数，数量等于 max-attempts−1 |
 | retry-jitter | 0.2 | 有限数，0～1；默认±20%，区间4～6/12～18/36～54秒 |
-| orphan-cleanup-interval | 1h | 正数，固定延迟 |
-| orphan-object-grace-period | 24h | 正数；最后修改时间严格早于窗口才可删除 |
-| orphan-cleanup-batch-size | 100 | 1～1000；每轮处理上限，游标轮转扫描 |
 
 所有时长均为整毫秒，范围为1毫秒至365天。失败只保存固定安全码及描述，未知 RuntimeException 不自动重试。过期任务仅恢复不同 owner，未耗尽次数时安排同一退避策略；恢复本身不递增执行次数，重新领取递增 attempt_count 和 claim_epoch。
 
-不自动续租、不强制终止线程、不提供跨进程 fencing。部署必须保证单 Worker，重启前确认旧执行进程已停止。上传生成唯一 Key，在本应用中通过对象锁保护上传至 PG 提交的窗口；清理在锁内检查 PG 引用，PG 不可用立即停止本轮删除，不修改数据库记录。其他进程/未来新增对象写入流程必须遵守唯一 Key 及互斥协议；当前无此类业务入口。
+不自动续租、不强制终止线程、不提供跨进程 fencing。部署必须保证单 Worker，重启前确认旧执行进程已停止。上传在同一Bucket中使用唯一 staging/ 和 originals/ Key，服务端复制后短PG事务只保存正式Key；PG异常先查引用再补偿，查询失败保留并告警。staging/ 的原生ILM过期天数为2，不在应用配置Worker扫描参数；原三个orphan扫描参数已删除。规则部署、检查及历史正式对象人工核对见 [MinIO部署](../../infra/minio/README.md)。
 
 实际验证与未验证边界见 [M1-12 验收](m1-12-verification.md)。M1-12 不接入真实导入链路，完整 E2E 留待 M1-13。
+存储现状以 [M1-12存储简化](m1-12-storage-simplification.md) 为准；不再提供应用层定时扫描。

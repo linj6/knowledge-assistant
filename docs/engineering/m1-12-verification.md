@@ -1,5 +1,7 @@
 # M1-12 基本重试、超时、恢复与孤儿对象清理验收
 
+> 存储扫描与对象锁为历史实现，已由后续 [存储简化](m1-12-storage-simplification.md) 替代；本记录保留当轮真实测试证据。
+
 ## 范围与基线
 
 分支 `feature/m1-ingestion-indexing`，起点 `2ff42d1901bbb0a456c2e98843346eeff66da0fc`；实施前工作区干净。未修改 Flyway V1～V5、依赖版本、上传外部 API、ES 六字段协议、M1-10 验证算法或 M1-11 发布事务。没有供应商模型请求，没有启动 Compose；仅启动测试专用容器并由 Testcontainers 回收。

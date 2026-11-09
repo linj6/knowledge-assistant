@@ -64,6 +64,10 @@ class ImportPersistenceTests {
                 }
         }
 
+        public void copy(String source, String target) {
+            objects.put(target, objects.get(source).clone());
+        }
+
         public byte[] read(String key) {
             return objects.get(key);
         }
@@ -207,7 +211,7 @@ class ImportPersistenceTests {
             store.failDelete.set(true);
             assertThatThrownBy(() -> service.receive(kb, ImportTests.file("fail.txt", new byte[] {68})))
                     .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
-            assertThat(store.objects).hasSize(4);
+            assertThat(store.objects).hasSize(5);
             assertThat(output.getOut()).contains("ORIGINAL_OBJECT_CLEANUP_FAILED");
             store.failDelete.set(false);
             store.failPut.set(true);

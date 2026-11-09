@@ -7,7 +7,6 @@ import com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties;
 import com.lnjecit.knowledge.assistant.infrastructure.config.UploadProperties;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
-import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalObjectGuard;
 import com.lnjecit.knowledge.assistant.knowledge.KnowledgeBaseService;
 import java.nio.ByteBuffer;
 import java.nio.charset.CodingErrorAction;
@@ -36,7 +35,6 @@ public class DocumentImportService {
     private final JsonMapper json;
     private final ModelProperties model;
     private final TransactionTemplate transaction;
-    private final OriginalObjectGuard guard;
 
     public DocumentImportService(
             DocumentImportRepository repository,
@@ -46,9 +44,7 @@ public class DocumentImportService {
             ChunkingProperties chunking,
             JsonMapper json,
             ModelProperties model,
-            PlatformTransactionManager manager,
-            OriginalObjectGuard guard) {
-        this.guard = guard;
+            PlatformTransactionManager manager) {
         this.repository = repository;
         this.knowledge = knowledge;
         this.store = store;
@@ -62,6 +58,8 @@ public class DocumentImportService {
     public record Outcome(ImportTaskResponse task, boolean duplicate) {}
 
     public Outcome receive(Long kbId, MultipartFile file) throws Exception {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive())
+            throw new IllegalStateException("Upload cannot execute inside transaction");
         knowledge.get(kbId);
         String filename = file.getOriginalFilename();
         if (filename == null
@@ -99,28 +97,39 @@ public class DocumentImportService {
             throw new IllegalStateException("Invalid embedding model configuration");
         }
         String snapshot = json.writeValueAsString(chunking.snapshot());
-        String key = "originals/" + UUID.randomUUID();
-        try (OriginalObjectGuard.Handle objectLock = guard.acquire(key)) {
-            // 网络上传在数据库事务之外；只补偿本请求生成的唯一对象 Key。
+        String stagingKey = "staging/" + UUID.randomUUID();
+        String finalKey = "originals/" + UUID.randomUUID();
+        // 上传、复制和补偿均在PG事务之外；每个请求只处理自己的随机Key。
+        try {
             try {
-                store.put(key, bytes);
+                store.put(stagingKey, bytes);
+                store.copy(stagingKey, finalKey);
             } catch (RuntimeException ex) {
-                cleanup(key);
+                // 复制可能已经完成但响应丢失，仍须补偿本请求的目标对象。
+                cleanup(finalKey);
                 throw ex;
             }
             try {
-                ImportTask task = transaction.execute(
-                        status -> repository.create(kbId, filename, hash, key, snapshot, embeddingModel, dimensions));
+                ImportTask task = transaction.execute(status ->
+                        repository.create(kbId, filename, hash, finalKey, snapshot, embeddingModel, dimensions));
                 return new Outcome(ImportTaskResponse.from(task), false);
             } catch (RuntimeException ex) {
-                cleanup(key);
-                // execute 抛出时事务已回滚，再查询并发赢家，不能在失败事务内查询。
+                // 提交异常不等于已回滚。查询主库确认无引用后才可删除，查询失败则保留并告警。
+                try {
+                    if (!repository.isObjectReferenced(finalKey)) cleanup(finalKey);
+                    else LOG.warn("code=ORIGINAL_OBJECT_REFERENCED_AFTER_COMMIT_ERROR objectKey={}", finalKey);
+                } catch (RuntimeException checkFailure) {
+                    LOG.warn("code=ORIGINAL_OBJECT_REFERENCE_UNKNOWN objectKey={}", finalKey);
+                }
                 if (ex instanceof DuplicateKeyException) {
                     ImportTask winner = repository.findExisting(kbId, hash);
                     if (winner != null) return new Outcome(ImportTaskResponse.from(winner), true);
                 }
                 throw ex;
             }
+        } finally {
+            // 临时对象删除失败不改变已经提交的业务结果，残留交给staging生命周期规则。
+            cleanup(stagingKey);
         }
     }
 
@@ -128,7 +137,10 @@ public class DocumentImportService {
         try {
             store.delete(key);
         } catch (RuntimeException ex) {
-            LOG.warn("code=ORIGINAL_OBJECT_CLEANUP_FAILED objectKey={}", key);
+            LOG.warn(
+                    "code={} objectKey={}",
+                    key.startsWith("originals/") ? "ORIGINAL_OBJECT_CLEANUP_FAILED" : "STAGING_OBJECT_CLEANUP_FAILED",
+                    key);
         }
     }
 

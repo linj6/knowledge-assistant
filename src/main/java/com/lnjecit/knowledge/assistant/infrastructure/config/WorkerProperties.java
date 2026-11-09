@@ -23,9 +23,6 @@ public class WorkerProperties implements InitializingBean {
     private List<Duration> retryBackoff =
             List.of(Duration.ofSeconds(5), Duration.ofSeconds(15), Duration.ofSeconds(45));
     private double retryJitter = 0.2;
-    private Duration orphanCleanupInterval = Duration.ofHours(1);
-    private Duration orphanObjectGracePeriod = Duration.ofHours(24);
-    private int orphanCleanupBatchSize = 100;
 
     public void afterPropertiesSet() {
         if (!positive(scanInterval)
@@ -39,12 +36,8 @@ public class WorkerProperties implements InitializingBean {
                 || !Double.isFinite(retryJitter)
                 || retryJitter < 0
                 || retryJitter > 1
-                || !positive(orphanCleanupInterval)
-                || !positive(orphanObjectGracePeriod)
                 || batchSize < 1
-                || batchSize > 10
-                || orphanCleanupBatchSize < 1
-                || orphanCleanupBatchSize > 1000) throw new IllegalArgumentException("Invalid worker configuration");
+                || batchSize > 10) throw new IllegalArgumentException("Invalid worker configuration");
     }
 
     private static boolean positive(Duration d) {

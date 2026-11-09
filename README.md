@@ -105,3 +105,5 @@ docker compose up -d --build
 六类业务参数已记录为 [V1 初始配置基线](docs/engineering/configuration-baseline.md)，尚未实现或完成业务验证，不添加未使用配置。M0-07C 历史完整构建已通过（46 项、零失败/错误/跳过），本轮未重跑；隔离环境镜像恢复及负面测试仍未完成。
 
 本轮实施证据见 [M0-07B 验证记录](docs/engineering/m0-07b-verification.md)。
+
+MinIO 上传使用 staging/originals 单 Bucket 流程；部署前配置并检查 [staging 两天生命周期规则](infra/minio/README.md)。已有正式对象仍可直接读取，历史孤儿需按该文档一次性人工核对。

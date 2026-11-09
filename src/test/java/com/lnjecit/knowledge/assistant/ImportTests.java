@@ -60,8 +60,7 @@ class ImportTests {
                 new ChunkingProperties(),
                 JsonMapper.builder().build(),
                 new com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties(),
-                mock(PlatformTransactionManager.class),
-                new com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalObjectGuard());
+                mock(PlatformTransactionManager.class));
         for (MockMultipartFile file : new MockMultipartFile[] {
             file("a.md", new byte[0]),
             file("a.txt", new byte[17]),
@@ -150,8 +149,7 @@ class ImportTests {
                 chunking,
                 JsonMapper.builder().build(),
                 model,
-                mock(PlatformTransactionManager.class),
-                new com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalObjectGuard());
+                mock(PlatformTransactionManager.class));
         assertThat(service.receive(1L, file("a.txt", new byte[] {65})).task().status())
                 .isEqualTo("RECEIVED");
         org.mockito.Mockito.verify(repository)

@@ -41,14 +41,11 @@ class TaskExecutionTests {
     }
 
     @Test
-    void rejectsInvalidCleanupAndJitter() {
+    void rejectsInvalidJitterAndWorkerBounds() {
         java.util.List<java.util.function.Consumer<WorkerProperties>> changes = List.of(
                 p -> p.setRetryJitter(Double.NaN),
                 p -> p.setRetryJitter(-0.1),
                 p -> p.setRetryJitter(1.1),
-                p -> p.setOrphanObjectGracePeriod(Duration.ZERO),
-                p -> p.setOrphanCleanupBatchSize(0),
-                p -> p.setOrphanCleanupBatchSize(1001),
                 p -> p.setLeaseDuration(Duration.ZERO),
                 p -> p.setBatchSize(11),
                 p -> p.setRetryBackoff(List.of(Duration.ZERO, Duration.ofSeconds(1), Duration.ofSeconds(1))));

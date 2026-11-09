@@ -182,7 +182,7 @@
                         <include>**/MinioIT.java</include>
                         <include>**/ImportTaskIT.java</include>
                         <include>**/TaskRecoveryIT.java</include>
-                        <include>**/OrphanObjectCleanupIT.java</include>
+                        <include>**/StorageImportIT.java</include>
                     </includes>
                     <failIfNoTests>true</failIfNoTests>
                 </configuration>

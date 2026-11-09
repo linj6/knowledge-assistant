@@ -21,9 +21,6 @@ assistant:
     max-attempts: 4
     retry-backoff: [5s, 15s, 45s]
     retry-jitter: 0.2
-    orphan-cleanup-interval: 1h
-    orphan-object-grace-period: 24h
-    orphan-cleanup-batch-size: 100
   elasticsearch:
     enabled: false
     endpoint: ${KA_ES_ENDPOINT:http://localhost:9200}

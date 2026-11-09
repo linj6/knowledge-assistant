@@ -34,33 +34,24 @@ public class MinioOriginalFileStore implements OriginalFileStore {
         return client;
     }
 
-    public ObjectPage listOriginals(String token, int limit) {
-        if (limit < 1 || limit > 1000) throw new IllegalArgumentException("Invalid listing limit");
+    public void copy(String sourceKey, String targetKey) {
+        if (sourceKey == null
+                || !sourceKey.startsWith("staging/")
+                || targetKey == null
+                || !targetKey.startsWith("originals/")
+                || sourceKey.length() == 8
+                || targetKey.length() == 10) throw new IllegalArgumentException("Invalid object copy prefixes");
         try {
-            java.util.List<StoredObject> objects = new java.util.ArrayList<>();
-            // 单页请求限制网络扫描量，并保存游标，避免被保留对象长期挡住后续对象。
-            String last = null;
-            java.util.Iterator<io.minio.Result<io.minio.messages.Item>> items = client().listObjects(
-                            io.minio.ListObjectsArgs.builder()
-                                    .bucket(bucket)
-                                    .prefix("originals/")
-                                    .recursive(true)
-                                    .startAfter(token)
-                                    .maxKeys(limit)
-                                    .build())
-                    .iterator();
-            int scanned = 0;
-            while (scanned < limit && items.hasNext()) {
-                io.minio.messages.Item item = items.next().get();
-                scanned++;
-                last = item.objectName();
-                if (!item.isDir())
-                    objects.add(new StoredObject(
-                            item.objectName(), item.lastModified().toInstant()));
-            }
-            return new ObjectPage(java.util.List.copyOf(objects), scanned == limit ? last : null);
+            client().copyObject(io.minio.CopyObjectArgs.builder()
+                    .bucket(bucket)
+                    .object(targetKey)
+                    .source(io.minio.CopySource.builder()
+                            .bucket(bucket)
+                            .object(sourceKey)
+                            .build())
+                    .build());
         } catch (Exception ex) {
-            throw new IllegalStateException("Object listing failed");
+            throw new IllegalStateException("Object copy failed");
         }
     }
 
