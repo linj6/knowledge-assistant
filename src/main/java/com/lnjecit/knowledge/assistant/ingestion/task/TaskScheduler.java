@@ -57,7 +57,7 @@ public class TaskScheduler {
                         claimed.documentId(),
                         claimed.indexVersionId(),
                         ImportEvents.elapsed(started));
-                new TaskWorker(tasks, processor, properties).execute(task.orElseThrow());
+                new TaskWorker(tasks, processor, properties).execute(claimed);
             } catch (RuntimeException failure) {
                 ImportEvents.warn(
                         LOG,
