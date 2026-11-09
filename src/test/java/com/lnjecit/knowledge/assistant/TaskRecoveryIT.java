@@ -55,6 +55,78 @@ class TaskRecoveryIT {
     }
 
     @Test
+    void serialSchedulerWithExpiredRealClaim() throws Exception {
+        try (ConfigurableApplicationContext c = start()) {
+            JdbcTemplate jdbc = c.getBean(JdbcTemplate.class);
+            TaskService tasks = c.getBean(TaskService.class);
+            seed(jdbc, 90);
+            java.util.concurrent.CountDownLatch entered = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.atomic.AtomicReference<ClaimedTask> original =
+                    new java.util.concurrent.atomic.AtomicReference<>();
+            com.lnjecit.knowledge.assistant.ingestion.task.TaskProcessor processor = (claim, budget) -> {
+                original.set(claim);
+                entered.countDown();
+                try {
+                    if (!release.await(10, java.util.concurrent.TimeUnit.SECONDS))
+                        throw new IllegalStateException("test timeout");
+                } catch (InterruptedException failure) {
+                    throw new IllegalStateException(failure);
+                }
+            };
+            org.springframework.beans.factory.support.StaticListableBeanFactory factory =
+                    new org.springframework.beans.factory.support.StaticListableBeanFactory();
+            factory.addBean("processor", processor);
+            WorkerProperties properties = new WorkerProperties();
+            properties.setBatchSize(1);
+            com.lnjecit.knowledge.assistant.ingestion.task.TaskScheduler scheduler =
+                    new com.lnjecit.knowledge.assistant.ingestion.task.TaskScheduler(
+                            tasks,
+                            factory.getBeanProvider(com.lnjecit.knowledge.assistant.ingestion.task.TaskProcessor.class),
+                            properties);
+            try (java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+                java.util.concurrent.Future<?> first = executor.submit(scheduler::scan);
+                try {
+                    assertThat(entered.await(10, java.util.concurrent.TimeUnit.SECONDS))
+                            .isTrue();
+                    // 测试推进数据库租约时间，不实际等待十五分钟。
+                    jdbc.update(
+                            "UPDATE document_import_task SET lease_until=statement_timestamp()-interval '1 second' WHERE id=90");
+                    assertThatThrownBy(() -> tasks.fail(original.get(), TaskExecutionException.Code.MODEL_TIMEOUT))
+                            .hasMessage("AUTHORITY_EXPIRED");
+                    java.util.concurrent.CountDownLatch started = new java.util.concurrent.CountDownLatch(1);
+                    java.util.concurrent.Future<?> second = executor.submit(() -> {
+                        started.countDown();
+                        scheduler.scan();
+                    });
+                    assertThat(started.await(5, java.util.concurrent.TimeUnit.SECONDS))
+                            .isTrue();
+                    assertThatThrownBy(() -> second.get(100, java.util.concurrent.TimeUnit.MILLISECONDS))
+                            .isInstanceOf(java.util.concurrent.TimeoutException.class);
+                    assertThat(jdbc.queryForObject("SELECT status FROM document_import_task WHERE id=90", String.class))
+                            .isEqualTo("RUNNING");
+                    release.countDown();
+                    first.get(5, java.util.concurrent.TimeUnit.SECONDS);
+                    second.get(5, java.util.concurrent.TimeUnit.SECONDS);
+                    assertThat(jdbc.queryForObject(
+                                    "SELECT last_error_code FROM document_import_task WHERE id=90", String.class))
+                            .isEqualTo("WORKER_INTERRUPTED");
+                    due(jdbc, 90);
+                    ClaimedTask next = tasks.claimNext("new-owner").orElseThrow();
+                    assertThat(next.claimEpoch()).isEqualTo(original.get().claimEpoch() + 1);
+                    assertThatThrownBy(() -> tasks.fail(original.get(), TaskExecutionException.Code.MODEL_TIMEOUT))
+                            .hasMessage("AUTHORITY_EXPIRED");
+                    assertThat(jdbc.queryForObject(
+                                    "SELECT lease_owner FROM document_import_task WHERE id=90", String.class))
+                            .isEqualTo("new-owner");
+                } finally {
+                    release.countDown();
+                }
+            }
+        }
+    }
+
+    @Test
     void retryAndTimeout() {
         try (ConfigurableApplicationContext c = start()) {
             JdbcTemplate j = c.getBean(JdbcTemplate.class);

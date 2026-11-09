@@ -80,7 +80,29 @@ class IngestionPipelineIT extends ElasticsearchIT {
         runPipeline("verified");
     }
 
+    @Test
+    void committedPublishResponseLost() throws Exception {
+        runPipeline("publish-lost");
+    }
+
+    @Test
+    void rolledBackPublishIsRetriedUsingRealClaim() throws Exception {
+        runPipeline("publish-rollback");
+    }
+
+    @Test
+    void embeddingResponseExhaustsBudget() throws Exception {
+        runPipeline("timeout-model");
+    }
+
+    @Test
+    void verifiedBeforeDeadlineExhaustion() throws Exception {
+        runPipeline("timeout-verified");
+    }
+
     void runPipeline(String mode) throws Exception {
+        java.util.concurrent.atomic.AtomicLong ticker = new java.util.concurrent.atomic.AtomicLong();
+        java.util.concurrent.atomic.AtomicBoolean timeoutArmed = new java.util.concurrent.atomic.AtomicBoolean(true);
         JsonMapper json = JsonMapper.builder().build();
         java.util.concurrent.atomic.AtomicBoolean unavailable = new java.util.concurrent.atomic.AtomicBoolean();
         java.util.concurrent.atomic.AtomicInteger requests = new java.util.concurrent.atomic.AtomicInteger();
@@ -104,6 +126,8 @@ class IngestionPipelineIT extends ElasticsearchIT {
             byte[] body = ("{\"object\":\"list\",\"model\":\"text-embedding-v4\",\"data\":[" + String.join(",", data)
                             + "],\"usage\":{\"prompt_tokens\":1,\"total_tokens\":1}}")
                     .getBytes(StandardCharsets.UTF_8);
+            if (mode.equals("timeout-model") && timeoutArmed.compareAndSet(true, false))
+                ticker.addAndGet(java.time.Duration.ofSeconds(2).toNanos());
             exchange.getResponseHeaders().set("Content-Type", "application/json");
             exchange.sendResponseHeaders(200, body.length);
             exchange.getResponseBody().write(body);
@@ -127,7 +151,12 @@ class IngestionPipelineIT extends ElasticsearchIT {
                 .addBeanPostProcessor(new org.springframework.beans.factory.config.BeanPostProcessor() {
                     @Override
                     public Object postProcessAfterInitialization(Object bean, String name) {
-                        if (!(bean instanceof com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkService
+                        if (!(bean instanceof com.lnjecit.knowledge.assistant.ingestion.task.IngestionTaskProcessor
+                                || bean
+                                        instanceof
+                                        com.lnjecit.knowledge.assistant.ingestion.publish.IndexPublishRepository
+                                || bean instanceof com.lnjecit.knowledge.assistant.ingestion.publish.IndexPublishService
+                                || bean instanceof com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkService
                                 || bean instanceof com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingService
                                 || bean instanceof com.lnjecit.knowledge.assistant.ingestion.indexing.EsIndexService
                                 || bean instanceof com.lnjecit.knowledge.assistant.ingestion.indexing.EsIndexRepository
@@ -141,7 +170,29 @@ class IngestionPipelineIT extends ElasticsearchIT {
                         proxy.addAdvice((org.aopalliance.intercept.MethodInterceptor) invocation -> {
                             String method = invocation.getMethod().getName();
                             calls.merge(method, 1, Integer::sum);
+                            if (mode.startsWith("timeout-") && method.equals("process"))
+                                invocation.getArguments()[1] =
+                                        new com.lnjecit.knowledge.assistant.ingestion.task.TaskExecutionContext(
+                                                java.time.Duration.ofSeconds(1), ticker::get);
                             Object result = invocation.proceed();
+                            if (mode.equals("publish-rollback")
+                                    && bean
+                                            instanceof
+                                            com.lnjecit.knowledge.assistant.ingestion.publish.IndexPublishRepository
+                                    && method.equals("publish")
+                                    && armed.compareAndSet(true, false))
+                                throw new org.springframework.transaction.TransactionSystemException(
+                                        "TEST_ROLLBACK_BEFORE_COMMIT");
+                            if (bean instanceof com.lnjecit.knowledge.assistant.ingestion.publish.IndexPublishService
+                                    && mode.equals("publish-lost")
+                                    && method.equals("publish")
+                                    && armed.compareAndSet(true, false))
+                                throw new org.springframework.transaction.TransactionSystemException(
+                                        "TEST_COMMITTED_RESPONSE_LOST");
+                            if (mode.equals("timeout-verified")
+                                    && method.equals("verify")
+                                    && timeoutArmed.compareAndSet(true, false))
+                                ticker.addAndGet(java.time.Duration.ofSeconds(2).toNanos());
                             // 仅测试代理：真实方法返回意味着其持久化事务已提交。
                             boolean inject = mode.equals("es-partial") && method.equals("create")
                                     || mode.equals("es-complete") && method.equals("index")
@@ -182,6 +233,7 @@ class IngestionPipelineIT extends ElasticsearchIT {
             ElasticsearchClient es = c.getBean(ElasticsearchClient.class);
             for (String extension : List.of("md", "txt")) {
                 requests.set(0);
+                timeoutArmed.set(true);
                 armed.set(true);
                 calls.clear();
                 requested.clear();
@@ -239,7 +291,7 @@ class IngestionPipelineIT extends ElasticsearchIT {
                     unpublished(jdbc, mvc, document, version, task);
                     continue;
                 }
-                if (!mode.equals("normal")) {
+                if (!mode.equals("normal") && !mode.startsWith("publish-")) {
                     unavailable.set(mode.equals("retry") || mode.equals("exhaust"));
                     int attempts = mode.equals("exhaust") ? 4 : 1;
                     for (int attempt = 1; attempt <= attempts; attempt++) {
@@ -247,9 +299,11 @@ class IngestionPipelineIT extends ElasticsearchIT {
                         assertThat(jdbc.queryForObject(
                                         "SELECT status='FAILED' AND last_error_code=? FROM document_import_task WHERE id=?",
                                         Boolean.class,
-                                        mode.startsWith("es-") || mode.equals("verified")
-                                                ? "SEARCH_UNAVAILABLE"
-                                                : "MODEL_UNAVAILABLE",
+                                        mode.startsWith("timeout-")
+                                                ? "TASK_TIMEOUT"
+                                                : mode.startsWith("es-") || mode.equals("verified")
+                                                        ? "SEARCH_UNAVAILABLE"
+                                                        : "MODEL_UNAVAILABLE",
                                         task))
                                 .isTrue();
                         assertThat(jdbc.queryForObject(
@@ -265,6 +319,24 @@ class IngestionPipelineIT extends ElasticsearchIT {
                                         Boolean.class,
                                         task))
                                 .isEqualTo(attempt == 4);
+                        if (mode.startsWith("timeout-")) {
+                            assertThat(calls.getOrDefault("publish", 0)).isZero();
+                            if (mode.equals("timeout-model")) {
+                                assertThat(calls.getOrDefault("index", 0)).isZero();
+                                assertThat(calls.getOrDefault("verify", 0)).isZero();
+                                assertThat(jdbc.queryForObject(
+                                                "SELECT count(*) FROM document_chunk WHERE index_version_id=? AND embedding IS NOT NULL",
+                                                Integer.class,
+                                                version))
+                                        .isZero();
+                            } else {
+                                assertThat(jdbc.queryForObject(
+                                                "SELECT status FROM document_index_version WHERE id=?",
+                                                String.class,
+                                                version))
+                                        .isEqualTo("VERIFIED");
+                            }
+                        }
                         String now = chunks(jdbc, version);
                         if (chunkSnapshot == null) chunkSnapshot = now;
                         assertThat(now).isEqualTo(chunkSnapshot);
@@ -346,7 +418,7 @@ class IngestionPipelineIT extends ElasticsearchIT {
                         .isGreaterThan(1);
                 assertThat(jdbc.queryForObject(
                                 "SELECT attempt_count FROM document_import_task WHERE id=?", Integer.class, task))
-                        .isEqualTo(mode.equals("normal") ? 1 : 2);
+                        .isEqualTo((mode.equals("normal") || mode.startsWith("publish-")) ? 1 : 2);
                 assertThat(jdbc.queryForObject(
                                 "SELECT last_error_code IS NULL AND last_error_message IS NULL AND next_retry_at IS NULL FROM document_import_task WHERE id=?",
                                 Boolean.class,

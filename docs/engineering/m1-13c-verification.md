@@ -76,3 +76,52 @@ git diff --check
 
 未发现需要生产修复的缺陷。未调用供应商API，未执行完整默认回归。剩余发布提交响应丢失、领取权/活跃函数恢复和端到端超时仍须下一轮验证，三项完成并严格评审后才具备进入 M1-13D 的前置条件。
 最终回归 BUILD SUCCESS：单元25项，IT 20项（EmbeddingPersistenceIT 2、EsIndexIT 4、IndexVerificationIT 2、IngestionPipelineIT 9、StorageImportIT 1、TaskRecoveryIT 2），0失败/错误/跳过。最终版9项已包含新增ES源内容快照断言。git diff --check通过，完整diff已审阅。
+
+## 第三轮：发布响应与执行边界
+
+基线 3968daf298a33336d2465723d43b1fbca92fc0ff，分支正确，工作区初始干净。仅测试及本文修改，无生产实现、依赖、迁移或发布条件变更。
+
+新增 IngestionPipelineIT 四个独立测试方法，复用既有真实环境与 Markdown/TXT 上传路径；没有绕过双索引验证。为减少既有环境复制，仍沿用 runPipeline 测试辅助方法，未拆分新 IT，这是测试组织上的限制。
+
+- C09：真实发布 Service 的事务代理返回后，外层测试代理一次性抛 TransactionSystemException；真实 Processor 查询 SUCCEEDED 后再次调用发布协议确认，真实 Worker 返回。最终检查 activeVersionId、PUBLISHED/publishedAt、SUCCEEDED、失败诊断清理、attempt=1 和 READY，并检查 PG 向量与 ES 完整集合、MinIO 原文。反向场景在真实 IndexPublishRepository.publish 更新三项事实后、真实发布 Service 事务提交之前抛同类异常，迫使真实发布事务回滚；此时 RUNNING 原领取者真实重试发布。不是直接 UPDATE 三项发布事实，也不是数据库网络断线。明确业务冲突仍由 IndexPublishIT 拒绝并比较完整三表快照。本轮未专项验证第二次确认再次异常，也未对两次发布调用间的 PG/ES 内容单独取快照；因此严格完整 C09 仍 NOT VERIFIED，已验证子路径见运行结果。
+- C11：TaskRecoveryIT 新增真实 TaskService + TaskScheduler 测试。真实领取后通过 SQL 推进 lease_until（测试时间推进，并未等待十五分钟），旧领取者 fail 被拒绝。CountDownLatch 阻塞第一轮；第二轮发起后 Future 超时且数据库仍 RUNNING；第一轮退出后第二轮真实 recoverNext 写 WORKER_INTERRUPTED；推进 next_retry_at 后真实 claimNext 获得新 owner、epoch+1，旧领取者仍无法覆盖新 owner。过期发布/错误 epoch 发布拒绝沿用 IndexPublishIT 回归。仅证明同一 Scheduler 实例，不证明跨实例/跨 JVM 安全。
+- C12：本地 Embedding HTTP Stub 返回响应前推进测试单调时钟，真实 Processor 使用一秒测试预算；模型请求前预算有效，响应后真实 EmbeddingService 检查超时，PG 无向量、ES/index/verify/publish 调用均未发生，真实 Worker/TaskService 写 TASK_TIMEOUT、attempt=1 和重试时间；Chunk 快照保留，API 不 READY。另一测试在真实 verify 返回后推进时钟，检查 VERIFIED、publish 调用为零；之后真实重试经 VERIFIED 路径发布 READY。不是实际等待十分钟或供应商请求。发布后不再检查截止时间由既有 TaskExecutionTests 保留，未新增端到端发布后超时注入，严格完整 C12 仍 NOT VERIFIED。
+
+### 实际执行
+
+```text
+mvn spotless:apply spotless:check -DskipTests test-compile
+mvn failsafe:integration-test failsafe:verify -Dit.test=IngestionPipelineIT#committedPublishResponseLost
+mvn failsafe:integration-test failsafe:verify -Dit.test=IngestionPipelineIT,IndexPublishIT,TaskRecoveryIT
+mvn test -Dtest=IngestionTaskProcessorTests,EmbeddingServiceTests,TaskExecutionTests,TaskSchedulerRecoveryTests,ConfigurationTests failsafe:integration-test failsafe:verify -Dit.test=IngestionPipelineIT,TaskRecoveryIT,IndexPublishIT,EsIndexIT,EmbeddingPersistenceIT,IndexVerificationIT,StorageImportIT
+mvn failsafe:integration-test failsafe:verify -Dit.test=IngestionPipelineIT,TaskRecoveryIT,IndexPublishIT
+git diff --check
+```
+
+聚焦提交丢失 1 项成功；较早回归 14 项 IT 成功，0 失败/错误/跳过。新增回滚断言编辑时发生括号错误，Spotless 拒绝解析；修正后重新格式化编译成功。此前失败后的命令仍启动过旧编译测试，该运行不作为最终验收证据。最终日志为 target/m1-13c-r3-final-fixed.log 与 target/m1-13c-r3-enhanced.log；单元 30 项成功。最终 IT 结果以下文为准。
+
+未发现经测试证明需要生产修复的缺陷。不 Push、不 Merge、不进入 M1-13D；完整验收缺口仍阻断 M1-13D 前置条件。
+
+
+### 第三轮最终结果与矩阵
+
+修正后 target/m1-13c-r3-repair-compile.log：Spotless apply/check、编译和测试编译 BUILD SUCCESS。target/m1-13c-r3-repair.log：17 项 IT（IngestionPipelineIT 13、TaskRecoveryIT 3、IndexPublishIT 1），0 失败/错误/跳过，BUILD SUCCESS。13 项中包含一个继承 ES 基线，不代表13个故障场景。
+
+target/m1-13c-r3-final-fixed.log：单元30项通过；IT26项中25通过、1失败，无错误/跳过。唯一失败为错误外层回滚注入（真实发布使用独立事务，外层回滚后仍 SUCCEEDED）；替换为发布 Repository 内抛异常后，上述17项重新全部通过。其余相关真实基础设施回归为 EmbeddingPersistenceIT 2、EsIndexIT 4、IndexVerificationIT 2、StorageImportIT 1，均通过。运行期间曾重叠启动 Maven，报告目录存在覆盖风险，结果数量依据各独立日志，不累加 target XML；修正回归为独立日志，不将失败运行宣称全绿。
+
+| 场景 | 最终状态 | 本轮证据或剩余缺口 |
+| --- | --- | --- |
+| C01 | PASS | 本轮完整流水线重跑成功，注入/持久化/边界沿用第二轮 |
+| C02 | PASS | 本轮原件摘要永久错误回归成功，测试覆盖 MinIO 原件 |
+| C03 | PASS | 本轮四次耗尽回归成功，真实 PG attempt/epoch/诊断 |
+| C04 | PASS | 本轮 Chunk 快照回归成功 |
+| C05 | PASS | 本轮部分向量恢复及请求记录回归成功 |
+| C06 | PASS | 本轮 ES 部分写入恢复及已有源不变回归成功 |
+| C07 | PASS | 本轮 ES 完成后验证前中断回归成功 |
+| C08 | PASS | 本轮 VERIFIED 恢复且不重写回归成功 |
+| C09 | NOT VERIFIED | 真实提交后异常与真实回滚恢复子路径通过；第二次确认异常、调用间数据快照及明确冲突不二次调用的 Processor 专项断言未齐全 |
+| C10 | PASS | IndexPublishIT 真实 trigger 拒绝任务更新后三表整体回滚；生产发布路径，无伪造成功 |
+| C11 | PASS | 同一 Scheduler 实例活跃函数串行、真实租约推进/恢复/epoch递增及旧领取失效通过；发布拒绝由真实 IndexPublishIT 回归；测试状态准备仅租约/重试时间推进，新代际通过真实领取；不覆盖多实例 |
+| C12 | NOT VERIFIED | 模型返回后写入前超时及 VERIFIED 发布前超时子路径通过，生产 Worker/Processor/Service；仅测试时间源替换、无生产开关；发布后超时仍只有既有逻辑回归，未补端到端注入 |
+
+未证明生产 Bug，无生产修复。上述缺口不是架构性阻断，而是尚未完成的测试工作；本提交是实际故障测试的阶段性交付，不是第三轮最终验收通过。M1-13D 前置条件不满足。
