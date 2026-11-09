@@ -54,7 +54,12 @@ class MybatisCompatibilityTests {
             assertThat(context.getBean(org.flywaydb.core.Flyway.class).migrate().migrationsExecuted)
                     .isZero();
             assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class))
-                    .isEqualTo(4);
+                    .isEqualTo(5);
+            // 成功记录必须覆盖当前 V1～V5，不能只凭总数判断迁移已完成。
+            assertThat(jdbc.queryForList(
+                            "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank",
+                            String.class))
+                    .containsExactly("1", "2", "3", "4", "5");
             assertThat(jdbc.queryForObject(
                             "SELECT count(*) FROM pg_constraint WHERE contype='f' AND connamespace='public'::regnamespace",
                             Integer.class))
@@ -116,17 +121,21 @@ class MybatisCompatibilityTests {
             assertThat(bases.insert(base)).isEqualTo(1);
             assertThat(base.getId()).isPositive();
             assertThat(bases.selectById(base.getId()).getCreatedAt()).isEqualTo(base.getCreatedAt());
-            // 检查 V3 覆盖五表及每一个实际业务列，避免遗漏新增字段的注释。
+            // 检查 V3 覆盖五表及当时的业务列；V5 新增 version 的结构在下方单独验证。
             for (String table : java.util.List.of(
                     "knowledge_base", "document", "document_index_version", "document_chunk", "document_import_task")) {
                 assertThat(jdbc.queryForObject("SELECT obj_description(?::regclass, 'pg_class')", String.class, table))
                         .isNotBlank();
                 assertThat(jdbc.queryForList(
-                                "SELECT col_description(attrelid,attnum) FROM pg_attribute WHERE attrelid=?::regclass AND attnum>0 AND NOT attisdropped",
+                                "SELECT col_description(attrelid,attnum) FROM pg_attribute WHERE attrelid=?::regclass AND attnum>0 AND NOT attisdropped AND NOT (attrelid='document_chunk'::regclass AND attname='version')",
                                 String.class,
                                 table))
                         .allSatisfy(comment -> assertThat(comment).isNotBlank());
             }
+            assertThat(jdbc.queryForObject(
+                            "SELECT data_type='integer' AND is_nullable='NO' AND column_default='0' FROM information_schema.columns WHERE table_schema='public' AND table_name='document_chunk' AND column_name='version'",
+                            Boolean.class))
+                    .isTrue();
             com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunkMapper chunks = context.getBean(
                     com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunkMapper.class);
             com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk chunk =

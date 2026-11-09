@@ -51,3 +51,15 @@ NEW 表示 REQUIRES_NEW，RR 表示 REPEATABLE_READ。所有特殊传播均已�
 - `git diff --check` 通过；完整 Java diff 已审阅，生产修改仅事务传播配置、无用 import 及对应注释。
 - 在独立 detached 工作树以原始基线执行 `mvn -Dtest=KnowledgeAssistantApplicationTests,MybatisCompatibilityTests test`，复现相同的 DocumentMapper 缺失与迁移数量 4/5 断言失败，确认这两项为基线问题。
 - 日志保留于当前工作树 `target/transaction-review/`；基线复现日志在相邻 `knowledge-assistant-tx-baseline/baseline-test.log`。未执行真实供应商请求，未修改冻结文档或基础设施版本。
+
+## 两个基线测试问题修复（2026-11-09）
+
+基线 cc892cdb0deef223db920b3cebb25acf27b4b7a4，开始时分支与 HEAD 符合任务要求，工作区干净。本轮仅调整两个测试和本记录。
+
+- KnowledgeAssistantApplicationTests 原先排除 DataSource/Flyway 自动配置，而完整应用的 Repository 已依赖 MyBatis Mapper；缺少数据源使 Mapper 自动装配无法成立。测试改为复用仓库固定 PG 镜像，通过动态属性提供测试连接，保留完整 SpringBootTest 和 test profile，模型继续关闭。不改变生产 Mapper 扫描，不 Mock 业务 Bean，不新增基础设施依赖。
+- MybatisCompatibilityTests 的迁移成功数从 4 对齐为 5，并明确校验成功版本依次为 V1～V5；保留启动后和重启后再次 migrate 执行数为零的断言。
+- 目标测试继续执行时发现原 V3 注释断言错误地包含 V5 新增、没有注释的 version 列。V3 注释检查仅排除该列，其余列检查保留；新增断言确认 version 为 integer、非空且默认值为 0。未改任何迁移或业务结构。
+
+验证：`mvn spotless:apply spotless:check -DskipTests test-compile` 成功；`mvn -Dtest=KnowledgeAssistantApplicationTests,MybatisCompatibilityTests test` 最终 2 项全部通过，0 失败/错误/跳过。首次目标测试暴露的 V5 注释范围问题已按上述方式修复。真实 PG 使用既有 Testcontainers 镜像；未调用在线模型。
+
+最终 `mvn test`：126 项全部通过，0 失败、0 错误、0 跳过（完整默认测试，不含需单独选择的 IT/在线测试）。`git diff --check`、`git diff --cached --check` 均通过，完整 diff 已审阅。日志位于 target/baseline-fix-build.log、target/baseline-fix-target.log、target/baseline-fix-regression.log。
