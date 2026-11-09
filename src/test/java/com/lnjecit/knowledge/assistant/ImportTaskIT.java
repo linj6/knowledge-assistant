@@ -98,6 +98,16 @@ class ImportTaskIT {
                         .isInstanceOf(TaskFailure.class);
                 assertThatThrownBy(() -> service.fail(new ClaimedTask(1L, 1L, 1L, claim.leaseOwner(), 0)))
                         .isInstanceOf(TaskFailure.class);
+                // 领取返回后，另一连接可以立即加锁，证明领取事务已经提交。
+                try (java.sql.Connection connection = java.sql.DriverManager.getConnection(
+                                postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+                        java.sql.Statement statement = connection.createStatement()) {
+                    connection.setAutoCommit(false);
+                    statement
+                            .executeQuery("SELECT id FROM document_import_task WHERE id=1 FOR UPDATE NOWAIT")
+                            .close();
+                    connection.rollback();
+                }
                 service.fail(claim);
                 assertThat(service.claimNext("a")).isEmpty();
                 jdbc.update("UPDATE document_import_task SET status='SUCCEEDED' WHERE id=1");
@@ -172,6 +182,15 @@ class ImportTaskIT {
                 assertThat(jdbc.queryForMap("SELECT * FROM document_import_task WHERE id=40"))
                         .isEqualTo(before);
                 jdbc.execute("DROP TRIGGER reject_claim ON document_import_task");
+                // 零行条件更新同样必须失败，不能留下部分领取状态。
+                jdbc.execute(
+                        "CREATE FUNCTION skip_claim() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$");
+                jdbc.execute(
+                        "CREATE TRIGGER skip_claim BEFORE UPDATE ON document_import_task FOR EACH ROW EXECUTE FUNCTION skip_claim()");
+                assertThatThrownBy(() -> service.claimNext("conflict")).hasMessage("TRANSITION_CONFLICT");
+                assertThat(jdbc.queryForMap("SELECT * FROM document_import_task WHERE id=40"))
+                        .isEqualTo(before);
+                jdbc.execute("DROP TRIGGER skip_claim ON document_import_task");
             }
         }
         // 新建应用上下文再次读取同一个 PostgreSQL，不依赖上一个进程的内存队列。

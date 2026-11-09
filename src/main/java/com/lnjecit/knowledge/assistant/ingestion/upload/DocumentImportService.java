@@ -20,7 +20,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 import tools.jackson.databind.json.JsonMapper;
@@ -54,7 +53,6 @@ public class DocumentImportService {
         this.json = json;
         this.model = model;
         transaction = new TransactionTemplate(manager);
-        transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     public record Outcome(ImportTaskResponse task, boolean duplicate) {}
@@ -111,7 +109,7 @@ public class DocumentImportService {
             return new Outcome(ImportTaskResponse.from(task), false);
         } catch (RuntimeException ex) {
             cleanup(key);
-            // execute 抛出时新事务已回滚，再查询并发赢家，不能在失败事务内查询。
+            // execute 抛出时事务已回滚，再查询并发赢家，不能在失败事务内查询。
             if (ex instanceof DuplicateKeyException) {
                 ImportTask winner = repository.findExisting(kbId, hash);
                 if (winner != null) return new Outcome(ImportTaskResponse.from(winner), true);

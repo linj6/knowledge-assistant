@@ -11,7 +11,6 @@ import java.time.Instant;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 只读取 PG 完整快照，不赋予发布或检索可见性。 */
@@ -31,7 +30,7 @@ public class PgIntegrityService {
 
     public record Result(Long documentId, Long indexVersionId, int chunkCount) {}
 
-    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ, propagation = Propagation.REQUIRES_NEW)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Result verify(Long documentId, Long indexVersionId) {
         Snapshot snapshot = capture(documentId, indexVersionId, false);
         return new Result(documentId, indexVersionId, snapshot.chunks().size());
@@ -65,13 +64,13 @@ public class PgIntegrityService {
         }
     }
 
-    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ, propagation = Propagation.REQUIRES_NEW)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Snapshot snapshot(Long documentId, Long indexVersionId) {
         return capture(documentId, indexVersionId, true);
     }
 
     /** 锁内重新读取并校验全部数据；仅在完整快照未变化时提交诊断状态。 */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public void complete(Snapshot verifiedSnapshot) {
         verificationRepository.lockSnapshot(verifiedSnapshot.documentId(), verifiedSnapshot.indexVersionId());
         Snapshot current = capture(verifiedSnapshot.documentId(), verifiedSnapshot.indexVersionId(), true);

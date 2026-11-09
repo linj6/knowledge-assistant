@@ -2,7 +2,6 @@ package com.lnjecit.knowledge.assistant.ingestion.task;
 
 import java.util.Optional;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -13,19 +12,19 @@ public class TaskService {
         this.repository = repository;
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public Optional<ClaimedTask> claimNext(String owner) {
         validate(owner);
         return repository.claimNext(owner);
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public Optional<ClaimedTask> claimById(Long id, String owner) {
         validate(owner);
         return repository.claimById(id, owner);
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public void fail(ClaimedTask task) {
         repository.fail(task);
     }
