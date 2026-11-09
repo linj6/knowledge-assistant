@@ -90,7 +90,7 @@ class ImportTaskIT {
                 assertThat(jdbc.queryForObject(
                                 "SELECT extract(epoch FROM lease_until-updated_at)::int FROM document_import_task WHERE id=1",
                                 Integer.class))
-                        .isEqualTo(120);
+                        .isEqualTo(900);
                 assertThat(jdbc.queryForObject(
                                 "SELECT attempt_count FROM document_import_task WHERE id=1", Integer.class))
                         .isEqualTo(1);
@@ -128,12 +128,12 @@ class ImportTaskIT {
                         throw new RuntimeException(failure);
                     }
                 });
-                jdbc.update("UPDATE document_import_task SET attempt_count=4,claim_epoch=8 WHERE id=2");
+                jdbc.update("UPDATE document_import_task SET attempt_count=2,claim_epoch=8 WHERE id=2");
                 ClaimedTask incremented = service.claimNext("next").orElseThrow();
                 assertThat(incremented.claimEpoch()).isEqualTo(9);
                 assertThat(jdbc.queryForObject(
                                 "SELECT attempt_count FROM document_import_task WHERE id=2", Integer.class))
-                        .isEqualTo(5);
+                        .isEqualTo(3);
                 jdbc.update("UPDATE document_import_task SET lease_until=now()-interval '1 second' WHERE id=2");
                 assertThatThrownBy(() -> service.fail(incremented)).hasMessage("AUTHORITY_EXPIRED");
                 assertThat(service.claimNext("a")).isEmpty();

@@ -130,7 +130,9 @@ MinIO 写成功但 PG 事务失败：尽力删除对象；失败时由按保留�
 
 沿用行锁/条件更新领取 PENDING、稳定 Chunk ID、Chunk 初始化与 Embedding 幂等、ES create-only Bulk 和 409 内容比较。保留 claim_epoch、lease_owner、lease_until 及已有条件更新校验，不继续建设 Epoch/Fencing 体系，不实施 ES External Versioning。V1 不支持多实例并发导入，不承诺租约失效后的严格迟到写入防护；多实例调度、分布式锁和严格 fencing 属于未来演进，不作为 V1 验收门槛。不引入 XXL-JOB、Redis/Redisson。
 
-当前实现只具备领取及受控处理入口，没有生产 TaskProcessor，调度默认关闭。SQL 领取设置120秒租约，失败更新要求当前 owner、epoch 及未过期租约；没有续租或过期 RUNNING 自动接管，处理器返回仍保持 RUNNING。正式 Worker 上线前必须由 M1-12 解决单任务超时与基本失败恢复，不能把当前入口视为可用的自动导入链路，也不能用空处理器制造成功。
+M1-12 当前实现仍没有生产 TaskProcessor，调度默认关闭，无处理器时不领取任务。领取 PENDING 或到期可重试 FAILED，最多执行4次，退避5/15/45秒并加±20%抖动；未知运行时错误及永久错误不重试。SQL 使用数据库时间设置15分钟租约及重试时间，失败更新核对任务归属、owner、epoch及未过期租约并清理租约。TaskExecutionContext 使用单调时钟提供10分钟协作式截止时间，Worker 在处理前后检查；不续租、不强制中断线程，处理器正常返回不等于成功。M1-13 真实处理器须在每个耗时阶段检查截止时间，并设置各客户端请求超时。
+
+恢复仅锁 Task，在 REQUIRED 事务中将租约已过期且 owner 不同的 RUNNING 转为 FAILED，记录 WORKER_INTERRUPTED，按次数安排退避或终止。当前 owner 的任务不恢复；恢复后走普通领取，不宣称租约过期已 fencing 旧进程。MinIO 延迟清理仅扫描 originals/，默认每小时最多处理100项；超过24小时且 PG 无引用、未被本应用上传流程使用的对象才删除，网络调用不在数据库事务中。保留即时删除补偿。
 
 V1 仍须完成双索引完整性与可搜索性验证，再在 PG 事务内首次发布；处理完成不能直接标记 SUCCEEDED。保留 Document → IndexVersion → ImportTask 多实体锁顺序；只锁任务的短事务不得反向获取文档/版本锁。**已发布版本不可变，后续重试不得写入**。
 

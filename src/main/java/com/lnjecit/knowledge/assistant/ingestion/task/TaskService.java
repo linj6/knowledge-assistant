@@ -26,7 +26,18 @@ public class TaskService {
 
     @Transactional
     public void fail(ClaimedTask task) {
-        repository.fail(task);
+        repository.fail(task, TaskExecutionException.Code.EXECUTION_FAILED);
+    }
+
+    @Transactional
+    public void fail(ClaimedTask task, TaskExecutionException.Code code) {
+        repository.fail(task, code);
+    }
+
+    @Transactional
+    public boolean recoverNext(String owner) {
+        validate(owner);
+        return repository.recoverNext(owner);
     }
 
     private static void validate(String owner) {

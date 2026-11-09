@@ -7,7 +7,7 @@ import java.time.Instant;
 import lombok.Getter;
 import lombok.Setter;
 
-/** 持久化导入任务，保存重试和租约诊断信息；领取、fencing 与状态流转由后续 Worker 实现。 */
+/** 持久化导入任务，保存重试和租约诊断信息；领取、重试与恢复遵循单 Worker 约束，不代表完整 fencing。 */
 @Getter
 @Setter
 @TableName("document_import_task")
@@ -21,7 +21,7 @@ public class ImportTask {
     private Long indexVersionId;
     /** 导入编排状态；数据库仅限制合法取值，合法状态转换由业务事务保证。 */
     private ImportTaskStatus status;
-    /** 任务执行尝试次数，初始为零；领取与重试时的递增由后续 Worker 实现。 */
+    /** 已经开始执行的总次数，初始为零；每次成功领取递增。 */
     private Integer attemptCount;
     /** 领取代际，初始为零；后续领取事务须单调递增并用于条件更新校验，仅保留字段不代表 fencing 已实现。 */
     private Long claimEpoch;

@@ -27,6 +27,7 @@ class ImportTaskTests {
         for (ImportTaskStatus from : ImportTaskStatus.values())
             for (ImportTaskStatus to : ImportTaskStatus.values()) {
                 if ((from == ImportTaskStatus.PENDING && to == ImportTaskStatus.RUNNING)
+                        || (from == ImportTaskStatus.FAILED && to == ImportTaskStatus.RUNNING)
                         || (from == ImportTaskStatus.RUNNING && to == ImportTaskStatus.FAILED))
                     TaskStateMachine.require(from, to);
                 else
@@ -38,30 +39,36 @@ class ImportTaskTests {
     void workerDoesNotPublishAndSanitizesFailure() {
         TaskService service = mock(TaskService.class);
         ClaimedTask claim = new ClaimedTask(1L, 2L, 3L, "worker", 1);
-        new TaskWorker(service, t -> {}).execute(claim);
+        new TaskWorker(service, (t, context) -> {}).execute(claim);
         verifyNoInteractions(service);
-        new TaskWorker(service, t -> {
+        new TaskWorker(service, (t, context) -> {
                     throw new IllegalStateException("secret");
                 })
                 .execute(claim);
-        verify(service).fail(claim);
+        verify(service)
+                .fail(
+                        claim,
+                        com.lnjecit.knowledge.assistant.ingestion.task.TaskExecutionException.Code.EXECUTION_FAILED);
     }
 
     @Test
     void schedulerSurvivesFailureAndRequiresProcessor() {
         TaskService service = mock(TaskService.class);
         ObjectProvider<TaskProcessor> provider = mock(ObjectProvider.class);
-        TaskScheduler scheduler = new TaskScheduler(service, provider, 1);
+        TaskScheduler scheduler = new TaskScheduler(
+                service, provider, new com.lnjecit.knowledge.assistant.infrastructure.config.WorkerProperties());
         scheduler.scan();
         verifyNoInteractions(service);
-        when(provider.getIfAvailable()).thenReturn(t -> {
+        when(provider.getIfAvailable()).thenReturn((t, context) -> {
             throw new IllegalStateException("secret");
         });
         ClaimedTask claim = new ClaimedTask(1L, 2L, 3L, "worker", 1);
         when(service.claimNext(anyString())).thenReturn(Optional.of(claim), Optional.empty());
         doThrow(new TaskFailure(TaskFailure.Code.AUTHORITY_EXPIRED))
                 .when(service)
-                .fail(claim);
+                .fail(
+                        claim,
+                        com.lnjecit.knowledge.assistant.ingestion.task.TaskExecutionException.Code.EXECUTION_FAILED);
         scheduler.scan();
         scheduler.scan();
         verify(service, times(2)).claimNext(anyString());

@@ -1,12 +1,19 @@
 package com.lnjecit.knowledge.assistant.ingestion.task;
 
+import com.lnjecit.knowledge.assistant.infrastructure.config.WorkerProperties;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 public class TaskWorker {
     private final TaskService tasks;
     private final TaskProcessor processor;
+    private final java.time.Duration duration;
 
     public TaskWorker(TaskService tasks, TaskProcessor processor) {
+        this(tasks, processor, new WorkerProperties());
+    }
+
+    public TaskWorker(TaskService tasks, TaskProcessor processor, WorkerProperties properties) {
+        this.duration = properties.getMaxTaskDuration();
         this.tasks = tasks;
         this.processor = processor;
     }
@@ -15,10 +22,17 @@ public class TaskWorker {
         if (TransactionSynchronizationManager.isActualTransactionActive())
             throw new IllegalStateException("Worker cannot execute inside transaction");
         try {
-            processor.process(task);
+            TaskExecutionContext context = new TaskExecutionContext(duration);
+            context.checkTimeout();
+            processor.process(task, context);
+            context.checkTimeout();
         } catch (RuntimeException failure) {
             // 永不持久化异常正文；条件更新只允许当前且未过期的执行者报告失败。
-            tasks.fail(task);
+            tasks.fail(
+                    task,
+                    failure instanceof TaskExecutionException known
+                            ? known.code()
+                            : TaskExecutionException.Code.EXECUTION_FAILED);
         }
         // 处理器返回不代表已发布，不允许在这里标记 SUCCEEDED。
     }

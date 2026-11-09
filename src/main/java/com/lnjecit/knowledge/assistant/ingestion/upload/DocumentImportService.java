@@ -7,6 +7,7 @@ import com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties;
 import com.lnjecit.knowledge.assistant.infrastructure.config.UploadProperties;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
+import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalObjectGuard;
 import com.lnjecit.knowledge.assistant.knowledge.KnowledgeBaseService;
 import java.nio.ByteBuffer;
 import java.nio.charset.CodingErrorAction;
@@ -35,6 +36,7 @@ public class DocumentImportService {
     private final JsonMapper json;
     private final ModelProperties model;
     private final TransactionTemplate transaction;
+    private final OriginalObjectGuard guard;
 
     public DocumentImportService(
             DocumentImportRepository repository,
@@ -44,7 +46,9 @@ public class DocumentImportService {
             ChunkingProperties chunking,
             JsonMapper json,
             ModelProperties model,
-            PlatformTransactionManager manager) {
+            PlatformTransactionManager manager,
+            OriginalObjectGuard guard) {
+        this.guard = guard;
         this.repository = repository;
         this.knowledge = knowledge;
         this.store = store;
@@ -96,25 +100,27 @@ public class DocumentImportService {
         }
         String snapshot = json.writeValueAsString(chunking.snapshot());
         String key = "originals/" + UUID.randomUUID();
-        // 网络上传在数据库事务之外；只补偿本请求生成的唯一对象 Key。
-        try {
-            store.put(key, bytes);
-        } catch (RuntimeException ex) {
-            cleanup(key);
-            throw ex;
-        }
-        try {
-            ImportTask task = transaction.execute(
-                    status -> repository.create(kbId, filename, hash, key, snapshot, embeddingModel, dimensions));
-            return new Outcome(ImportTaskResponse.from(task), false);
-        } catch (RuntimeException ex) {
-            cleanup(key);
-            // execute 抛出时事务已回滚，再查询并发赢家，不能在失败事务内查询。
-            if (ex instanceof DuplicateKeyException) {
-                ImportTask winner = repository.findExisting(kbId, hash);
-                if (winner != null) return new Outcome(ImportTaskResponse.from(winner), true);
+        try (OriginalObjectGuard.Handle objectLock = guard.acquire(key)) {
+            // 网络上传在数据库事务之外；只补偿本请求生成的唯一对象 Key。
+            try {
+                store.put(key, bytes);
+            } catch (RuntimeException ex) {
+                cleanup(key);
+                throw ex;
             }
-            throw ex;
+            try {
+                ImportTask task = transaction.execute(
+                        status -> repository.create(kbId, filename, hash, key, snapshot, embeddingModel, dimensions));
+                return new Outcome(ImportTaskResponse.from(task), false);
+            } catch (RuntimeException ex) {
+                cleanup(key);
+                // execute 抛出时事务已回滚，再查询并发赢家，不能在失败事务内查询。
+                if (ex instanceof DuplicateKeyException) {
+                    ImportTask winner = repository.findExisting(kbId, hash);
+                    if (winner != null) return new Outcome(ImportTaskResponse.from(winner), true);
+                }
+                throw ex;
+            }
         }
     }
 

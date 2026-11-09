@@ -180,6 +180,9 @@
                         <include>**/IndexVerificationIT.java</include>
                         <include>**/IndexPublishIT.java</include>
                         <include>**/MinioIT.java</include>
+                        <include>**/ImportTaskIT.java</include>
+                        <include>**/TaskRecoveryIT.java</include>
+                        <include>**/OrphanObjectCleanupIT.java</include>
                     </includes>
                     <failIfNoTests>true</failIfNoTests>
                 </configuration>

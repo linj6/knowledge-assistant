@@ -1,6 +1,6 @@
 package com.lnjecit.knowledge.assistant.ingestion.task;
-/** 仅供显式注入受控处理器；真实生产处理器依赖 M1-09，目前不提供 Bean。 */
+/** M1-13 真实处理器必须在各耗时阶段检查截止时间，并配置客户端请求超时。 */
 @FunctionalInterface
 public interface TaskProcessor {
-    void process(ClaimedTask task);
+    void process(ClaimedTask task, TaskExecutionContext context);
 }
