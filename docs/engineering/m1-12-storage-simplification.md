@@ -99,3 +99,25 @@ StorageImportIT使用真实PG 17.6/pgvector0.8.0固定digest镜像及上述本�
 - `src/test/java/com/lnjecit/knowledge/assistant/OrphanObjectCleanupIT.java`
 - `src/test/java/com/lnjecit/knowledge/assistant/StorageImportIT.java`
 - `src/test/java/com/lnjecit/knowledge/assistant/TaskExecutionTests.java`
+
+## 2026-11-09 ILM评审修复与本地部署检查
+
+基线 `ab8229acbd4dfdc21bf8299f8187c6037f1efa86`，开始前分支正确且工作区干净。本轮仅改ILM脚本、Python测试和部署说明；上传、数据库、任务恢复、索引和发布代码未修改。
+
+脚本补充前缀双向覆盖检查：无前缀、stag/staging宽前缀、staging子路径、originals/originals/及其子路径均识别。只允许相关的精确staging/两天简单过期规则；其他相关规则拒绝。Tag及不能判明范围的复合过滤保守拒绝，And中的明确archive/前缀仅用于证明与两种目录无交集。无关archive/过期规则及禁用规则保留，不修改或删除任何原规则，也不实现通用生命周期引擎。
+
+新增 `infra/minio/test_staging_ilm.py`：空配置、精确规则、幂等、archive/30天、全Bucket、宽前缀、originals和子目录、不兼容天数、Tag/And/未知复合、禁用规则及失败不改变原配置。测试中mc传输使用替身，真实SDK/mc验证仍由StorageImportIT执行。
+
+本地Compose：Docker Desktop可用，现有MinIO容器最初exited；首次只读检查失败。启动同一已有容器后重试，只读mc导出返回 `NoSuchBucket`，目标knowledge-assistant不存在。**按授权边界停止部署，未创建Bucket、添加或覆盖规则、清理对象或重建数据卷，之后恢复容器原停止状态。** 实际服务器仍为RELEASE.2025-09-07T16-13-09Z、mc为RELEASE.2025-08-13T08-35-41Z。
+
+结论：本地目标Bucket没有可报告的配置前/后规则，originals冲突情况不能验证，staging两天规则尚未部署；不把测试Bucket的配置成功冒充本地部署成功。两天后的异步删除未实际观察。后续须先确认并恢复既有目标Bucket，再执行只读检查。部署细节见infra/minio/README.md。
+
+本轮实际验证：
+
+- `python -B -m unittest discover -s infra/minio -p "test_*.py" -v`：6组测试全部通过（含上述矩阵的subTest）；配置拒绝和--check路径验证原规则不变。
+- `mvn spotless:check -DskipTests test-compile`：成功，Java未修改，编译为增量检查；日志target/ilm-fix-build.log。
+- `mvn '-Dtest=StorageImportIT' test`：1项通过，零失败/错误/跳过；真实测试Bucket两次配置后规则数为2，archive/30天保留，staging/2天存在，导出不变，--check通过，originals不匹配。日志target/ilm-fix-real.log。
+- 本地 `python infra/minio/configure-staging-ilm.py --bucket knowledge-assistant --check`：容器停止时失败；启动已有容器后仍失败，随后只读mc导出确认NoSuchBucket。未执行本地配置命令。
+- `git diff --check`、`git diff --cached --check`：通过。完整diff审阅，仅4个脚本、测试和说明文件；没有Java、数据库或业务配置修改。未重跑默认全量测试或其他PG/ES集成测试，因无对应代码变化。
+
+本轮修改文件：infra/minio/configure-staging-ilm.py、infra/minio/test_staging_ilm.py、infra/minio/README.md、docs/engineering/m1-12-storage-simplification.md。独立提交后停止，不进入M1-13。

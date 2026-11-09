@@ -13,6 +13,12 @@ python infra/minio/configure-staging-ilm.py --bucket knowledge-assistant --check
 
 `--check` 仅读取生命周期配置（会配置容器本地 mc alias），缺规则时以非零状态退出；重新执行不带 `--check` 的命令修复。Bucket 不存在、访问失败或无法识别配置均失败，不当作空规则集处理。staging 规则冲突、存在覆盖整个 Bucket 或覆盖 originals 的过期规则时停止，不自动覆盖；先由管理员用 `mc ilm rule export` 备份和审阅，再按规则ID精确修复，禁止无条件替换整份生命周期配置。自定义 Bucket 必须通过 `--bucket` 指定并与应用配置一致。
 
+冲突检查只处理启用的过期规则（包括非当前版本过期）。前缀按S3字面字符串比较，检查双向覆盖：`stag`、`staging`、`staging/子路径`均可能覆盖部分或全部staging对象；`originals`、`originals/`及其子路径会覆盖正式对象。无前缀也覆盖两者。除精确staging/且Days=2的简单规则外，相关过期规则均拒绝，不尝试推算多个规则优先级。
+
+Tag或无法确定范围的过滤拒绝自动修改；And含明确前缀时只用于证明范围无关（例如archive/），与staging/originals有交集时仍拒绝复合规则。简单archive/30天规则、明确仅archive/的And规则以及禁用规则不阻塞配置。未知过滤结构、非字符串前缀或未知启用状态会给出人工审阅提示。不会修改或删除现有规则。
+
+脚本测试：`python -B -m unittest discover -s infra/minio -p "test_*.py" -v`。这些是验证判断及mc调用边界的单元测试；真实mc/MinIO验证使用既有 `mvn -Dtest=StorageImportIT test`。
+
 验收应看到 `verified=true`、`prefix=staging/`、`expireDays=2`。此结果仅验证规则配置；MinIO ILM 异步扫描，两天不是精确删除时刻，本轮没有等待两天观察删除。
 
 ## 正式对象与历史对象人工核对
@@ -28,3 +34,9 @@ ILM 不处理 originals/。即时补偿失败、复制后或PG提交前进程崩
 5. 对明确候选使用参数化查询再次核对 `SELECT EXISTS(SELECT 1 FROM document WHERE object_key = :object_key);`。确认无引用、无在途上传且已备份后，人工审批并用 `mc rm <alias>/<bucket>/<exact-key>` 单个删除；不要以列表管道批量删除。恢复上传前记录本次处理结果。
 
 告警 `ORIGINAL_OBJECT_CLEANUP_FAILED` 表示正式对象补偿未完成；`ORIGINAL_OBJECT_REFERENCE_UNKNOWN` 表示引用查询失败而主动保留；`ORIGINAL_OBJECT_REFERENCED_AFTER_COMMIT_ERROR` 表示异常后仍发现已提交引用，禁止按孤儿删除。`STAGING_OBJECT_CLEANUP_FAILED` 可由 ILM 补偿，但仍应检查部署规则存在。
+
+## 2026-11-09 本地Compose部署检查
+
+在基线ab8229a之后执行本轮检查：Docker Desktop可用，原Compose MinIO容器处于exited状态。首次 `python infra/minio/configure-staging-ilm.py --bucket knowledge-assistant --check`因容器停止而失败。仅启动已有容器后再次只读检查，mc返回 **NoSuchBucket**，目标knowledge-assistant不存在。因此按任务要求停止实际部署，没有执行rule add，没有创建替代Bucket、覆盖规则、清理对象或重建数据卷；检查后恢复MinIO原停止状态。
+
+本地目标Bucket尚未部署staging两天规则，也无法验证其originals规则冲突情况；不能将测试专用Bucket的ILM成功记为本地部署成功。需先由用户确认目标Bucket并恢复既有Bucket，再从只读检查开始，不要为了通过验收自动创建新Bucket。两天后异步删除仍未观察。

@@ -6,6 +6,46 @@ import subprocess
 import sys
 
 
+def validate(config):
+    """Only recognize simple prefix expiry; do not infer safety from tags."""
+    found = False
+    for rule in config.get("Rules", []):
+        if rule.get("Status") == "Disabled":
+            continue
+        if not any(action in rule for action in ("Expiration", "NoncurrentVersionExpiration")):
+            continue
+        if rule.get("Status") != "Enabled":
+            raise RuntimeError("Unknown expiration rule status; review manually, no rules changed")
+        rule_filter = rule.get("Filter")
+        simple = True
+        if rule_filter is None:
+            prefix = rule.get("Prefix", "")
+        elif isinstance(rule_filter, dict) and "Prefix" not in rule:
+            simple = set(rule_filter) <= {"Prefix"}
+            if simple:
+                prefix = rule_filter.get("Prefix", "")
+            elif set(rule_filter) == {"And"} and isinstance(rule_filter["And"], dict):
+                # And中的明确前缀能排除archive，但不能据此接受相关对象的复合规则。
+                prefix = rule_filter["And"].get("Prefix")
+            else:
+                prefix = None
+        else:
+            prefix = None
+        if not isinstance(prefix, str):
+            raise RuntimeError("Cannot determine expiration filter scope (Tag/compound); review manually, no rules changed")
+        overlaps = lambda directory: directory.startswith(prefix) or prefix.startswith(directory)
+        if overlaps("originals/"):
+            raise RuntimeError("Expiration may match originals/; rejected, no rules changed")
+        if not overlaps("staging/"):
+            continue
+        if not simple:
+            raise RuntimeError("Compound expiration may match staging/; review manually, no rules changed")
+        if prefix != "staging/" or rule.get("Expiration") != {"Days": 2} or "NoncurrentVersionExpiration" in rule:
+            raise RuntimeError("Conflicting staging expiration prefix or duration; review manually, no rules changed")
+        found = True
+    return found
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--bucket", default="knowledge-assistant")
@@ -38,20 +78,6 @@ def main():
         if data.get("status") != "success" or not isinstance(data.get("config", {}).get("Rules"), list):
             raise RuntimeError("Unrecognized lifecycle response")
         return data["config"]
-
-    def validate(config):
-        found = False
-        for rule in config.get("Rules", []):
-            prefix = rule.get("Filter", {}).get("Prefix", rule.get("Prefix", ""))
-            if rule.get("Status") != "Enabled":
-                continue
-            if "Expiration" in rule and (not prefix or "originals/".startswith(prefix)):
-                raise RuntimeError("Unsafe existing expiration rule; review manually, no rules overwritten")
-            if prefix == "staging/":
-                if rule.get("Filter", {}) != {"Prefix": "staging/"} or rule.get("Expiration") != {"Days": 2}:
-                    raise RuntimeError("Conflicting staging rule; review manually")
-                found = True
-        return found
 
     config = export()
     if not validate(config):
