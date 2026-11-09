@@ -96,7 +96,7 @@ Spec → Architecture → Plan → Codex CLI 单任务实现 → 人工评审 �
 
 - 主路径：M0 → M1 双索引首次发布 → M2 四策略 → M3 问答 → M5；M4 数据集在 M1 稳定 Chunk ID 后可前置准备，Runner 依赖 M2/M3。
 - M1-09 收敛为单 Worker 执行边界确认与架构修订；保留已有租约字段和条件校验，不继续开发完整 fencing、多实例互斥或 ES External Versioning。
-- V1 只允许一个 Worker 实例顺序导入，由部署保证，配置不能自动保证跨进程互斥。当前没有生产 TaskProcessor，调度保持关闭；正式执行前 M1-12 必须解决单任务超时、120秒租约与基本失败恢复，不以本次文档收尾代表自动导入已完成。
+- V1 只允许一个 Worker 实例顺序导入，由部署保证，配置不能自动保证跨进程互斥。M1-13A 已提供生产 IngestionTaskProcessor，调度默认关闭；当前使用15分钟租约、10分钟协作式超时与基本失败恢复，最终验收见 [M1-13D](../engineering/m1-final-acceptance.md)。
 - M1-10 负责 PG/ES 完整性与可搜索性验证；M1-11 负责首次发布与幂等提交；M1-12 负责基本重试、超时、失败恢复与孤儿对象清理；M1-13 负责单 Worker 完整导入 E2E 与常见故障验收。
 - M1 验收仍要求稳定 Chunk ID、幂等初始化/写入、ES create-only及409内容比较、双索引验证、PG原子发布、已发布版本不可变和部分失败恢复。多实例并发、严格 fencing、极端迟到写入竞态不作为 V1 门槛。
 - M1-10/11 与 M2-01 必须验证 ES Refresh、完整 ID 集合及 PG/ES 共同发布快照，禁止 Top-K 后才过滤未发布数据。
