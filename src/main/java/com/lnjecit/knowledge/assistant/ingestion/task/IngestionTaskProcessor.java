@@ -2,6 +2,8 @@ package com.lnjecit.knowledge.assistant.ingestion.task;
 
 import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.Document;
+import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask;
+import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTaskStatus;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersionStatus;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.ObjectKeyPrefixes;
@@ -20,6 +22,8 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Objects;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -28,7 +32,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
         name = {"assistant.model.enabled", "assistant.elasticsearch.enabled"},
         havingValue = "true")
 public class IngestionTaskProcessor implements TaskProcessor {
-    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(IngestionTaskProcessor.class);
+    private static final Logger LOG = LoggerFactory.getLogger(IngestionTaskProcessor.class);
     private final TaskProcessingRepository tasks;
     private final ChunkRepository records;
     private final OriginalFileStore files;
@@ -65,7 +69,7 @@ public class IngestionTaskProcessor implements TaskProcessor {
         try {
             context.checkTimeout();
             validateClaim(task);
-            com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask current = tasks.task(task.taskId());
+            ImportTask current = tasks.task(task.taskId());
             validateTaskRecord(task, current);
             Document document = records.document(task.documentId());
             IndexVersion version = records.version(task.indexVersionId());
@@ -116,7 +120,7 @@ public class IngestionTaskProcessor implements TaskProcessor {
 
     private static void validateTaskRecord(
             ClaimedTask task,
-            com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask current) {
+            ImportTask current) {
         if (current == null
                 || !Objects.equals(current.getDocumentId(), task.documentId())
                 || !Objects.equals(current.getIndexVersionId(), task.indexVersionId())
@@ -140,10 +144,10 @@ public class IngestionTaskProcessor implements TaskProcessor {
 
     private static void validateBuildState(
             ClaimedTask task,
-            com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask current,
+            ImportTask current,
             IndexVersion version) {
         if (current.getStatus()
-                        != com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTaskStatus.RUNNING
+                        != ImportTaskStatus.RUNNING
                 || !Objects.equals(current.getLeaseOwner(), task.leaseOwner())) invalid();
         if (version.getStatus() != IndexVersionStatus.BUILDING
                 && version.getStatus() != IndexVersionStatus.VERIFIED) invalid();
@@ -152,7 +156,7 @@ public class IngestionTaskProcessor implements TaskProcessor {
     private void buildIndex(
             ClaimedTask task,
             TaskExecutionContext context,
-            com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask current,
+            ImportTask current,
             Document document,
             IndexVersion version) {
         String key = document.getObjectKey();
@@ -183,7 +187,7 @@ public class IngestionTaskProcessor implements TaskProcessor {
     private void verifyIndex(
             ClaimedTask task,
             TaskExecutionContext context,
-            com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask current,
+            ImportTask current,
             Document document,
             IndexVersion version) {
         // VERIFIED 仍需重新核验；最终领取权由发布事务使用数据库时间裁决。
@@ -214,10 +218,10 @@ public class IngestionTaskProcessor implements TaskProcessor {
                     uncertain.getClass().getName());
             outcome = "UNCERTAIN_RESULT_RESOLVED";
             // 提交响应丢失时先读任务事实，再由发布事务核对完整发布事实。
-            com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask current = tasks.task(task.taskId());
+            ImportTask current = tasks.task(task.taskId());
             if (current == null
                     || current.getStatus()
-                            != com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTaskStatus.SUCCEEDED)
+                            != ImportTaskStatus.SUCCEEDED)
                 context.checkTimeout();
             publisher.publish(task);
         }
