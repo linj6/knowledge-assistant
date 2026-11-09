@@ -1,4 +1,4 @@
-# M1-13C 故障验收记录（未完成）
+# M1-13C 故障验收记录（最终结果见末节）
 
 基线 feature/m1-ingestion-indexing / a0e889e5502731814dc2fa8ceca6b74b40dfecd6，开始时工作区干净。本文不构成 M1-13C 完整验收通过。
 
@@ -125,3 +125,64 @@ target/m1-13c-r3-final-fixed.log：单元30项通过；IT26项中25通过、1失
 | C12 | NOT VERIFIED | 模型返回后写入前超时及 VERIFIED 发布前超时子路径通过，生产 Worker/Processor/Service；仅测试时间源替换、无生产开关；发布后超时仍只有既有逻辑回归，未补端到端注入 |
 
 未证明生产 Bug，无生产修复。上述缺口不是架构性阻断，而是尚未完成的测试工作；本提交是实际故障测试的阶段性交付，不是第三轮最终验收通过。M1-13D 前置条件不满足。
+
+## 最终补齐轮：C09-A/B 与 C12 发布后预算耗尽
+
+基线 b3f63f301836adba1485f223926886ebcc2e0074，feature/m1-ingestion-indexing，初始工作区干净。本轮仅修改 IngestionPipelineIT 和本文，不修改生产代码、发布事务条件、迁移、依赖或默认预算。
+
+### 注入设施修正与原始失败
+
+首次聚焦运行 target/m1-13c-final-focused.log：2 项，1通过、1失败；二次确认异常场景实际 FAILED，未得到预期提交事实。诊断运行 target/m1-13c-final-debug.log 的堆栈证明：旧设施使用 getBeanFactory().addBeanPostProcessor 提前注册，测试发布代理位于 Spring TransactionInterceptor 内层，方法返回并不等价于事务已提交；第一次测试异常会引发回滚。因此历史记录关于“代理方法返回即提交完成”的推断不成立，不能单凭旧成功结果证明提交响应丢失。历史关于独立事务传播的推断也不足以解释代理层序，实际应以本轮堆栈及修正后结果为准。
+
+修复仅限测试：通过 BeanFactoryPostProcessor 注册非 Ordered 的 BeanPostProcessor，由容器在事务自动代理处理器之后安装测试外层代理。Service 代理的 invocation.proceed 返回后，真实 Spring 发布事务已提交；Repository 代理仍运行在 Service 的真实事务内部，原 C10/C09 回滚注入仍在提交前。未添加生产 testMode，也未通过 SQL 伪造成功。修正后聚焦 target/m1-13c-final-focused-fixed.log：2项全部通过，0失败/错误/跳过；target/m1-13c-final-compile-fixed.log 格式化/编译/测试编译通过。
+
+### C09-A：第二次确认不可用
+
+publishedConfirmationFailureCannotFailTask 使用真实上传、MinIO、PG、ES、本地模型 HTTP Stub、Worker/Processor/发布事务。首次真实发布返回后保存 PG 完整 Chunk 行快照（含向量）和按版本过滤的 ES ID/source 快照，再抛 TransactionSystemException；第二次 Service 调用入口再次抛受控异常。明确原子计数器验证 Service 2次、Repository 实际发布更新仅1次，TaskService.fail 确实被 Worker 调用1次。真实 fail 的 RUNNING/领取权条件拒绝更新，Scheduler 捕获上抛异常并结束当轮扫描；数据库仍 SUCCEEDED，activeVersionId/PUBLISHED/publishedAt 一致，诊断与租约为空、claimEpoch仍为1、API READY，PG/ES快照保持不变。
+
+同一测试随后使用同一个 Scheduler 上传并处理另一种扩展名，Markdown/TXT 均完成上述断言，证明异常不永久阻止后续 scan；当前 scan 遇到异常会提前返回，不宣称同一扫描余下 batch 仍继续。这是现有异常处理语义，无生产修复。除正常上传外无直接发布事实状态准备，无 Mock 成功。
+
+### C09-B：业务冲突
+
+复用 IngestionTaskProcessorTests.explicitPublishConflictIsNotRetried：PUBLISH_STATE_CONFLICT 直接向上传播，Mockito verify(publisher).publish(claim) 精确一次，无二次确认。该项是 Processor 单元边界，不声称真实PG；真实冲突不改变三表事实由 IndexPublishIT 的快照回归补充。未重复创建同义测试。
+
+### C12：发布后耗尽预算
+
+publishedTaskIgnoresExhaustedBudget 正常执行真实 Chunk、Embedding/PG向量、ES写入和双索引验证。测试 Processor 上下文预算1秒，受控单调时钟在发布前保持0；真实 Service 提交后、返回 Processor 前，测试外层代理推进2秒。记录耗尽后 ticker 读取次数为0，证明返回路径没有再次调用该上下文的截止时间检查。Service/Repository 发布均1次、TaskService.fail为0；最终三项事实、READY、诊断清理和租约清理均通过，PG完整Chunk/向量与ES ID/source快照一致。不是在Worker返回后推进时钟，不是真实等待十分钟。生产 Worker 自身仍使用既有 System.nanoTime 上下文，既有 TaskExecutionTests 保留发布后不追加检查的回归。
+
+测试快照查询 ES size=100，固定文档的完整ID集合由既有通用断言核对；不是大规模索引分页验收。无供应商调用。
+
+### 最终连续相关回归
+
+```text
+mvn spotless:apply spotless:check -DskipTests test-compile
+mvn failsafe:integration-test failsafe:verify -Dit.test=IngestionPipelineIT#publishedConfirmationFailureCannotFailTask+publishedTaskIgnoresExhaustedBudget
+mvn test -Dtest=IngestionTaskProcessorTests,EmbeddingServiceTests,TaskExecutionTests,TaskSchedulerRecoveryTests,ConfigurationTests failsafe:integration-test failsafe:verify -Dit.test=IngestionPipelineIT,TaskRecoveryIT,IndexPublishIT,EsIndexIT,EmbeddingPersistenceIT,IndexVerificationIT,StorageImportIT
+git diff --check
+```
+
+本轮所有 Maven 构建串行执行；完整相关回归独立、连续且不含 skipTests，日志 target/m1-13c-final-regression.log。最终结果以下文为准。历史25/26和随后17项不代替本轮完整回归。
+
+未覆盖且不扩大本轮范围：真实 PostgreSQL TCP断线、跨JVM/多Worker fencing、强制中断正在执行的HTTP请求、单个ES Bulk响应丢失。C09是实际PG提交后测试异常，不是真实网络断线。C11仅同一个Scheduler实例；C12为协作式检查，不是强制取消。未Push、Merge或自动进入M1-13D。
+
+
+### 最终验收结论（覆盖前述阶段性 NOT VERIFIED）
+
+最终连续回归 target/m1-13c-final-regression.log 于 2026-11-09 20:08:03 BUILD SUCCESS，单元30项、IT28项，均0失败/错误/跳过；IT明细：EmbeddingPersistenceIT 2、EsIndexIT 4、IndexPublishIT 1、IndexVerificationIT 2、IngestionPipelineIT 15、StorageImportIT 1、TaskRecoveryIT 3。15项含继承ES基线1项，不等同15个导入场景。最终完整回归没有失败，无需用历史分段结果拼接；git diff --check通过，完整diff已审阅。
+
+| 场景 | 最终状态 | 本轮生产路径/持久化证据及边界 |
+| --- | --- | --- |
+| C01 | PASS | Stub503后真实流水线恢复，PG退避/诊断/成功清理；仅SQL推进重试时间；不覆盖供应商网络 |
+| C02 | PASS | MinIO覆盖原件，真实摘要校验永久失败；测试准备为对象篡改；无人工成功 |
+| C03 | PASS | Stub持续503，真实领取四次耗尽，PG attempt/epoch及不再领取；推进重试时间 |
+| C04 | PASS | Chunk真实提交后失败，完整行内容/顺序/区间快照不变；不覆盖提交前断电 |
+| C05 | PASS | 首批向量真实提交、后批503，恢复请求不含已完成文本且原向量不变；本地Stub |
+| C06 | PASS | ES首批真实写入后异常，生产幂等恢复，ID/source保持；不覆盖单Bulk响应丢失 |
+| C07 | PASS | ES真实完成后验证前异常，恢复不改变已有数据；测试代理注入 |
+| C08 | PASS | 验证真实提交后异常，VERIFIED生产恢复，阶段调用计数/PG与ES快照不重写；测试代理注入 |
+| C09 | PASS | 真实PG提交后外层异常、再次确认异常、Worker真实fail被拒绝、三项成功事实及READY不变、PG/ES提交后快照相同；同Scheduler后续scan可继续。反向Repository事务内异常回滚与合法领取恢复亦全量重跑；明确冲突单元精确一次+真实PG冲突快照。无SQL伪造成功；不覆盖真实TCP断线 |
+| C10 | PASS | PG trigger拒绝任务更新，真实三表整体回滚；测试准备仅trigger，移除后合法发布 |
+| C11 | PASS | 真实领取、测试SQL推进租约/重试时间、epoch由真实重新领取递增；旧权拒绝与同Scheduler活跃函数串行；不覆盖跨实例 |
+| C12 | PASS | 模型响应前测试时钟耗尽、写入前拒绝且TASK_TIMEOUT；VERIFIED后发布前耗尽不发布并可恢复；真实提交后返回前耗尽不再读取预算，SUCCEEDED/READY及PG/ES快照不变。测试替换Processor上下文时钟，无生产开关；不覆盖强制HTTP取消 |
+
+C01～C12既定故障矩阵已通过，M1-13C故障验收层面的M1-13D前置条件满足，仍交由用户审核本提交；本轮不自动进入M1-13D。没有生产代码修改或已证明的生产Bug。发现并修复的是测试代理事务边界缺陷；历史错误推断已在本节前明确更正。

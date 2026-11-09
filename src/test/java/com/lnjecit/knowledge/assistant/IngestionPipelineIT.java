@@ -100,9 +100,25 @@ class IngestionPipelineIT extends ElasticsearchIT {
         runPipeline("timeout-verified");
     }
 
+    @Test
+    void publishedConfirmationFailureCannotFailTask() throws Exception {
+        runPipeline("publish-confirm-fails");
+    }
+
+    @Test
+    void publishedTaskIgnoresExhaustedBudget() throws Exception {
+        runPipeline("publish-timeout");
+    }
+
     void runPipeline(String mode) throws Exception {
         java.util.concurrent.atomic.AtomicLong ticker = new java.util.concurrent.atomic.AtomicLong();
         java.util.concurrent.atomic.AtomicBoolean timeoutArmed = new java.util.concurrent.atomic.AtomicBoolean(true);
+        java.util.concurrent.atomic.AtomicInteger publishCalls = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.atomic.AtomicInteger expiredReads = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.atomic.AtomicReference<String> publishedChunks =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        java.util.concurrent.atomic.AtomicReference<java.util.Map<String, Object>> publishedEs =
+                new java.util.concurrent.atomic.AtomicReference<>();
         JsonMapper json = JsonMapper.builder().build();
         java.util.concurrent.atomic.AtomicBoolean unavailable = new java.util.concurrent.atomic.AtomicBoolean();
         java.util.concurrent.atomic.AtomicInteger requests = new java.util.concurrent.atomic.AtomicInteger();
@@ -147,14 +163,15 @@ class IngestionPipelineIT extends ElasticsearchIT {
         app.setWebApplicationType(WebApplicationType.NONE);
         java.util.concurrent.atomic.AtomicBoolean armed = new java.util.concurrent.atomic.AtomicBoolean();
         java.util.Map<String, Integer> calls = new java.util.concurrent.ConcurrentHashMap<>();
-        app.addInitializers(context -> context.getBeanFactory()
-                .addBeanPostProcessor(new org.springframework.beans.factory.config.BeanPostProcessor() {
+        app.addInitializers(context -> context.addBeanFactoryPostProcessor(beanFactory -> beanFactory.registerSingleton(
+                "boundaryPostProcessor", new org.springframework.beans.factory.config.BeanPostProcessor() {
                     @Override
                     public Object postProcessAfterInitialization(Object bean, String name) {
                         if (!(bean instanceof com.lnjecit.knowledge.assistant.ingestion.task.IngestionTaskProcessor
                                 || bean
                                         instanceof
                                         com.lnjecit.knowledge.assistant.ingestion.publish.IndexPublishRepository
+                                || bean instanceof com.lnjecit.knowledge.assistant.ingestion.task.TaskService
                                 || bean instanceof com.lnjecit.knowledge.assistant.ingestion.publish.IndexPublishService
                                 || bean instanceof com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkService
                                 || bean instanceof com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingService
@@ -170,11 +187,55 @@ class IngestionPipelineIT extends ElasticsearchIT {
                         proxy.addAdvice((org.aopalliance.intercept.MethodInterceptor) invocation -> {
                             String method = invocation.getMethod().getName();
                             calls.merge(method, 1, Integer::sum);
-                            if (mode.startsWith("timeout-") && method.equals("process"))
+                            String key = bean
+                                            instanceof
+                                            com.lnjecit.knowledge.assistant.ingestion.publish.IndexPublishService
+                                    ? "service." + method
+                                    : bean
+                                                    instanceof
+                                                    com.lnjecit.knowledge.assistant.ingestion.publish
+                                                            .IndexPublishRepository
+                                            ? "repository." + method
+                                            : bean instanceof com.lnjecit.knowledge.assistant.ingestion.task.TaskService
+                                                    ? "tasks." + method
+                                                    : "other." + method;
+                            calls.merge(key, 1, Integer::sum);
+                            if ((mode.startsWith("timeout-") || mode.equals("publish-timeout"))
+                                    && method.equals("process"))
                                 invocation.getArguments()[1] =
                                         new com.lnjecit.knowledge.assistant.ingestion.task.TaskExecutionContext(
-                                                java.time.Duration.ofSeconds(1), ticker::get);
+                                                java.time.Duration.ofSeconds(1), () -> {
+                                                    if (ticker.get() > 0) expiredReads.incrementAndGet();
+                                                    return ticker.get();
+                                                });
+                            boolean publication = bean
+                                            instanceof
+                                            com.lnjecit.knowledge.assistant.ingestion.publish.IndexPublishService
+                                    && method.equals("publish");
+                            int publicationCall = publication ? publishCalls.incrementAndGet() : 0;
+                            if (publication && mode.equals("publish-confirm-fails") && publicationCall == 2)
+                                throw new org.springframework.transaction.TransactionSystemException(
+                                        "TEST_CONFIRMATION_UNAVAILABLE");
                             Object result = invocation.proceed();
+                            if (publication
+                                    && (mode.equals("publish-confirm-fails") || mode.equals("publish-timeout"))) {
+                                com.lnjecit.knowledge.assistant.ingestion.task.ClaimedTask claim =
+                                        (com.lnjecit.knowledge.assistant.ingestion.task.ClaimedTask)
+                                                invocation.getArguments()[0];
+                                JdbcTemplate evidence = context.getBeanFactory().getBean(JdbcTemplate.class);
+                                publishedChunks.set(evidence.queryForObject(
+                                        "SELECT json_agg(t ORDER BY id)::text FROM document_chunk t WHERE index_version_id=?",
+                                        String.class,
+                                        claim.indexVersionId()));
+                                publishedEs.set(esSnapshot(
+                                        context.getBeanFactory().getBean(ElasticsearchClient.class),
+                                        claim.indexVersionId()));
+                                if (mode.equals("publish-confirm-fails"))
+                                    throw new org.springframework.transaction.TransactionSystemException(
+                                            "TEST_COMMITTED_RESPONSE_LOST");
+                                // 真实事务已经提交，尚未返回 Processor；之后任何预算读取都会被计数。
+                                ticker.addAndGet(java.time.Duration.ofSeconds(2).toNanos());
+                            }
                             if (mode.equals("publish-rollback")
                                     && bean
                                             instanceof
@@ -205,7 +266,7 @@ class IngestionPipelineIT extends ElasticsearchIT {
                         });
                         return proxy.getProxy();
                     }
-                }));
+                })));
         try (ConfigurableApplicationContext c = app.run(
                 "--spring.datasource.url=" + postgres.getJdbcUrl(),
                 "--spring.datasource.username=" + postgres.getUsername(),
@@ -232,6 +293,11 @@ class IngestionPipelineIT extends ElasticsearchIT {
             JdbcTemplate jdbc = c.getBean(JdbcTemplate.class);
             ElasticsearchClient es = c.getBean(ElasticsearchClient.class);
             for (String extension : List.of("md", "txt")) {
+                publishCalls.set(0);
+                expiredReads.set(0);
+                ticker.set(0);
+                publishedChunks.set(null);
+                publishedEs.set(null);
                 requests.set(0);
                 timeoutArmed.set(true);
                 armed.set(true);
@@ -497,6 +563,24 @@ class IngestionPipelineIT extends ElasticsearchIT {
                         .isEqualTo(1);
                 mvc.perform(get("/v1/import-tasks/{id}", task))
                         .andExpect(jsonPath("$.data.status").value("READY"));
+                if (mode.equals("publish-confirm-fails") || mode.equals("publish-timeout")) {
+                    assertThat(publishCalls.get()).isEqualTo(mode.equals("publish-confirm-fails") ? 2 : 1);
+                    assertThat(calls.getOrDefault("repository.publish", 0)).isEqualTo(1);
+                    assertThat(calls.getOrDefault("tasks.fail", 0))
+                            .isEqualTo(mode.equals("publish-confirm-fails") ? 1 : 0);
+                    assertThat(expiredReads.get()).isZero();
+                    assertThat(jdbc.queryForObject(
+                                    "SELECT json_agg(t ORDER BY id)::text FROM document_chunk t WHERE index_version_id=?",
+                                    String.class,
+                                    version))
+                            .isEqualTo(publishedChunks.get());
+                    assertThat(esSnapshot(es, version)).isEqualTo(publishedEs.get());
+                    assertThat(jdbc.queryForObject(
+                                    "SELECT claim_epoch=1 AND lease_owner IS NULL AND lease_until IS NULL FROM document_import_task WHERE id=?",
+                                    Boolean.class,
+                                    task))
+                            .isTrue();
+                }
                 String snapshot = jdbc.queryForObject(
                         "SELECT json_agg(t ORDER BY id)::text FROM document_chunk t WHERE index_version_id=?",
                         String.class,
@@ -555,6 +639,21 @@ class IngestionPipelineIT extends ElasticsearchIT {
                 "SELECT json_agg(t ORDER BY id)::text FROM (SELECT id,chunk_order,content,heading_path,source_start,source_end FROM document_chunk WHERE index_version_id=?) t",
                 String.class,
                 version);
+    }
+
+    static java.util.Map<String, Object> esSnapshot(ElasticsearchClient es, long version) throws java.io.IOException {
+        es.indices().refresh(r -> r.index("ka-chunks-v1"));
+        java.util.Map<String, Object> snapshot = new java.util.TreeMap<>();
+        es.search(
+                        r -> r.index("ka-chunks-v1")
+                                .size(100)
+                                .query(q ->
+                                        q.term(t -> t.field("index_version_id").value(Long.toString(version)))),
+                        Object.class)
+                .hits()
+                .hits()
+                .forEach(hit -> snapshot.put(hit.id(), hit.source()));
+        return snapshot;
     }
 
     static void unpublished(JdbcTemplate jdbc, MockMvc mvc, long document, long version, long task) throws Exception {
