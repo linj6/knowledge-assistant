@@ -107,6 +107,7 @@ class TaskRecoveryIT {
                             tasks,
                             (task, context) -> {
                                 while (!context.remaining().isZero()) Thread.onSpinWait();
+                                context.checkTimeout();
                             },
                             properties)
                     .execute(timed);

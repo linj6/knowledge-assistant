@@ -43,8 +43,14 @@ class IngestionPipelineIT extends ElasticsearchIT {
     @Test
     void markdownAndTextThroughProductionScheduler() throws Exception {
         JsonMapper json = JsonMapper.builder().build();
+        java.util.concurrent.atomic.AtomicBoolean unavailable = new java.util.concurrent.atomic.AtomicBoolean();
         HttpServer stub = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         stub.createContext("/", exchange -> {
+            if (unavailable.get()) {
+                exchange.sendResponseHeaders(503, -1);
+                exchange.close();
+                return;
+            }
             JsonNode request = json.readTree(exchange.getRequestBody().readAllBytes());
             assertThat(request.path("model").asString()).isEqualTo("text-embedding-v4");
             JsonNode input = request.path("input");
@@ -126,6 +132,27 @@ class IngestionPipelineIT extends ElasticsearchIT {
                 String key = jdbc.queryForObject("SELECT object_key FROM document WHERE id=?", String.class, document);
                 assertThat(key).startsWith("originals/");
                 assertThat(c.getBean(OriginalFileStore.class).read(key)).isEqualTo(bytes);
+                // Chunk 已真实提交后，模型返回 503；只推进测试重试时间，不重置状态。
+                unavailable.set(true);
+                c.getBean(TaskScheduler.class).scan();
+                assertThat(jdbc.queryForObject(
+                                "SELECT status='FAILED' AND attempt_count=1 AND last_error_code='MODEL_UNAVAILABLE' AND next_retry_at IS NOT NULL FROM document_import_task WHERE id=?",
+                                Boolean.class,
+                                task))
+                        .isTrue();
+                List<Long> interruptedIds = jdbc.queryForList(
+                        "SELECT id FROM document_chunk WHERE index_version_id=? ORDER BY id", Long.class, version);
+                assertThat(interruptedIds).isNotEmpty();
+                assertThat(jdbc.queryForObject(
+                                "SELECT active_version_id FROM document WHERE id=?", Long.class, document))
+                        .isNull();
+                assertThat(c.getBean(com.lnjecit.knowledge.assistant.ingestion.task.TaskService.class)
+                                .claimNext("early-retry"))
+                        .isEmpty();
+                unavailable.set(false);
+                jdbc.update(
+                        "UPDATE document_import_task SET next_retry_at=statement_timestamp()-interval '1 second' WHERE id=?",
+                        task);
                 c.getBean(TaskScheduler.class).scan();
                 assertThat(jdbc.queryForObject(
                                 "SELECT status FROM document_import_task WHERE id=?", String.class, task))
@@ -136,6 +163,16 @@ class IngestionPipelineIT extends ElasticsearchIT {
                                 Integer.class,
                                 version))
                         .isGreaterThan(1);
+                assertThat(jdbc.queryForObject(
+                                "SELECT attempt_count=2 AND last_error_code IS NULL AND last_error_message IS NULL AND next_retry_at IS NULL FROM document_import_task WHERE id=?",
+                                Boolean.class,
+                                task))
+                        .isTrue();
+                assertThat(jdbc.queryForList(
+                                "SELECT id FROM document_chunk WHERE index_version_id=? ORDER BY id",
+                                Long.class,
+                                version))
+                        .isEqualTo(interruptedIds);
                 List<Long> ids = new ArrayList<>();
                 jdbc.query(
                         "SELECT id,content,source_start,source_end FROM document_chunk WHERE index_version_id=?",
