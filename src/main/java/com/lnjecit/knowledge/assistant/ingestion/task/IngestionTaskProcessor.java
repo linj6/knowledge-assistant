@@ -64,73 +64,23 @@ public class IngestionTaskProcessor implements TaskProcessor {
             throw new IllegalStateException("PROCESSOR_TRANSACTION_NOT_ALLOWED");
         try {
             context.checkTimeout();
-            if (task == null
-                    || task.taskId() == null
-                    || task.documentId() == null
-                    || task.indexVersionId() == null
-                    || task.leaseOwner() == null
-                    || task.leaseOwner().isBlank()
-                    || task.claimEpoch() <= 0) invalid();
+            validateClaim(task);
             com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask current = tasks.task(task.taskId());
-            if (current == null
-                    || !Objects.equals(current.getDocumentId(), task.documentId())
-                    || !Objects.equals(current.getIndexVersionId(), task.indexVersionId())
-                    || !Objects.equals(current.getClaimEpoch(), task.claimEpoch())) invalid();
             Document document = records.document(task.documentId());
             IndexVersion version = records.version(task.indexVersionId());
-            if (document == null
-                    || version == null
-                    || !Objects.equals(document.getId(), task.documentId())
-                    || !Objects.equals(version.getId(), task.indexVersionId())
-                    || !Objects.equals(version.getDocumentId(), document.getId())) invalid();
-            // 发布事实只能交给原发布事务核对，绝不重新写入索引。
-            if (document.getActiveVersionId() != null
-                    || version.getPublishedAt() != null
-                    || version.getStatus() == IndexVersionStatus.PUBLISHED) {
+            validateOwnership(task, current, document, version);
+
+            // 发布事实交给原发布事务核对，不能重新写入索引。
+            if (isPublished(document, version)) {
                 publish(task, context, true);
                 return;
             }
-            if (current.getStatus()
-                            != com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTaskStatus.RUNNING
-                    || !Objects.equals(current.getLeaseOwner(), task.leaseOwner())) invalid();
-            if (version.getStatus() != IndexVersionStatus.BUILDING
-                    && version.getStatus() != IndexVersionStatus.VERIFIED) invalid();
+
+            validateBuildState(task, current, version);
             if (version.getStatus() == IndexVersionStatus.BUILDING) {
-                String key = document.getObjectKey();
-                if (key == null
-                        || !key.matches(ObjectKeyPrefixes.ORIGINALS + "[A-Za-z0-9-]+")
-                        || document.getFilename() == null) invalid();
-                // 对象位置只取数据库；先校验原始字节摘要，再解析和初始化。
-                context.checkTimeout();
-                byte[] bytes = files.read(key);
-                context.checkTimeout();
-                if (!sha256(bytes).equals(document.getContentHash())) invalid();
-                ParsedDocument parsed = parsers.parse(document.getFilename(), bytes);
-                context.checkTimeout();
-                long started = System.nanoTime();
-                int chunkCount = chunks.initialize(document.getId(), version.getId(), parsed)
-                        .size();
-                stage("IMPORT_CHUNK_COMPLETED", task, current.getAttemptCount(), chunkCount, started);
-                started = System.nanoTime();
-                context.checkTimeout();
-                embeddings.embed(document.getId(), version.getId(), context::checkTimeout);
-                context.checkTimeout();
-                stage("IMPORT_EMBEDDING_COMPLETED", task, current.getAttemptCount(), chunkCount, started);
-                started = System.nanoTime();
-                es.index(document.getId(), version.getId());
-                stage("IMPORT_ES_COMPLETED", task, current.getAttemptCount(), chunkCount, started);
-                context.checkTimeout();
+                buildIndex(task, context, current, document, version);
             }
-            // VERIFIED 仍需重新核验；最终领取权由发布事务使用数据库时间裁决。
-            context.checkTimeout();
-            long started = System.nanoTime();
-            IndexVerificationService.Result result = verification.verify(document.getId(), version.getId());
-            if (result == null
-                    || !"VERIFIED".equals(result.verificationStatus())
-                    || !Objects.equals(result.documentId(), document.getId())
-                    || !Objects.equals(result.indexVersionId(), version.getId())) invalid();
-            context.checkTimeout();
-            stage("IMPORT_VERIFIED", task, current.getAttemptCount(), result.expectedChunkCount(), started);
+            verifyIndex(task, context, current, document, version);
             publish(task, context, false);
             // 发布提交后不再检查截止时间，也不执行任何可能触发失败转换的阶段。
         } catch (ParseException failure) {
@@ -151,6 +101,98 @@ public class IngestionTaskProcessor implements TaskProcessor {
                 throw new TaskExecutionException(TaskExecutionException.Code.SEARCH_UNAVAILABLE);
             throw failure;
         }
+    }
+
+    private static void validateClaim(ClaimedTask task) {
+        if (task == null
+                || task.taskId() == null
+                || task.documentId() == null
+                || task.indexVersionId() == null
+                || task.leaseOwner() == null
+                || task.leaseOwner().isBlank()
+                || task.claimEpoch() <= 0) invalid();
+    }
+
+    private static void validateOwnership(
+            ClaimedTask task,
+            com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask current,
+            Document document,
+            IndexVersion version) {
+        if (current == null
+                || !Objects.equals(current.getDocumentId(), task.documentId())
+                || !Objects.equals(current.getIndexVersionId(), task.indexVersionId())
+                || !Objects.equals(current.getClaimEpoch(), task.claimEpoch())) invalid();
+        if (document == null
+                || version == null
+                || !Objects.equals(document.getId(), task.documentId())
+                || !Objects.equals(version.getId(), task.indexVersionId())
+                || !Objects.equals(version.getDocumentId(), document.getId())) invalid();
+    }
+
+    private static boolean isPublished(Document document, IndexVersion version) {
+        return document.getActiveVersionId() != null
+                || version.getPublishedAt() != null
+                || version.getStatus() == IndexVersionStatus.PUBLISHED;
+    }
+
+    private static void validateBuildState(
+            ClaimedTask task,
+            com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask current,
+            IndexVersion version) {
+        if (current.getStatus()
+                        != com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTaskStatus.RUNNING
+                || !Objects.equals(current.getLeaseOwner(), task.leaseOwner())) invalid();
+        if (version.getStatus() != IndexVersionStatus.BUILDING
+                && version.getStatus() != IndexVersionStatus.VERIFIED) invalid();
+    }
+
+    private void buildIndex(
+            ClaimedTask task,
+            TaskExecutionContext context,
+            com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask current,
+            Document document,
+            IndexVersion version) {
+        String key = document.getObjectKey();
+        if (key == null
+                || !key.matches(ObjectKeyPrefixes.ORIGINALS + "[A-Za-z0-9-]+")
+                || document.getFilename() == null) invalid();
+        // 对象位置只取数据库；先校验原始字节摘要，再解析和初始化。
+        context.checkTimeout();
+        byte[] bytes = files.read(key);
+        context.checkTimeout();
+        if (!sha256(bytes).equals(document.getContentHash())) invalid();
+        ParsedDocument parsed = parsers.parse(document.getFilename(), bytes);
+        context.checkTimeout();
+        long started = System.nanoTime();
+        int chunkCount = chunks.initialize(document.getId(), version.getId(), parsed).size();
+        stage("IMPORT_CHUNK_COMPLETED", task, current.getAttemptCount(), chunkCount, started);
+        started = System.nanoTime();
+        context.checkTimeout();
+        embeddings.embed(document.getId(), version.getId(), context::checkTimeout);
+        context.checkTimeout();
+        stage("IMPORT_EMBEDDING_COMPLETED", task, current.getAttemptCount(), chunkCount, started);
+        started = System.nanoTime();
+        es.index(document.getId(), version.getId());
+        stage("IMPORT_ES_COMPLETED", task, current.getAttemptCount(), chunkCount, started);
+        context.checkTimeout();
+    }
+
+    private void verifyIndex(
+            ClaimedTask task,
+            TaskExecutionContext context,
+            com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask current,
+            Document document,
+            IndexVersion version) {
+        // VERIFIED 仍需重新核验；最终领取权由发布事务使用数据库时间裁决。
+        context.checkTimeout();
+        long started = System.nanoTime();
+        IndexVerificationService.Result result = verification.verify(document.getId(), version.getId());
+        if (result == null
+                || !"VERIFIED".equals(result.verificationStatus())
+                || !Objects.equals(result.documentId(), document.getId())
+                || !Objects.equals(result.indexVersionId(), version.getId())) invalid();
+        context.checkTimeout();
+        stage("IMPORT_VERIFIED", task, current.getAttemptCount(), result.expectedChunkCount(), started);
     }
 
     private void publish(ClaimedTask task, TaskExecutionContext context, boolean confirmed) {
