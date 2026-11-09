@@ -64,6 +64,81 @@ public class DocumentImportService {
             throw new IllegalStateException("Upload cannot execute inside transaction");
         long started = System.nanoTime();
         knowledge.get(kbId);
+        ValidatedUpload upload = validateAndRead(file);
+        String filename = upload.filename();
+        byte[] bytes = upload.bytes();
+        String hash =
+                HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+        ImportTask existing = repository.findExisting(kbId, hash);
+        if (existing != null) return outcome(existing, true, started);
+        // 在上传前校验并捕获模型参数，后续配置变化不得改写该版本快照。
+        String embeddingModel = model.getEmbeddingModel();
+        Integer dimensions = model.getDimensions();
+        if (embeddingModel == null || embeddingModel.isBlank() || dimensions == null || dimensions <= 0) {
+            throw new IllegalStateException("Invalid embedding model configuration");
+        }
+        String snapshot = json.writeValueAsString(chunking.snapshot());
+        String stagingKey = ObjectKeyPrefixes.STAGING + UUID.randomUUID();
+        String finalKey = ObjectKeyPrefixes.ORIGINALS + UUID.randomUUID();
+        // 上传、复制和补偿均在 PG 事务之外；每个请求只处理自己的随机 Key。
+        try {
+            uploadOriginal(stagingKey, finalKey, bytes);
+            return createTask(kbId, filename, hash, finalKey, snapshot, embeddingModel, dimensions, started);
+        } finally {
+            // 临时对象删除失败不改变已经提交的业务结果，残留交给 staging 生命周期规则。
+            cleanup(stagingKey);
+        }
+    }
+
+    private void uploadOriginal(String stagingKey, String finalKey, byte[] bytes) {
+        try {
+            store.put(stagingKey, bytes);
+            store.copy(stagingKey, finalKey);
+        } catch (RuntimeException ex) {
+            // 复制可能已经完成但响应丢失，仍须补偿本请求的目标对象。
+            cleanup(finalKey);
+            throw ex;
+        }
+    }
+
+    private Outcome createTask(
+            Long kbId,
+            String filename,
+            String hash,
+            String finalKey,
+            String snapshot,
+            String embeddingModel,
+            int dimensions,
+            long started) {
+        try {
+            ImportTask task = transaction.execute(status ->
+                    repository.create(kbId, filename, hash, finalKey, snapshot, embeddingModel, dimensions));
+            return outcome(task, false, started);
+        } catch (RuntimeException ex) {
+            // 提交异常不等于已回滚，必须先查主库是否引用了对象，再决定是否删除。
+            cleanupUnreferencedOriginal(finalKey);
+            if (ex instanceof DuplicateKeyException) {
+                ImportTask winner = repository.findExisting(kbId, hash);
+                if (winner != null) return outcome(winner, true, started);
+            }
+            throw ex;
+        }
+    }
+
+    private void cleanupUnreferencedOriginal(String finalKey) {
+        try {
+            if (!repository.isObjectReferenced(finalKey)) cleanup(finalKey);
+            else
+                ImportEvents.warn(LOG, "code=ORIGINAL_OBJECT_REFERENCED_AFTER_COMMIT_ERROR objectKey={}", finalKey);
+        } catch (RuntimeException checkFailure) {
+            // 查询本身失败时保留对象，避免误删已经提交的业务文件。
+            ImportEvents.warn(LOG, "code=ORIGINAL_OBJECT_REFERENCE_UNKNOWN objectKey={}", finalKey);
+        }
+    }
+
+    private record ValidatedUpload(String filename, byte[] bytes) {}
+
+    private ValidatedUpload validateAndRead(MultipartFile file) throws Exception {
         String filename = file.getOriginalFilename();
         if (filename == null
                 || filename.isBlank()
@@ -89,53 +164,7 @@ public class DocumentImportService {
         } catch (java.nio.charset.CharacterCodingException ex) {
             invalid();
         }
-        String hash =
-                HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
-        ImportTask existing = repository.findExisting(kbId, hash);
-        if (existing != null) return outcome(existing, true, started);
-        // 在上传前校验并捕获模型参数，后续配置变化不得改写该版本快照。
-        String embeddingModel = model.getEmbeddingModel();
-        Integer dimensions = model.getDimensions();
-        if (embeddingModel == null || embeddingModel.isBlank() || dimensions == null || dimensions <= 0) {
-            throw new IllegalStateException("Invalid embedding model configuration");
-        }
-        String snapshot = json.writeValueAsString(chunking.snapshot());
-        String stagingKey = ObjectKeyPrefixes.STAGING + UUID.randomUUID();
-        String finalKey = ObjectKeyPrefixes.ORIGINALS + UUID.randomUUID();
-        // 上传、复制和补偿均在PG事务之外；每个请求只处理自己的随机Key。
-        try {
-            try {
-                store.put(stagingKey, bytes);
-                store.copy(stagingKey, finalKey);
-            } catch (RuntimeException ex) {
-                // 复制可能已经完成但响应丢失，仍须补偿本请求的目标对象。
-                cleanup(finalKey);
-                throw ex;
-            }
-            try {
-                ImportTask task = transaction.execute(status ->
-                        repository.create(kbId, filename, hash, finalKey, snapshot, embeddingModel, dimensions));
-                return outcome(task, false, started);
-            } catch (RuntimeException ex) {
-                // 提交异常不等于已回滚。查询主库确认无引用后才可删除，查询失败则保留并告警。
-                try {
-                    if (!repository.isObjectReferenced(finalKey)) cleanup(finalKey);
-                    else
-                        ImportEvents.warn(
-                                LOG, "code=ORIGINAL_OBJECT_REFERENCED_AFTER_COMMIT_ERROR objectKey={}", finalKey);
-                } catch (RuntimeException checkFailure) {
-                    ImportEvents.warn(LOG, "code=ORIGINAL_OBJECT_REFERENCE_UNKNOWN objectKey={}", finalKey);
-                }
-                if (ex instanceof DuplicateKeyException) {
-                    ImportTask winner = repository.findExisting(kbId, hash);
-                    if (winner != null) return outcome(winner, true, started);
-                }
-                throw ex;
-            }
-        } finally {
-            // 临时对象删除失败不改变已经提交的业务结果，残留交给staging生命周期规则。
-            cleanup(stagingKey);
-        }
+        return new ValidatedUpload(filename, bytes);
     }
 
     private Outcome outcome(ImportTask task, boolean duplicate, long started) {
