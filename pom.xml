@@ -183,6 +183,7 @@
                         <include>**/ImportTaskIT.java</include>
                         <include>**/TaskRecoveryIT.java</include>
                         <include>**/StorageImportIT.java</include>
+                        <include>**/IngestionPipelineIT.java</include>
                     </includes>
                     <failIfNoTests>true</failIfNoTests>
                 </configuration>
