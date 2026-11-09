@@ -178,6 +178,7 @@
                         <include>**/EsIntegrityIT.java</include>
                         <include>**/PgIntegrityIT.java</include>
                         <include>**/IndexVerificationIT.java</include>
+                        <include>**/IndexPublishIT.java</include>
                         <include>**/MinioIT.java</include>
                     </includes>
                     <failIfNoTests>true</failIfNoTests>
