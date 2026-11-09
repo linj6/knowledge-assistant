@@ -66,9 +66,10 @@ public class IngestionTaskProcessor implements TaskProcessor {
             context.checkTimeout();
             validateClaim(task);
             com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask current = tasks.task(task.taskId());
+            validateTaskRecord(task, current);
             Document document = records.document(task.documentId());
             IndexVersion version = records.version(task.indexVersionId());
-            validateOwnership(task, current, document, version);
+            validateDocumentVersion(task, document, version);
 
             // 发布事实交给原发布事务核对，不能重新写入索引。
             if (isPublished(document, version)) {
@@ -113,15 +114,17 @@ public class IngestionTaskProcessor implements TaskProcessor {
                 || task.claimEpoch() <= 0) invalid();
     }
 
-    private static void validateOwnership(
+    private static void validateTaskRecord(
             ClaimedTask task,
-            com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask current,
-            Document document,
-            IndexVersion version) {
+            com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask current) {
         if (current == null
                 || !Objects.equals(current.getDocumentId(), task.documentId())
                 || !Objects.equals(current.getIndexVersionId(), task.indexVersionId())
                 || !Objects.equals(current.getClaimEpoch(), task.claimEpoch())) invalid();
+    }
+
+    private static void validateDocumentVersion(
+            ClaimedTask task, Document document, IndexVersion version) {
         if (document == null
                 || version == null
                 || !Objects.equals(document.getId(), task.documentId())
