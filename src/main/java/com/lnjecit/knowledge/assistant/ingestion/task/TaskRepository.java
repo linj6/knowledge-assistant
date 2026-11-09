@@ -47,9 +47,7 @@ public class TaskRepository {
     public void fail(ClaimedTask task, TaskExecutionException.Code code) {
         // 在任务行锁内读取已执行次数；最终条件更新再次核对执行权和数据库租约。
         ImportTask current = mapper.lockTask(task.taskId());
-        Long delay = current != null && code.retryable() && current.getAttemptCount() < properties.getMaxAttempts()
-                ? properties.retryDelayMillis(current.getAttemptCount())
-                : null;
+        Long delay = retryDelay(current, code.retryable());
         if (mapper.fail(task, code.name(), code.safeMessage(), delay) != 1)
             throw new TaskFailure(TaskFailure.Code.AUTHORITY_EXPIRED);
     }
@@ -58,11 +56,15 @@ public class TaskRepository {
         // 仅恢复不同执行者的过期任务；不获取文档或版本行锁，也不假定旧进程已停止。
         ImportTask task = mapper.lockExpired(owner);
         if (task == null) return false;
-        Long delay = task.getAttemptCount() < properties.getMaxAttempts()
-                ? properties.retryDelayMillis(task.getAttemptCount())
-                : null;
+        Long delay = retryDelay(task, true);
         if (mapper.recover(task.getId(), owner, delay) != 1)
             throw new TaskFailure(TaskFailure.Code.TRANSITION_CONFLICT);
         return true;
     }
+    // null 表示不再安排自动重试；重试间隔策略统一放在一处。
+    private Long retryDelay(ImportTask task, boolean retryable) {
+        if (task == null || !retryable || task.getAttemptCount() >= properties.getMaxAttempts()) return null;
+        return properties.retryDelayMillis(task.getAttemptCount());
+    }
+
 }
