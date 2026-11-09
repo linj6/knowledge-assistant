@@ -216,7 +216,7 @@ class IngestionTaskProcessorTests {
 
     @Test
     void ambiguousPublishReusesIdempotentProtocol() {
-        doThrow(new IllegalStateException("response lost"))
+        doThrow(new org.springframework.transaction.TransactionSystemException("response lost"))
                 .doNothing()
                 .when(publisher)
                 .publish(claim);
@@ -242,5 +242,14 @@ class IngestionTaskProcessorTests {
                         properties)
                 .execute(claim);
         verifyNoInteractions(service);
+    }
+
+    @Test
+    void explicitPublishConflictIsNotRetried() {
+        doThrow(new IllegalStateException("PUBLISH_STATE_CONFLICT"))
+                .when(publisher)
+                .publish(claim);
+        assertThatThrownBy(() -> processor.process(claim, context)).hasMessage("PUBLISH_STATE_CONFLICT");
+        verify(publisher).publish(claim);
     }
 }

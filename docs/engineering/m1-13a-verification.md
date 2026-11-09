@@ -40,3 +40,23 @@ MinIO 显式连接 5 秒、读写各 30 秒、单调用 60 秒；ES 连接与连
 - `git diff --check` 通过；提交前审阅生产与测试 diff，未修改无关业务、依赖或数据库结构。
 
 已知限制：Mock 发布确认不代表真实提交响应丢失已验收；最终数据库事实与短事务行为仍需 M1-13B 使用真实基础设施验证。编译有既有弃用 API 与 Mockito 泛型桩的 unchecked 提示，不影响本轮检查通过。
+
+
+## 代码审查修复（基线 47752fa，2026-11-09）
+
+四项问题经源码核对均成立：
+
+1. TaskScheduler 原 owner 在 JVM 内固定；TaskMapper.lockExpired / recover 排除相同 owner。租约过期后 fail 条件更新不能成功，执行返回也无法在同 JVM 恢复。现每轮扫描生成 owner，整个 scan 使用 synchronized 串行保护，只有上一轮执行退出后下一轮才能恢复旧 owner。SQL 的 owner 排除条件保留，未改租约、任务状态或引入分布式锁。此保护只适用于单实例单 Worker，人工入口不可并行执行的部署约束不变。
+2. 发布原捕获所有 RuntimeException，包含明确 PUBLISH_STATE_CONFLICT。现仅 TransactionSystemException / DataAccessResourceFailureException 进入提交结果不确定的确认路径；状态、归属、参数及未知运行时错误不二次调用。继续复用原发布事务，不重写发布算法。
+3. clearScroll 原 finally 将所有异常转换为永久验证失败，并可能覆盖原验证错误。现保存原验证失败的优先级；原验证已失败时清理错误不覆盖它，验证成功后清理 IO 错误交给外层既有安全网络分类；非网络失败仍不可重试。不保留或回显敏感异常正文。
+4. 原 MinIO readAllBytes 无字节上限。现 Spring 注入既有 UploadProperties，校验配置并使用 maxFileBytes；最多读取上限加一字节，超限安全失败、不重试，流由原 try-with-resources 关闭。四参数构造器保留为使用默认上传上限的兼容入口。
+
+针对性测试覆盖扫描执行未退出时下一轮不能恢复、退出后 owner 改变；明确发布冲突仅调用一次、不确定提交仍复用幂等协议；清理超时/断连可识别、清理错误不覆盖原验证失败；恰好上限读取成功、超限最多读取上限加一字节。扫描测试使用 Mock 验证串行与 owner 交接，未宣称证明真实 PG 租约恢复。
+
+实际验证：
+
+- `mvn spotless:apply spotless:check -DskipTests test-compile`：成功。
+- 最终串行命令：`mvn spotless:apply spotless:check test-compile test -Dtest=TaskSchedulerRecoveryTests,IngestionTaskProcessorTests,OriginalReadLimitTests,EsIntegrityFailureTests,EsIntegrityTests,EsIndexTests,TaskExecutionTests,ImportTaskTests,ConfigurationTests,ImportTests,EmbeddingServiceTests,EmbeddingHttpStubTests`：BUILD SUCCESS，48 项，0 失败、0 错误、0 跳过。日志 target/m1-13a-review-final.log。
+- `git diff --check` 通过，完整生产与测试 diff 已审阅。
+
+本轮无遗留失败测试。未执行全量测试、真实基础设施 IT、在线模型或 Docker 启动，不进入 M1-13B。真实 PG 租约恢复、MinIO 对象读取和发布提交响应丢失仍属后续集成验证范围；单 Worker 约束保持。

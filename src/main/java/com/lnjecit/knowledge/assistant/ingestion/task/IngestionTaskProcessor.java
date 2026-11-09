@@ -143,7 +143,8 @@ public class IngestionTaskProcessor implements TaskProcessor {
     private void publish(ClaimedTask task, TaskExecutionContext context) {
         try {
             publisher.publish(task);
-        } catch (RuntimeException uncertain) {
+        } catch (org.springframework.transaction.TransactionSystemException
+                | org.springframework.dao.DataAccessResourceFailureException uncertain) {
             // 提交响应丢失时先读任务事实，再由发布事务核对完整发布事实。
             com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask current = tasks.task(task.taskId());
             if (current == null

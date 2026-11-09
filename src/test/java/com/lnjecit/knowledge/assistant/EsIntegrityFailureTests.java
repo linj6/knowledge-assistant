@@ -30,7 +30,8 @@ class EsIntegrityFailureTests {
     @Test
     @SuppressWarnings("unchecked")
     void refreshPaginationAndSearchFailuresNeverSucceedOrRepair() throws Exception {
-        for (String stage : List.of("refresh", "page", "search")) {
+        for (String stage :
+                List.of("refresh", "page", "search", "clearTimeout", "clearDisconnect", "primaryAndClear")) {
             ElasticsearchClient client = mock(ElasticsearchClient.class, RETURNS_DEEP_STUBS);
             EsIndexRepository repository = mock(EsIndexRepository.class);
             when(client.indices().exists(any(Function.class)).value()).thenReturn(true);
@@ -71,10 +72,24 @@ class EsIntegrityFailureTests {
             if (stage.equals("page"))
                 when(client.scroll(any(Function.class), eq(JsonData.class)))
                         .thenThrow(new java.io.IOException("sensitive"));
+            if (stage.startsWith("clear")) {
+                when(client.search(any(Function.class), eq(JsonData.class))).thenReturn(first);
+                when(client.clearScroll(any(Function.class)))
+                        .thenThrow(
+                                stage.equals("clearTimeout")
+                                        ? new java.net.SocketTimeoutException("sensitive")
+                                        : new java.net.SocketException("sensitive"));
+            }
+            if (stage.equals("primaryAndClear")) {
+                when(client.scroll(any(Function.class), eq(JsonData.class)))
+                        .thenThrow(new IllegalStateException("sensitive"));
+                when(client.clearScroll(any(Function.class)))
+                        .thenThrow(new java.net.SocketTimeoutException("sensitive"));
+            }
             EsIntegrityService service = new EsIntegrityService(client, repository);
             assertThatThrownBy(() ->
                             service.verify(1L, 2L, 3L, List.of(new EsChunkDocument("1", "1", "2", "3", 0, "知识库"))))
-                    .hasMessage("ES_VERIFICATION_FAILED")
+                    .hasMessage(stage.startsWith("clear") ? "ES_CONNECTION_OUTCOME_UNKNOWN" : "ES_VERIFICATION_FAILED")
                     .hasNoCause();
             if (!stage.equals("refresh")) verify(client).clearScroll(any(Function.class));
             if (stage.equals("page")) verify(client).scroll(any(Function.class), eq(JsonData.class));
