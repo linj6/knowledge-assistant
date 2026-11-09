@@ -26,6 +26,12 @@ public class MinioOriginalFileStore implements OriginalFileStore {
                 : MinioClient.builder()
                         .endpoint(endpoint)
                         .credentials(accessKey, secretKey)
+                        .httpClient(new okhttp3.OkHttpClient.Builder()
+                                .connectTimeout(java.time.Duration.ofSeconds(5))
+                                .readTimeout(java.time.Duration.ofSeconds(30))
+                                .writeTimeout(java.time.Duration.ofSeconds(30))
+                                .callTimeout(java.time.Duration.ofSeconds(60))
+                                .build())
                         .build();
     }
 
@@ -71,6 +77,10 @@ public class MinioOriginalFileStore implements OriginalFileStore {
                         GetObjectArgs.builder().bucket(bucket).object(key).build())) {
             return stream.readAllBytes();
         } catch (Exception ex) {
+            if (ex instanceof java.net.SocketTimeoutException || ex instanceof java.net.ConnectException)
+                throw new com.lnjecit.knowledge.assistant.ingestion.task.TaskExecutionException(
+                        com.lnjecit.knowledge.assistant.ingestion.task.TaskExecutionException.Code
+                                .INFRASTRUCTURE_TEMPORARY);
             throw new IllegalStateException("Object read failed");
         }
     }

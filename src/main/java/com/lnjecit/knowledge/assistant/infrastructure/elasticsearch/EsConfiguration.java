@@ -18,7 +18,9 @@ public class EsConfiguration {
     public RestClientTransport esTransport(
             @Value("${assistant.elasticsearch.endpoint:http://localhost:9200}") String endpoint) {
         RestClient client = RestClient.builder(validatedEndpoint(endpoint))
-                .setRequestConfigCallback(b -> b.setConnectTimeout(5000).setSocketTimeout(30000))
+                .setRequestConfigCallback(b -> b.setConnectTimeout(5000)
+                        .setConnectionRequestTimeout(5000)
+                        .setSocketTimeout(30000))
                 .build();
         // ES 8 客户端独立使用 Jackson 2，不替换 Web 层的 Jackson 3。
         return new RestClientTransport(client, new JacksonJsonpMapper());

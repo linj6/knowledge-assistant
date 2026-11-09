@@ -57,7 +57,14 @@ public class EsIntegrityService {
             Map<String, EsChunkDocument> expectedChunksById =
                     validateExpectedChunks(knowledgeBaseId, documentId, indexVersionId, expectedChunks);
             return refreshAndVerifySnapshot(indexName, knowledgeBaseId, documentId, indexVersionId, expectedChunksById);
-        } catch (IOException | RuntimeException failure) {
+        } catch (IOException failure) {
+            if (failure instanceof java.net.SocketTimeoutException
+                    || failure instanceof java.net.ConnectException
+                    || failure instanceof java.net.UnknownHostException
+                    || failure instanceof java.net.SocketException)
+                throw new IllegalStateException("ES_CONNECTION_OUTCOME_UNKNOWN");
+            throw new IllegalStateException("ES_VERIFICATION_FAILED");
+        } catch (RuntimeException failure) {
             throw new IllegalStateException("ES_VERIFICATION_FAILED");
         }
     }

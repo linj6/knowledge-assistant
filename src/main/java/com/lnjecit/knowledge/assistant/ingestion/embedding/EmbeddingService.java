@@ -34,6 +34,11 @@ public class EmbeddingService {
     }
 
     public void embed(Long documentId, Long versionId) {
+        embed(documentId, versionId, () -> {});
+    }
+
+    public void embed(Long documentId, Long versionId, Runnable checkDeadline) {
+        checkDeadline.run();
         if (TransactionSynchronizationManager.isActualTransactionActive())
             throw new IllegalStateException("Embedding cannot run inside a transaction");
         properties.afterPropertiesSet();
@@ -53,6 +58,7 @@ public class EmbeddingService {
         List<DocumentChunk> pending =
                 initial.stream().filter(c -> c.getEmbedding() == null).toList();
         for (int offset = 0; offset < pending.size(); offset += properties.getBatchSize()) {
+            checkDeadline.run();
             List<DocumentChunk> batch =
                     pending.subList(offset, Math.min(pending.size(), offset + properties.getBatchSize()));
             List<String> texts = batch.stream().map(DocumentChunk::getContent).toList();
@@ -68,7 +74,9 @@ public class EmbeddingService {
             } catch (RuntimeException failure) {
                 throw ModelFailures.safe("EMBEDDING_BATCH", failure);
             }
+            checkDeadline.run();
             repository.write(documentId, versionId, batch, vectors);
+            checkDeadline.run();
         }
         List<DocumentChunk> completed = repository.read(documentId, versionId);
         for (int i = 0; i < initial.size(); i++) {

@@ -22,8 +22,16 @@ public final class ModelFailures {
     public static final class SafeModelException extends IllegalStateException {
         private final Kind kind;
 
+        public Kind kind() {
+            return kind;
+        }
+
         private SafeModelException(Kind kind) {
-            super("Model request failed: stage=RERANK kind=" + kind);
+            this(kind, "RERANK");
+        }
+
+        private SafeModelException(Kind kind, String stage) {
+            super("Model request failed: stage=" + stage + " kind=" + kind);
             this.kind = kind;
         }
     }
@@ -77,10 +85,10 @@ public final class ModelFailures {
                 };
         Kind kind = "CONFIGURATION".equals(safeStage) ? Kind.CONFIGURATION : classify(failure);
         String code = configurationCode(failure);
-        return new IllegalStateException("Model request failed: stage=" + safeStage + " kind=" + kind + " exception="
-                + failure.getClass().getName()
-                + (code == null ? "" : " code=" + code)
-                + (failure instanceof OpenAIServiceException service ? " httpStatus=" + service.statusCode() : ""));
+        if (code != null)
+            return new IllegalStateException(
+                    "Model request failed: stage=" + safeStage + " kind=" + kind + " code=" + code);
+        return new SafeModelException(kind, safeStage);
     }
 
     private static String configurationCode(Throwable failure) {
