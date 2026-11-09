@@ -7,6 +7,7 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
 import com.lnjecit.knowledge.assistant.ingestion.indexing.EsChunkDocument;
+import com.lnjecit.knowledge.assistant.ingestion.indexing.EsChunkFields;
 import com.lnjecit.knowledge.assistant.ingestion.indexing.EsIndexRepository;
 import java.util.List;
 import java.util.UUID;
@@ -30,23 +31,23 @@ class EsIndexIT extends ElasticsearchIT {
                 new JacksonJsonpMapper())) {
             ElasticsearchClient client = new ElasticsearchClient(transport);
             EsIndexRepository repository = new EsIndexRepository(client);
-            for (String disabled : List.of("knowledge_base_id", "content")) {
+            for (String disabled : List.of(EsChunkFields.KNOWLEDGE_BASE_ID, EsChunkFields.CONTENT)) {
                 String index = "m107-" + UUID.randomUUID();
                 try {
-                    client.indices()
-                            .create(r -> r.index(index).mappings(m -> m.properties("chunk_id", p -> p.keyword(k -> k))
-                                    .properties(
-                                            "knowledge_base_id",
-                                            p -> p.keyword(k -> k.index(!disabled.equals("knowledge_base_id"))))
-                                    .properties("document_id", p -> p.keyword(k -> k))
-                                    .properties("index_version_id", p -> p.keyword(k -> k))
-                                    .properties("chunk_order", p -> p.integer(k -> k))
-                                    .properties(
-                                            "content",
-                                            p -> p.text(t -> t.index(!disabled.equals("content"))
-                                                    .analyzer("ik_max_word")
-                                                    .searchAnalyzer("ik_smart")
-                                                    .similarity("BM25")))));
+                    client.indices().create(r -> r.index(index).mappings(m -> m.properties(
+                                    EsChunkFields.CHUNK_ID, p -> p.keyword(k -> k))
+                            .properties(
+                                    EsChunkFields.KNOWLEDGE_BASE_ID,
+                                    p -> p.keyword(k -> k.index(!disabled.equals(EsChunkFields.KNOWLEDGE_BASE_ID))))
+                            .properties(EsChunkFields.DOCUMENT_ID, p -> p.keyword(k -> k))
+                            .properties(EsChunkFields.INDEX_VERSION_ID, p -> p.keyword(k -> k))
+                            .properties(EsChunkFields.CHUNK_ORDER, p -> p.integer(k -> k))
+                            .properties(
+                                    EsChunkFields.CONTENT,
+                                    p -> p.text(t -> t.index(!disabled.equals(EsChunkFields.CONTENT))
+                                            .analyzer("ik_max_word")
+                                            .searchAnalyzer("ik_smart")
+                                            .similarity("BM25")))));
                     assertThatThrownBy(() -> repository.ensureIndex(index)).hasMessage("ES_MAPPING_INCOMPATIBLE");
                 } finally {
                     if (client.indices().exists(r -> r.index(index)).value())
@@ -163,10 +164,12 @@ class EsIndexIT extends ElasticsearchIT {
                 for (String term : List.of("知识库", "Spring Boot", "Spring AI", "Redis", "RocketMQ")) {
                     assertThat(client.search(
                                             r -> r.index(index)
-                                                    .query(q -> q.bool(v -> v.must(m -> m.match(t -> t.field("content")
-                                                                    .query(term)))
-                                                            .filter(f -> f.term(t -> t.field("index_version_id")
-                                                                    .value("103"))))),
+                                                    .query(q -> q.bool(
+                                                            v -> v.must(m -> m.match(t -> t.field(EsChunkFields.CONTENT)
+                                                                            .query(term)))
+                                                                    .filter(f -> f.term(
+                                                                            t -> t.field(EsChunkFields.INDEX_VERSION_ID)
+                                                                                    .value("103"))))),
                                             EsChunkDocument.class)
                                     .hits()
                                     .hits())
@@ -178,7 +181,7 @@ class EsIndexIT extends ElasticsearchIT {
                                 .get(index)
                                 .mappings()
                                 .properties()
-                                .get("content")
+                                .get(EsChunkFields.CONTENT)
                                 .text()
                                 .similarity())
                         .isEqualTo("BM25");
@@ -191,7 +194,7 @@ class EsIndexIT extends ElasticsearchIT {
                                 .numberOfReplicas())
                         .isEqualTo("0");
                 client.indices().create(r -> r.index(incompatible)
-                        .mappings(m -> m.properties("content", v -> v.keyword(k -> k))));
+                        .mappings(m -> m.properties(EsChunkFields.CONTENT, v -> v.keyword(k -> k))));
                 assertThatThrownBy(() -> repository.ensureIndex(incompatible)).hasMessage("ES_MAPPING_INCOMPATIBLE");
             } finally {
                 // 仅清理本次随机命名的测试索引，绝不访问共享业务索引。

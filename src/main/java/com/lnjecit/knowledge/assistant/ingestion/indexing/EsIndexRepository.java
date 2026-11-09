@@ -41,13 +41,13 @@ public class EsIndexRepository {
                 try {
                     client.indices().create(r -> r.index(index)
                             .settings(s -> s.numberOfReplicas("0"))
-                            .mappings(m -> m.properties("chunk_id", p -> p.keyword(k -> k))
-                                    .properties("knowledge_base_id", p -> p.keyword(k -> k))
-                                    .properties("document_id", p -> p.keyword(k -> k))
-                                    .properties("index_version_id", p -> p.keyword(k -> k))
-                                    .properties("chunk_order", p -> p.integer(v -> v))
+                            .mappings(m -> m.properties(EsChunkFields.CHUNK_ID, p -> p.keyword(k -> k))
+                                    .properties(EsChunkFields.KNOWLEDGE_BASE_ID, p -> p.keyword(k -> k))
+                                    .properties(EsChunkFields.DOCUMENT_ID, p -> p.keyword(k -> k))
+                                    .properties(EsChunkFields.INDEX_VERSION_ID, p -> p.keyword(k -> k))
+                                    .properties(EsChunkFields.CHUNK_ORDER, p -> p.integer(v -> v))
                                     .properties(
-                                            "content",
+                                            EsChunkFields.CONTENT,
                                             p -> p.text(t -> t.analyzer("ik_max_word")
                                                     .searchAnalyzer("ik_smart")
                                                     .similarity("BM25")))));
@@ -62,12 +62,16 @@ public class EsIndexRepository {
                     .get(index)
                     .mappings()
                     .properties();
-            for (String name : List.of("chunk_id", "knowledge_base_id", "document_id", "index_version_id"))
+            for (String name : List.of(
+                    EsChunkFields.CHUNK_ID,
+                    EsChunkFields.KNOWLEDGE_BASE_ID,
+                    EsChunkFields.DOCUMENT_ID,
+                    EsChunkFields.INDEX_VERSION_ID))
                 if (fields.get(name) == null
                         || !fields.get(name).isKeyword()
                         || Boolean.FALSE.equals(fields.get(name).keyword().index()))
                     throw failure("ES_MAPPING_INCOMPATIBLE");
-            Property order = fields.get("chunk_order"), content = fields.get("content");
+            Property order = fields.get(EsChunkFields.CHUNK_ORDER), content = fields.get(EsChunkFields.CONTENT);
             if (order == null
                     || !order.isInteger()
                     || content == null

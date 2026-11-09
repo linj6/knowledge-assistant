@@ -18,6 +18,7 @@ import co.elastic.clients.elasticsearch.indices.analyze.AnalyzeToken;
 import co.elastic.clients.json.JsonData;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import com.lnjecit.knowledge.assistant.ingestion.indexing.EsChunkDocument;
+import com.lnjecit.knowledge.assistant.ingestion.indexing.EsChunkFields;
 import com.lnjecit.knowledge.assistant.ingestion.indexing.EsIndexRepository;
 import com.lnjecit.knowledge.assistant.ingestion.verification.EsIntegrityService;
 import java.util.List;
@@ -41,17 +42,17 @@ class EsIntegrityFailureTests {
             when(hit.source())
                     .thenReturn(JsonData.of(
                             Map.of(
-                                    "chunk_id",
+                                    EsChunkFields.CHUNK_ID,
                                     "1",
-                                    "knowledge_base_id",
+                                    EsChunkFields.KNOWLEDGE_BASE_ID,
                                     "1",
-                                    "document_id",
+                                    EsChunkFields.DOCUMENT_ID,
                                     "2",
-                                    "index_version_id",
+                                    EsChunkFields.INDEX_VERSION_ID,
                                     "3",
-                                    "chunk_order",
+                                    EsChunkFields.CHUNK_ORDER,
                                     0,
-                                    "content",
+                                    EsChunkFields.CONTENT,
                                     "知识库"),
                             new JacksonJsonpMapper()));
             when(first.hits().hits()).thenReturn(List.of(hit));

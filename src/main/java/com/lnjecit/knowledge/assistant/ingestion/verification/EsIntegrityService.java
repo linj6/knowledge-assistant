@@ -5,14 +5,21 @@ import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.core.ScrollResponse;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
+import co.elastic.clients.elasticsearch.indices.analyze.AnalyzeToken;
 import co.elastic.clients.json.JsonData;
 import com.lnjecit.knowledge.assistant.ingestion.indexing.EsChunkDocument;
+import com.lnjecit.knowledge.assistant.ingestion.indexing.EsChunkFields;
 import com.lnjecit.knowledge.assistant.ingestion.indexing.EsIndexRepository;
 import com.lnjecit.knowledge.assistant.ingestion.indexing.EsIndexService;
+import jakarta.json.JsonNumber;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonValue;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -25,70 +32,71 @@ import org.springframework.stereotype.Service;
 public class EsIntegrityService {
     public static final int MAX_CHUNKS = 10000;
     private final ElasticsearchClient client;
-    private final EsIndexRepository mapping;
+    private final EsIndexRepository indexRepository;
 
-    public EsIntegrityService(ElasticsearchClient client, EsIndexRepository mapping) {
+    public EsIntegrityService(ElasticsearchClient client, EsIndexRepository indexRepository) {
         this.client = client;
-        this.mapping = mapping;
+        this.indexRepository = indexRepository;
     }
 
     public record Result(int expectedChunkCount, int esChunkCount, int searchableSampleCount) {}
 
-    public Result verify(Long kb, Long document, Long version, List<EsChunkDocument> expected) {
-        return verifyIndex(EsIndexService.INDEX, kb, document, version, expected);
+    public Result verify(
+            Long knowledgeBaseId, Long documentId, Long indexVersionId, List<EsChunkDocument> expectedChunks) {
+        return verifyIndex(EsIndexService.INDEX, knowledgeBaseId, documentId, indexVersionId, expectedChunks);
     }
 
     // 显式索引入口供随机隔离索引测试使用；业务默认索引复用 M1-07 常量。
-    public Result verifyIndex(String index, Long kb, Long document, Long version, List<EsChunkDocument> expected) {
+    public Result verifyIndex(
+            String indexName,
+            Long knowledgeBaseId,
+            Long documentId,
+            Long indexVersionId,
+            List<EsChunkDocument> expectedChunks) {
+        try {
+            Map<String, EsChunkDocument> expectedChunksById =
+                    validateExpectedChunks(knowledgeBaseId, documentId, indexVersionId, expectedChunks);
+            return refreshAndVerifySnapshot(indexName, knowledgeBaseId, documentId, indexVersionId, expectedChunksById);
+        } catch (IOException | RuntimeException failure) {
+            throw new IllegalStateException("ES_VERIFICATION_FAILED");
+        }
+    }
+
+    private Result refreshAndVerifySnapshot(
+            String indexName,
+            Long knowledgeBaseId,
+            Long documentId,
+            Long indexVersionId,
+            Map<String, EsChunkDocument> expectedChunksById)
+            throws IOException {
         String scrollId = null;
         try {
-            Map<String, EsChunkDocument> wanted = expected(kb, document, version, expected);
             // 缺少索引直接失败，不能因调用现有 ensureIndex 而创建一个空索引。
-            if (!client.indices().exists(r -> r.index(index)).value()) fail();
-            mapping.validateIndex(index);
-            if (client.indices().refresh(r -> r.index(index)).shards().failed().intValue() != 0) fail();
-            Query filter = filter(kb, document, version);
+            if (!client.indices().exists(r -> r.index(indexName)).value()) fail();
+            indexRepository.validateIndex(indexName);
+            if (client.indices()
+                            .refresh(r -> r.index(indexName))
+                            .shards()
+                            .failed()
+                            .intValue()
+                    != 0) fail();
+            Query ownershipFilter = buildOwnershipFilter(knowledgeBaseId, documentId, indexVersionId);
             SearchResponse<JsonData> first = client.search(
-                    r -> r.index(index)
+                    r -> r.index(indexName)
                             .size(100)
                             .scroll(t -> t.time("1m"))
                             .sort(s -> s.field(f -> f.field("_doc")))
                             .allowPartialSearchResults(false)
-                            .query(filter),
+                            .query(ownershipFilter),
                     JsonData.class);
             scrollId = first.scrollId();
             if (first.timedOut() || first.shards().failed().intValue() != 0 || scrollId == null) fail();
             List<Hit<JsonData>> page = first.hits().hits();
-            Set<String> seen = new HashSet<>();
+            Set<String> actualChunkIds = new HashSet<>();
             // Scroll 固定读取快照，始终读到空页；硬上限同时限制内存和请求次数。
             for (int pages = 0; ; pages++) {
                 if (pages > MAX_CHUNKS / 100 + 1) fail();
-                for (Hit<JsonData> hit : page) {
-                    if (hit.source() == null
-                            || !hit.source()
-                                    .toJson()
-                                    .asJsonObject()
-                                    .keySet()
-                                    .containsAll(List.of(
-                                            "chunk_id",
-                                            "knowledge_base_id",
-                                            "document_id",
-                                            "index_version_id",
-                                            "chunk_order",
-                                            "content"))) fail();
-                    jakarta.json.JsonObject source = hit.source().toJson().asJsonObject();
-                    for (String field :
-                            List.of("chunk_id", "knowledge_base_id", "document_id", "index_version_id", "content"))
-                        if (source.get(field).getValueType() != jakarta.json.JsonValue.ValueType.STRING) fail();
-                    if (!(source.get("chunk_order") instanceof jakarta.json.JsonNumber order) || !order.isIntegral())
-                        fail();
-                    EsChunkDocument actual = hit.source().to(EsChunkDocument.class);
-                    if (actual.chunk_id() == null
-                            || !actual.chunk_id().equals(hit.id())
-                            || !seen.add(hit.id())
-                            || seen.size() > MAX_CHUNKS
-                            || !actual.equals(wanted.get(hit.id()))) fail();
-                }
+                comparePage(page, expectedChunksById, actualChunkIds);
                 if (page.isEmpty()) break;
                 String cursor = scrollId;
                 ScrollResponse<JsonData> next =
@@ -97,36 +105,9 @@ public class EsIntegrityService {
                 if (next.timedOut() || next.shards().failed().intValue() != 0) fail();
                 page = next.hits().hits();
             }
-            if (!seen.equals(wanted.keySet())) fail();
-            List<EsChunkDocument> ordered = new ArrayList<>(wanted.values());
-            ordered.sort(java.util.Comparator.comparingInt(EsChunkDocument::chunk_order)
-                    .thenComparing(EsChunkDocument::chunk_id));
-            Set<Integer> samples = new java.util.LinkedHashSet<>(List.of(0, ordered.size() / 2, ordered.size() - 1));
-            for (int position : samples) {
-                EsChunkDocument sample = ordered.get(position);
-                List<co.elastic.clients.elasticsearch.indices.analyze.AnalyzeToken> tokens = client.indices()
-                        .analyze(r -> r.index(index).analyzer("ik_smart").text(sample.content()))
-                        .tokens();
-                if (tokens.isEmpty() || tokens.getFirst().token().isBlank()) fail();
-                String term = tokens.getFirst().token();
-                // 限定样本 ID 只消除排名干扰；命中仍必须满足真实 content match 和三项业务过滤。
-                SearchResponse<JsonData> search = client.search(
-                        r -> r.index(index)
-                                .size(1)
-                                .allowPartialSearchResults(false)
-                                .query(q -> q.bool(b -> b.filter(filter)
-                                        .filter(f -> f.ids(i -> i.values(sample.chunk_id())))
-                                        .must(m ->
-                                                m.match(t -> t.field("content").query(term))))),
-                        JsonData.class);
-                if (search.timedOut()
-                        || search.shards().failed().intValue() != 0
-                        || search.hits().hits().stream()
-                                .noneMatch(h -> sample.chunk_id().equals(h.id()))) fail();
-            }
-            return new Result(wanted.size(), seen.size(), samples.size());
-        } catch (IOException | RuntimeException failure) {
-            throw new IllegalStateException("ES_VERIFICATION_FAILED");
+            if (!actualChunkIds.equals(expectedChunksById.keySet())) fail();
+            int searchableSampleCount = verifySearchSamples(indexName, ownershipFilter, expectedChunksById);
+            return new Result(expectedChunksById.size(), actualChunkIds.size(), searchableSampleCount);
         } finally {
             if (scrollId != null) {
                 String cursor = scrollId;
@@ -139,36 +120,92 @@ public class EsIntegrityService {
         }
     }
 
-    private static Map<String, EsChunkDocument> expected(
-            Long kb, Long document, Long version, List<EsChunkDocument> rows) {
-        if (kb == null
-                || document == null
-                || version == null
-                || rows == null
-                || rows.isEmpty()
-                || rows.size() > MAX_CHUNKS) fail();
-        Map<String, EsChunkDocument> result = new HashMap<>();
-        for (EsChunkDocument row : rows) {
-            if (row == null
-                    || row.chunk_id() == null
-                    || !row.chunk_id().matches("[1-9][0-9]*")
-                    || !kb.toString().equals(row.knowledge_base_id())
-                    || !document.toString().equals(row.document_id())
-                    || !version.toString().equals(row.index_version_id())
-                    || row.chunk_order() < 0
-                    || row.content() == null
-                    || row.content().isBlank()
-                    || result.put(row.chunk_id(), row) != null) fail();
-            Long.parseLong(row.chunk_id());
+    private int verifySearchSamples(
+            String indexName, Query ownershipFilter, Map<String, EsChunkDocument> expectedChunksById)
+            throws IOException {
+        List<EsChunkDocument> orderedChunks = new ArrayList<>(expectedChunksById.values());
+        orderedChunks.sort(
+                Comparator.comparingInt(EsChunkDocument::chunk_order).thenComparing(EsChunkDocument::chunk_id));
+        Set<Integer> samplePositions =
+                new LinkedHashSet<>(List.of(0, orderedChunks.size() / 2, orderedChunks.size() - 1));
+        for (int position : samplePositions) {
+            EsChunkDocument sample = orderedChunks.get(position);
+            List<AnalyzeToken> tokens = client.indices()
+                    .analyze(r -> r.index(indexName).analyzer("ik_smart").text(sample.content()))
+                    .tokens();
+            if (tokens.isEmpty() || tokens.getFirst().token().isBlank()) fail();
+            String term = tokens.getFirst().token();
+            // 限定样本 ID 只消除排名干扰；命中仍必须满足真实 content match 和三项业务过滤。
+            SearchResponse<JsonData> search = client.search(
+                    r -> r.index(indexName)
+                            .size(1)
+                            .allowPartialSearchResults(false)
+                            .query(q -> q.bool(b -> b.filter(ownershipFilter)
+                                    .filter(f -> f.ids(i -> i.values(sample.chunk_id())))
+                                    .must(m -> m.match(
+                                            t -> t.field(EsChunkFields.CONTENT).query(term))))),
+                    JsonData.class);
+            if (search.timedOut()
+                    || search.shards().failed().intValue() != 0
+                    || search.hits().hits().stream()
+                            .noneMatch(h -> sample.chunk_id().equals(h.id()))) fail();
         }
-        return result;
+        return samplePositions.size();
     }
 
-    private static Query filter(Long kb, Long document, Long version) {
-        return Query.of(q -> q.bool(
-                b -> b.filter(f -> f.term(t -> t.field("knowledge_base_id").value(kb.toString())))
-                        .filter(f -> f.term(t -> t.field("document_id").value(document.toString())))
-                        .filter(f -> f.term(t -> t.field("index_version_id").value(version.toString())))));
+    // 同时检查来源字段、稳定 ID 和完整六字段值，禁止仅凭数量判断成功。
+    private static void comparePage(
+            List<Hit<JsonData>> page, Map<String, EsChunkDocument> expectedChunksById, Set<String> actualChunkIds) {
+        for (Hit<JsonData> hit : page) {
+            if (hit.source() == null
+                    || !hit.source().toJson().asJsonObject().keySet().containsAll(EsChunkFields.ALL_FIELDS)) fail();
+            JsonObject source = hit.source().toJson().asJsonObject();
+            for (String field : List.of(
+                    EsChunkFields.CHUNK_ID,
+                    EsChunkFields.KNOWLEDGE_BASE_ID,
+                    EsChunkFields.DOCUMENT_ID,
+                    EsChunkFields.INDEX_VERSION_ID,
+                    EsChunkFields.CONTENT)) if (source.get(field).getValueType() != JsonValue.ValueType.STRING) fail();
+            if (!(source.get(EsChunkFields.CHUNK_ORDER) instanceof JsonNumber order) || !order.isIntegral()) fail();
+            EsChunkDocument actual = hit.source().to(EsChunkDocument.class);
+            if (actual.chunk_id() == null
+                    || !actual.chunk_id().equals(hit.id())
+                    || !actualChunkIds.add(hit.id())
+                    || actualChunkIds.size() > MAX_CHUNKS
+                    || !actual.equals(expectedChunksById.get(hit.id()))) fail();
+        }
+    }
+
+    private static Map<String, EsChunkDocument> validateExpectedChunks(
+            Long knowledgeBaseId, Long documentId, Long indexVersionId, List<EsChunkDocument> expectedChunks) {
+        if (knowledgeBaseId == null
+                || documentId == null
+                || indexVersionId == null
+                || expectedChunks == null
+                || expectedChunks.isEmpty()
+                || expectedChunks.size() > MAX_CHUNKS) fail();
+        Map<String, EsChunkDocument> expectedChunksById = new HashMap<>();
+        for (EsChunkDocument expectedChunk : expectedChunks) {
+            if (expectedChunk == null
+                    || expectedChunk.chunk_id() == null
+                    || !expectedChunk.chunk_id().matches("[1-9][0-9]*")
+                    || !knowledgeBaseId.toString().equals(expectedChunk.knowledge_base_id())
+                    || !documentId.toString().equals(expectedChunk.document_id())
+                    || !indexVersionId.toString().equals(expectedChunk.index_version_id())
+                    || expectedChunk.chunk_order() < 0
+                    || expectedChunk.content() == null
+                    || expectedChunk.content().isBlank()
+                    || expectedChunksById.put(expectedChunk.chunk_id(), expectedChunk) != null) fail();
+            Long.parseLong(expectedChunk.chunk_id());
+        }
+        return expectedChunksById;
+    }
+
+    private static Query buildOwnershipFilter(Long knowledgeBaseId, Long documentId, Long indexVersionId) {
+        return Query.of(q -> q.bool(b -> b.filter(f ->
+                        f.term(t -> t.field(EsChunkFields.KNOWLEDGE_BASE_ID).value(knowledgeBaseId.toString())))
+                .filter(f -> f.term(t -> t.field(EsChunkFields.DOCUMENT_ID).value(documentId.toString())))
+                .filter(f -> f.term(t -> t.field(EsChunkFields.INDEX_VERSION_ID).value(indexVersionId.toString())))));
     }
 
     private static void fail() {

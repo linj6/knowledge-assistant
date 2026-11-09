@@ -51,3 +51,19 @@ Scroll 是本任务验证用的一次性快照读取方案；205 条真实数据
 固定本地 knowledge-assistant-elasticsearch:8.18.0-ik8.18.0 镜像，禁止拉取；未访问共享 ka-chunks-v1、未调用在线模型、未修改迁移、PG 或 M1-10A。没有运行全量测试、真实网络中断注入、超过 10,000 条的性能基准或并发写入压力测试。10,000 是组件明确拒绝超限的边界，不是对产品容量的修改。
 
 Scroll 数据快照与其后的搜索不是跨请求事务；验证成功不保证之后 ES 不被修改。只读验证成功不赋予发布可见性。M1-10C 后续负责 PG/ES 编排、最终 PG 快照复核及短事务 BUILDING → VERIFIED，本轮未实施；active_version_id、published_at、ImportTask 与 M1-11 均不涉及。
+
+## M1-10B 代码评审重构（2026-11-09）
+
+基线 `14ad7e2dccf8ea6ff39d72cb1e76675aab345760`，分支 feature/m1-ingestion-indexing，开始时工作区干净。本次只调整可读性和可维护性，不增加业务功能。
+
+- 新增 EsChunkFields，集中定义六字段名与不可变 ALL_FIELDS；EsIndexRepository、EsIntegrityService、EsIndexIT、EsIntegrityFailureTests 使用相同常量。已检查 EsIndexService，无需替换的字段字面量；EsChunkDocument 的 JSON 字段名保持不变。
+- EsIntegrityService 统一使用 knowledgeBaseId、documentId、indexVersionId、expectedChunks、expectedChunksById、indexName 和 indexRepository；辅助方法改为 validateExpectedChunks、buildOwnershipFilter。
+- verifyIndex 保留输入验证及安全异常边界，refreshAndVerifySnapshot 管理 Refresh、完整 Scroll 和清理，comparePage 比较 ID/六字段，verifySearchSamples 验证首中尾样本。Scroll 的 finally 仍覆盖搜索阶段和异常路径，保留每页100条、最多10,000条、空页终止、固定脱敏错误及原有失败/清理断言。
+
+现有 BM25 样本验证的含义是：“指定 Chunk 在 ID 和业务归属过滤下，可以通过正文 match 查询命中。”它并不证明普通 Top-K 检索的召回效果。本次没有调整 ID 过滤、IK 词项选取、BM25 查询语义、Mapping、业务索引名称或 create-only Bulk 行为，也不修改任何业务状态。
+
+本次实际验证：
+
+- `mvn spotless:apply spotless:check -DskipTests test-compile`：BUILD SUCCESS，格式及主代码/测试编译通过。
+- `mvn '-Dtest=EsIntegrityTests,EsIntegrityFailureTests,EsIndexTests,EsIntegrityIT' test`：11 项通过，0 失败/错误/跳过；其中离线9项、真实 ES/IK 2项（含继承的基础 analyzer 测试），真实版本断言 ES 8.18.0、IK 8.18.0。原有清理、失败和禁止修复断言保留并通过。
+- `git diff --check`、`git diff --cached --check`：通过，已审阅完整 diff。本次未执行全量测试或 EsIndexIT 运行测试（该文件仅替换常量，已完成测试编译）；不将本次结果记为全量验收。没有在线模型调用，也没有进入 M1-10C。
