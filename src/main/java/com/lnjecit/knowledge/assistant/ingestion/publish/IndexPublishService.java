@@ -31,6 +31,7 @@ public class IndexPublishService {
         // 租约以最后一条条件更新执行时的数据库时间为准，失败回滚前两条更新。
         repository.publish(claimedTask);
     }
+
     private static void validateClaim(ClaimedTask claimedTask) {
         if (claimedTask == null
                 || claimedTask.documentId() == null
@@ -75,5 +76,4 @@ public class IndexPublishService {
         if (!Objects.equals(task.getLeaseOwner(), claimedTask.leaseOwner()))
             throw new IllegalStateException("PUBLISH_CLAIM_CONFLICT");
     }
-
 }

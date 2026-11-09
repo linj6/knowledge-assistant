@@ -111,8 +111,8 @@ public class DocumentImportService {
             int dimensions,
             long started) {
         try {
-            ImportTask task = transaction.execute(status ->
-                    repository.create(kbId, filename, hash, finalKey, snapshot, embeddingModel, dimensions));
+            ImportTask task = transaction.execute(
+                    status -> repository.create(kbId, filename, hash, finalKey, snapshot, embeddingModel, dimensions));
             return outcome(task, false, started);
         } catch (RuntimeException ex) {
             // 提交异常不等于已回滚，必须先查主库是否引用了对象，再决定是否删除。
@@ -128,8 +128,7 @@ public class DocumentImportService {
     private void cleanupUnreferencedOriginal(String finalKey) {
         try {
             if (!repository.isObjectReferenced(finalKey)) cleanup(finalKey);
-            else
-                ImportEvents.warn(LOG, "code=ORIGINAL_OBJECT_REFERENCED_AFTER_COMMIT_ERROR objectKey={}", finalKey);
+            else ImportEvents.warn(LOG, "code=ORIGINAL_OBJECT_REFERENCED_AFTER_COMMIT_ERROR objectKey={}", finalKey);
         } catch (RuntimeException checkFailure) {
             // 查询本身失败时保留对象，避免误删已经提交的业务文件。
             ImportEvents.warn(LOG, "code=ORIGINAL_OBJECT_REFERENCE_UNKNOWN objectKey={}", finalKey);

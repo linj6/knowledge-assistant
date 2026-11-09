@@ -66,5 +66,4 @@ public class TaskRepository {
         if (task == null || !retryable || task.getAttemptCount() >= properties.getMaxAttempts()) return null;
         return properties.retryDelayMillis(task.getAttemptCount());
     }
-
 }

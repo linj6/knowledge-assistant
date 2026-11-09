@@ -21,9 +21,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Objects;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -118,17 +118,14 @@ public class IngestionTaskProcessor implements TaskProcessor {
                 || task.claimEpoch() <= 0) invalid();
     }
 
-    private static void validateTaskRecord(
-            ClaimedTask task,
-            ImportTask current) {
+    private static void validateTaskRecord(ClaimedTask task, ImportTask current) {
         if (current == null
                 || !Objects.equals(current.getDocumentId(), task.documentId())
                 || !Objects.equals(current.getIndexVersionId(), task.indexVersionId())
                 || !Objects.equals(current.getClaimEpoch(), task.claimEpoch())) invalid();
     }
 
-    private static void validateDocumentVersion(
-            ClaimedTask task, Document document, IndexVersion version) {
+    private static void validateDocumentVersion(ClaimedTask task, Document document, IndexVersion version) {
         if (document == null
                 || version == null
                 || !Objects.equals(document.getId(), task.documentId())
@@ -142,15 +139,11 @@ public class IngestionTaskProcessor implements TaskProcessor {
                 || version.getStatus() == IndexVersionStatus.PUBLISHED;
     }
 
-    private static void validateBuildState(
-            ClaimedTask task,
-            ImportTask current,
-            IndexVersion version) {
-        if (current.getStatus()
-                        != ImportTaskStatus.RUNNING
+    private static void validateBuildState(ClaimedTask task, ImportTask current, IndexVersion version) {
+        if (current.getStatus() != ImportTaskStatus.RUNNING
                 || !Objects.equals(current.getLeaseOwner(), task.leaseOwner())) invalid();
-        if (version.getStatus() != IndexVersionStatus.BUILDING
-                && version.getStatus() != IndexVersionStatus.VERIFIED) invalid();
+        if (version.getStatus() != IndexVersionStatus.BUILDING && version.getStatus() != IndexVersionStatus.VERIFIED)
+            invalid();
     }
 
     private void buildIndex(
@@ -171,7 +164,8 @@ public class IngestionTaskProcessor implements TaskProcessor {
         ParsedDocument parsed = parsers.parse(document.getFilename(), bytes);
         context.checkTimeout();
         long started = System.nanoTime();
-        int chunkCount = chunks.initialize(document.getId(), version.getId(), parsed).size();
+        int chunkCount =
+                chunks.initialize(document.getId(), version.getId(), parsed).size();
         stage("IMPORT_CHUNK_COMPLETED", task, current.getAttemptCount(), chunkCount, started);
         started = System.nanoTime();
         context.checkTimeout();
@@ -219,10 +213,7 @@ public class IngestionTaskProcessor implements TaskProcessor {
             outcome = "UNCERTAIN_RESULT_RESOLVED";
             // 提交响应丢失时先读任务事实，再由发布事务核对完整发布事实。
             ImportTask current = tasks.task(task.taskId());
-            if (current == null
-                    || current.getStatus()
-                            != ImportTaskStatus.SUCCEEDED)
-                context.checkTimeout();
+            if (current == null || current.getStatus() != ImportTaskStatus.SUCCEEDED) context.checkTimeout();
             publisher.publish(task);
         }
         // 代理事务方法返回后才记录发布成功；日志异常不会触发失败转换。
