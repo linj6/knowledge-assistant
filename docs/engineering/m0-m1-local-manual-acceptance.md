@@ -200,3 +200,144 @@ SELECT count(*) AS tasks FROM document_import_task;
 - 原始阻断：Docker daemon 不可用，恢复后基础设施通过；缺少迁移授权，明确授权后正常迁移通过。没有通过生产代码或数据库手工修复绕过。
 - 本轮最新矩阵：迁移 V1～V5、业务表与约束、应用启动/local Profile/8080、七项 HTTP 请求、RequestId、PG 记录复核均 PASS。
 - 完整 Embedding 导入、Stub 运行及 1024 维 HTTP 契约仍未验收；遵照本轮边界未开启。未执行真实模型语义质量验证，未进入 M2。
+
+
+## 完整导入与首次发布实测（2026-11-10 15:24～15:26）
+
+本节为最新结果。开始时 HEAD 8245a2e1936069c548f1fc75e84be92330513207，工作区干净，应用代码基线 167e6bf；PG、ES、MinIO 均 healthy。
+
+### 独立 Stub 与应用重启
+
+现有 EmbeddingHttpStubTests 为进程内 JUnit 工具，包含 Mockito，不适合作为运行服务。已参考其 OpenAI 响应格式，在仓库外创建 Python 标准库 HTTPServer 辅助程序，没有修改生产代码或构建。程序仅绑定 127.0.0.1，随机端口 63305；启动方式：
+
+```powershell
+python D:\develop\knowledge-assistant-local-backups\embedding_stub.py
+```
+
+端口写入 embedding_stub.py.port。仅接受 /v1/embeddings、text-embedding-v4 和 dimensions=1024；每条输入返回独立 index 及 [1,0,...,0] 共 1024 维向量。只记录路径、batch、正文 SHA-256 和维度，不记录原文、凭据或完整请求。无外网访问代码。Stub 日志实际显示 Spring AI 自动在 base-url /v1 后附加 /embeddings，三次请求 batch 分别为 4、3、4。响应 index 为 0～batch-1。
+
+核对 10644 命令行及 8080 归属后，使用专用 Python 辅助进程 AttachConsole/GenerateConsoleCtrlEvent 向其发送 Ctrl+C。旧日志确认 graceful shutdown complete、Hikari shutdown completed；未终止其他 Java 进程。
+
+新进程 PID 25120，8080 归属该进程；进程盘点仅此 Java 应用实例。显式 local Profile、worker/model/elasticsearch.enabled=true；模型 URL http://127.0.0.1:63305/v1，embedding-model=text-embedding-v4，dimensions=1024，chat-model=local-unused-chat，API key 使用非真实占位值，online-authorized=false。未调用 Chat API，无公网回退。PG localhost:5432/ka，MinIO localhost:9000 / knowledge-assistant，ES localhost:9200；PG/MinIO 凭据只通过进程环境传入，未写入仓库。
+
+没有覆盖 Worker 默认租约、预算、重试策略；单实例 TaskScheduler 串行执行，batch-size 默认 1。启动出现框架提示 No TaskScheduler/ScheduledExecutorService bean found for scheduled processing，但后续真实 pool-5-thread-1 完成领取及处理，不是 Worker 未运行。local Profile、Flyway 验证成功、应用启动成功。
+
+### 固定测试文件与首次 HTTP
+
+仓库外 manual.md 为无 BOM UTF-8，含中文标题 M1-MANUAL-20261110、18 段技术说明；manual.txt 含 M1-TXT-20261110 及技术术语。文件和辅助脚本均保留于证据目录，未进入生产源代码。
+
+真实请求：curl.exe -F file=@D:\develop\knowledge-assistant-local-backups\manual.md http://localhost:8080/api/v1/knowledge-bases/2120052899884367873/documents:import
+
+返回 HTTP 202，code=0，status=RECEIVED，documentId=2120055079429230593，importTaskId=2120055079517310978，RequestId=8db99c0c-6408-4655-8e74-65e6ed2a86b8。随后 GET /api/v1/import-tasks/{id} 返回 READY、failureCode=null。轮询设置 90 秒截止时间，以 READY/FAILED 为终止条件；首次轮询已读到 READY，不声称观察到了每个中间状态。TXT/跨库同样使用有截止时间的轮询。
+
+### IMPORT 阶段原始日志
+
+```text
+2026-11-10T15:24:54.351+08:00  INFO 25120 --- [knowledge-assistant] [nio-8080-exec-1] c.l.k.a.i.upload.DocumentImportService   : event=IMPORT_RECEIVED taskId=2120055079517310978 documentId=2120055079429230593 indexVersionId=2120055079517310977 attemptCount=0 elapsedMs=676
+2026-11-10T15:24:58.470+08:00  INFO 25120 --- [knowledge-assistant] [pool-5-thread-1] c.l.k.a.ingestion.task.TaskScheduler     : event=IMPORT_TASK_CLAIMED taskId=2120055079517310978 documentId=2120055079429230593 indexVersionId=2120055079517310977 elapsedMs=16
+2026-11-10T15:24:58.582+08:00  INFO 25120 --- [knowledge-assistant] [pool-5-thread-1] c.l.k.a.i.task.IngestionTaskProcessor    : event=IMPORT_CHUNK_COMPLETED taskId=2120055079517310978 documentId=2120055079429230593 indexVersionId=2120055079517310977 attemptCount=1 chunkCount=4 elapsedMs=82
+2026-11-10T15:25:00.116+08:00  INFO 25120 --- [knowledge-assistant] [pool-5-thread-1] c.l.k.a.i.task.IngestionTaskProcessor    : event=IMPORT_EMBEDDING_COMPLETED taskId=2120055079517310978 documentId=2120055079429230593 indexVersionId=2120055079517310977 attemptCount=1 chunkCount=4 elapsedMs=1532
+2026-11-10T15:25:01.863+08:00  INFO 25120 --- [knowledge-assistant] [pool-5-thread-1] c.l.k.a.i.task.IngestionTaskProcessor    : event=IMPORT_ES_COMPLETED taskId=2120055079517310978 documentId=2120055079429230593 indexVersionId=2120055079517310977 attemptCount=1 chunkCount=4 elapsedMs=1746
+2026-11-10T15:25:02.707+08:00  INFO 25120 --- [knowledge-assistant] [pool-5-thread-1] c.l.k.a.i.task.IngestionTaskProcessor    : event=IMPORT_VERIFIED taskId=2120055079517310978 documentId=2120055079429230593 indexVersionId=2120055079517310977 attemptCount=1 chunkCount=4 elapsedMs=843
+2026-11-10T15:25:02.729+08:00  INFO 25120 --- [knowledge-assistant] [pool-5-thread-1] c.l.k.a.i.task.IngestionTaskProcessor    : event=IMPORT_PUBLISHED taskId=2120055079517310978 documentId=2120055079429230593 indexVersionId=2120055079517310977 outcome=FIRST_PUBLISH elapsedMs=22
+2026-11-10T15:25:48.353+08:00  INFO 25120 --- [knowledge-assistant] [nio-8080-exec-8] c.l.k.a.i.upload.DocumentImportService   : event=IMPORT_DUPLICATE taskId=2120055079517310978 documentId=2120055079429230593 indexVersionId=2120055079517310977 attemptCount=1 elapsedMs=12
+```
+
+### PG 与 ES 只读核验
+
+```sql
+SELECT d.id,d.knowledge_base_id,d.active_version_id,v.id,v.status,v.published_at,
+       t.id,t.status,t.attempt_count,t.lease_owner,t.lease_until,t.last_error_code,t.last_error_message
+FROM document d JOIN document_index_version v ON v.document_id=d.id
+JOIN document_import_task t ON t.index_version_id=v.id;
+SELECT id,knowledge_base_id,document_id,index_version_id,chunk_order,
+       source_start,source_end,content,vector_dims(embedding)
+FROM document_chunk ORDER BY id;
+```
+
+只读 HTTP：GET /ka-chunks-v1/_mapping、GET /ka-chunks-v1/_search?size=100；POST /ka-chunks-v1/_search，query.bool.must 为 match content=中文知识，filter 为首个 index_version_id。
+
+逐条对比 PG/ES 的 ID 集合、KB/Document/Version 归属、chunk_order 及正文全部相等；11 个 Chunk 均有非空 1024 维向量。按源文件字符位置切片与每个 PG Chunk 正文逐条相等。Markdown 为 4 块（order 0～3，范围 0:800、680:1480、1360:2160、2040:2650），TXT 为 3 块，跨库 Markdown 为 4 块。
+
+ES _id 等于 PG Chunk ID；content 映射 text、ik_max_word、search_analyzer=ik_smart、similarity=BM25。限定首次版本的中文 Match 返回 4 个命中。此处仅为 M1 索引验收，不代表 M2 检索 API 已实现。
+
+三份文档均 active_version_id=对应版本，版本 PUBLISHED 且 published_at 非空，任务 SUCCEEDED、attempt_count=1；租约和 last_error_code/message 均 null。没有直接更新数据库。
+
+| KB | Document | Version | Task |
+|---|---|---|---|
+| 2120052899884367873 | 2120055079429230593 | 2120055079517310977 | 2120055079517310978 |
+| 2120052899884367873 | 2120055297256214530 | 2120055297256214531 | 2120055297256214532 |
+| 2120055306357854209 | 2120055306596929538 | 2120055306596929539 | 2120055306596929540 |
+
+### 其他真实 HTTP 结果
+
+| 验收 | HTTP | 安全响应摘要 | 判定 |
+|---|---|---|---|
+| txt：/api/v1/knowledge-bases/2120052899884367873/documents:import | 202 | code=0；data={"importTaskId": "2120055297256214532", "documentId": "2120055297256214530", "status": "RECEIVED", "createdAt": "2026-11-10T07:25:46.252100100Z", "updatedAt": "2026-11-10T07:25:46.252100100Z", "failureCode": null} | PASS |
+| duplicate：/api/v1/knowledge-bases/2120052899884367873/documents:import | 200 | code=0；data={"importTaskId": "2120055079517310978", "documentId": "2120055079429230593", "status": "READY", "createdAt": "2026-11-10T07:24:54.305137Z", "updatedAt": "2026-11-10T07:25:02.725807Z", "failureCode": null} | PASS |
+| create-second-kb：/api/v1/knowledge-bases | 201 | code=0；data={"id": "2120055306357854209", "name": "manual-cross-kb-20261110-1526", "description": null, "createdAt": "2026-11-10T07:25:48.415855Z"} | PASS |
+| cross-kb：/api/v1/knowledge-bases/2120055306357854209/documents:import | 202 | code=0；data={"importTaskId": "2120055306596929540", "documentId": "2120055306596929538", "status": "RECEIVED", "createdAt": "2026-11-10T07:25:48.481028300Z", "updatedAt": "2026-11-10T07:25:48.481028300Z", "failureCode": null} | PASS |
+| unsupported：/api/v1/knowledge-bases/2120052899884367873/documents:import | 400 | code=40000；data=null | PASS |
+| oversize：/api/v1/knowledge-bases/2120052899884367873/documents:import | 413 | code=40000；data=null | PASS |
+| invalid-kb：/api/v1/knowledge-bases/0/documents:import | 400 | code=40000；data=null | PASS |
+| missing-kb：/api/v1/knowledge-bases/9223372036854775807/documents:import | 404 | code=40401；data=null | PASS |
+
+TXT 与跨库任务均轮询到 READY。重复上传复用首次 Document/Task；最终 PG 仅 3 个文档、3 个版本、3 个任务，重复上传未创建额外版本。跨库 KB=2120055306357854209，使用相同文件产生独立文档和版本。不支持格式为 .pdf；超限测试为 2097153 字节 .txt；非法参数 kbId=0，不存在 KB=9223372036854775807。所有错误返回统一 code/message/data/requestId，证据中保存 X-Request-Id。所有数据保留，未清理。
+
+### MinIO 验证
+
+首个 originals/57f0fc8f-e8fb-4c0b-b397-bc0f50cd8e21 存在，下载后 SHA-256 与 manual.md 完全一致：54418E34F3B441C18CF1E955C51C62F3DDFCD757402CEDD2F658781227376329。staging 递归列表为空。最终 Bucket 仅有三个本轮 originals 对象，另两个为 originals/4459eaf6-61b7-4d3e-a693-681c89ccc5da 和 originals/1aab0fa2-688f-4af4-a329-83aeb43a7c10。ILM 仍为唯一 staging/ 两天规则，未覆盖 originals。没有主动覆盖或删除其他对象。
+
+### 最终验收矩阵与限制
+
+| 项目 | 状态 |
+|---|---|
+| 环境复核、旧应用正常停止、唯一应用/Worker 启动 | PASS |
+| 本地真实 Embedding HTTP、批量/index、1024 维契约 | PASS |
+| Markdown 202→READY、attempt=1、七阶段日志 | PASS |
+| PG 归属、分块位置、向量、三项发布事实、诊断租约清理 | PASS |
+| ES 稳定 ID、正文一致、IK/BM25、中文 Match | PASS |
+| Markdown originals 原始字节、staging 清理、ILM | PASS |
+| TXT READY、同库复用、跨库隔离 | PASS |
+| 不支持格式、超限、非法 KB 参数、不存在 KB | PASS |
+| 真实 Embedding 语义质量及在线 DashScope | NOT VERIFIED |
+| 破坏性故障注入 | NOT VERIFIED |
+
+正常导入没有出现失败，无生产代码或数据库修复。辅助检查中尝试读取不存在的 MinioProperties.java，随后改为读取实际配置和运行验证；未影响服务。未执行额外自动化测试，本轮为实际 HTTP/PG/ES/MinIO 验收。应用与 Stub 保持运行，Worker 当前启用；后续停止应用或 Stub 前应先确认无处理中任务。
+
+证据目录 D:\develop\knowledge-assistant-local-backups：embedding_stub.py、embedding_stub.py.port、stub.log/stub.err、manual.md/manual.txt、markdown-upload.txt、markdown-poll.json、additional_checks.py、additional-http.json、verify_indexes.py、pg-es-verification.json、import.stdout.log/import.stderr.log、manual-original.md。PG/ES 证据含本轮自建测试正文，不含凭据；Stub 日志不含正文。
+
+Stub 固定向量仅证明传输、持久化、双索引和发布工程流程；不证明真实中文语义质量。未调用真实 DashScope，没有手动修改任务/发布状态，没有删卷、清库、修改迁移或生产代码；未提交、Push、Merge 或进入 M2。
+
+## 最终收尾结论（2026-11-10 15:31～15:32）
+
+本节为最终状态，取代此前“应用与 Stub 保持运行”的描述。
+
+- 收尾起始分支 feature/m1-ingestion-indexing，HEAD 8245a2e1936069c548f1fc75e84be92330513207；工作区仅本验收文档有未提交变更。应用代码基线 167e6bf 未修改。
+- 停止前只读查询 document_import_task：3 个 SUCCEEDED，RUNNING=0；无处理中任务。
+- 核对 PID 25120 为本项目 jar、local Profile、模型 URL 127.0.0.1:63305/v1 的 Java 应用；PID 17856 为仓库外 embedding_stub.py。8080/63305 分别归属上述进程。
+- 按应用先、Stub 后的顺序，由独立辅助进程发送 Ctrl+C；没有按进程名批量终止或强制终止。应用日志 15:31:37 确认 Graceful shutdown complete 和 Hikari Shutdown completed。Stub 收到控制台中断退出。两 PID 均已消失，8080、63305 均无监听。
+- 停止后再次只读核验：V1～V5 全 success=true；3 文档、3 版本、11 Chunk、3 SUCCEEDED、0 RUNNING。三个 Docker 服务仍 healthy；没有停止基础设施、删卷、清表、清索引或删除 Bucket/对象。原数据库备份保留。
+- 脱敏证据归档：D:\develop\knowledge-assistant-local-backups\final-acceptance-evidence-20261110。包含 16 个日志、请求响应、PG/ES、Stub 脚本及测试文件，加 manifest.json（逐文件字节数与 SHA-256）。归档时对现有 PG/MinIO 凭据精确替换，并替换本地 Stub 占位值；没有复制数据库凭据配置或进程环境。原始备份和证据保留在仓库外，没有随 Git 提交。
+
+### 最终人工验收矩阵
+
+| 验收项 | 最终状态 |
+|---|---|
+| 本地基础设施、版本、原始卷复用、Bucket/ILM | PASS |
+| 迁移前备份、Flyway V1～V5、业务表及约束 | PASS |
+| local 启动、基础 API、统一错误与 RequestId、PG 回读 | PASS |
+| 本地 HTTP Stub 批量/index/1024 维契约 | PASS |
+| Markdown/TXT/跨库真实生产链路到 READY | PASS |
+| attempt=1、七阶段日志、原子发布事实、诊断/租约清理 | PASS |
+| PG/ES 11 个 Chunk 的 ID、归属、正文和向量维度 | PASS |
+| ES IK/BM25 映射及中文 Match | PASS |
+| Markdown MinIO 原始字节、staging 清理、originals ILM 边界 | PASS |
+| 同库重复复用、跨库隔离、格式/超限/非法参数/404 | PASS |
+| 无 RUNNING、应用及 Stub 有序退出、基础设施保留 | PASS |
+| 真实模型 Embedding 语义质量 | NOT VERIFIED |
+| 本轮破坏性故障注入及备份恢复演练 | NOT VERIFIED |
+
+最终结论：M0～M1 本地工程链路人工验收通过；这是本地 Stub 条件下的工程验收，不证明真实模型语义质量。没有真实 DashScope 请求，没有进入 M2。测试业务数据、ES 索引及三个 originals 对象继续保留，本轮不清理；今后真实模型评估应明确区分这些固定 Stub 向量。
+
+本轮只修改验收文档，审阅完整文档变更并执行 git diff --check，不运行 Maven 编译或自动化测试。按用户授权创建仅包含本验收文档的独立提交；不 Push、不 Merge。
