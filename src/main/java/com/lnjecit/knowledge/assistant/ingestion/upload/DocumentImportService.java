@@ -101,6 +101,8 @@ public class DocumentImportService {
         }
     }
 
+    private record CreatedImport(ImportTask task, boolean duplicate) {}
+
     private Outcome createTask(
             Long kbId,
             String filename,
@@ -111,9 +113,18 @@ public class DocumentImportService {
             int dimensions,
             long started) {
         try {
-            ImportTask task = transaction.execute(
-                    status -> repository.create(kbId, filename, hash, finalKey, snapshot, embeddingModel, dimensions));
-            return outcome(task, false, started);
+            CreatedImport result = transaction.execute(status -> {
+                // 同 KB 创建先锁知识库，锁内重复内容优先于容量拒绝。
+                repository.lockCapacity(kbId);
+                ImportTask existing = repository.findExisting(kbId, hash);
+                if (existing != null) return new CreatedImport(existing, true);
+                repository.checkCapacity(kbId);
+                return new CreatedImport(
+                        repository.create(kbId, filename, hash, finalKey, snapshot, embeddingModel, dimensions), false);
+            });
+            // 锁内去重的请求未使用自己的正式对象，提交后按原引用保护规则补偿。
+            if (result.duplicate()) cleanupUnreferencedOriginal(finalKey);
+            return outcome(result.task(), result.duplicate(), started);
         } catch (RuntimeException ex) {
             // 提交异常不等于已回滚，必须先查主库是否引用了对象，再决定是否删除。
             cleanupUnreferencedOriginal(finalKey);
