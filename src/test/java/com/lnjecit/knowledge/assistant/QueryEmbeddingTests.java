@@ -9,7 +9,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.lnjecit.knowledge.assistant.retrieval.QueryEmbeddingService;
+import com.lnjecit.knowledge.assistant.retrieval.embedding.QueryEmbeddingService;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.embedding.Embedding;

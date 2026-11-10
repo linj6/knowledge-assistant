@@ -15,9 +15,9 @@ import co.elastic.clients.elasticsearch.core.search.Hit;
 import co.elastic.clients.elasticsearch.indices.IndexState;
 import co.elastic.clients.json.JsonData;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
-import com.lnjecit.knowledge.assistant.retrieval.KeywordSearchRepository;
-import com.lnjecit.knowledge.assistant.retrieval.PublishedDocument;
-import com.lnjecit.knowledge.assistant.retrieval.PublishedVersionSnapshot;
+import com.lnjecit.knowledge.assistant.retrieval.keyword.KeywordSearchRepository;
+import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedDocument;
+import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshot;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -116,18 +116,20 @@ class KeywordProtocolTests {
                                 new PublishedDocument(2L, 3L),
                                 new PublishedDocument(4L, 5L),
                                 new PublishedDocument(6L, 7L)));
-                assertThat(new com.lnjecit.knowledge.assistant.retrieval.KeywordRetriever(
+                assertThat(new com.lnjecit.knowledge.assistant.retrieval.keyword.KeywordRetriever(
                                         repository,
-                                        mock(com.lnjecit.knowledge.assistant.retrieval.KeywordChunkRepository.class))
-                                .retrieve(new com.lnjecit.knowledge.assistant.retrieval.RetrievalContext(
+                                        mock(
+                                                com.lnjecit.knowledge.assistant.retrieval.keyword.KeywordChunkRepository
+                                                        .class))
+                                .retrieve(new com.lnjecit.knowledge.assistant.retrieval.model.RetrievalContext(
                                         "r",
                                         "query",
-                                        com.lnjecit.knowledge.assistant.retrieval.RetrievalStrategy.BM25,
-                                        com.lnjecit.knowledge.assistant.retrieval.RetrievalParameters.defaults(),
+                                        com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStrategy.BM25,
+                                        com.lnjecit.knowledge.assistant.retrieval.model.RetrievalParameters.defaults(),
                                         large))
                                 .failure())
                         .isEqualTo(
-                                com.lnjecit.knowledge.assistant.retrieval.RetrievalDiagnostics.Failure
+                                com.lnjecit.knowledge.assistant.retrieval.model.RetrievalDiagnostics.Failure
                                         .TERMS_LIMIT_EXCEEDED);
                 continue;
             }

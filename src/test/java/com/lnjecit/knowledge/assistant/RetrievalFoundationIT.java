@@ -44,8 +44,8 @@ class RetrievalFoundationIT {
     void snapshotVisibilityAndCorruption() {
         try (ConfigurableApplicationContext c = start()) {
             JdbcTemplate j = c.getBean(JdbcTemplate.class);
-            com.lnjecit.knowledge.assistant.retrieval.PublishedVersionSnapshotService s =
-                    c.getBean(com.lnjecit.knowledge.assistant.retrieval.PublishedVersionSnapshotService.class);
+            com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshotService s =
+                    c.getBean(com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshotService.class);
             assertThatThrownBy(() -> s.read(1L))
                     .isInstanceOf(com.lnjecit.knowledge.assistant.common.error.BusinessException.class);
             j.update("INSERT INTO knowledge_base(id,name) VALUES(1,'a'),(2,'b')");
@@ -63,7 +63,7 @@ class RetrievalFoundationIT {
                     "INSERT INTO document_import_task(id,document_id,index_version_id,status,lease_owner,claim_epoch,lease_until) VALUES(30,10,20,'RUNNING','worker',1,now()+interval '1 hour')");
             c.getBean(com.lnjecit.knowledge.assistant.ingestion.publish.IndexPublishService.class)
                     .publish(new ClaimedTask(30L, 10L, 20L, "worker", 1L));
-            com.lnjecit.knowledge.assistant.retrieval.PublishedVersionSnapshot old = s.read(1L);
+            com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshot old = s.read(1L);
             assertThat(old.documents()).hasSize(1);
             assertThat(old.snapshotHash()).isEqualTo(s.read(1L).snapshotHash());
             assertThatThrownBy(() -> old.documents().clear()).isInstanceOf(UnsupportedOperationException.class);

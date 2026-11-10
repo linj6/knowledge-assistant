@@ -8,7 +8,7 @@ VectorSearchRepository 封装 Mapper，空快照不发 SQL。VectorRetriever 使
 
 ## 精确 SQL 和可见性
 
-完整 SQL 位于 src/main/resources/mapper/retrieval/VectorSearchMapper.xml。核心形式：
+完整 SQL 位于 src/main/resources/mapper/retrieval/vector/VectorSearchMapper.xml。核心形式：
 
 ```sql
 SELECT ..., c.embedding <=> :query_vector AS distance

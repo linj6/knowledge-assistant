@@ -5,9 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.lnjecit.knowledge.assistant.retrieval.RankedChunk;
-import com.lnjecit.knowledge.assistant.retrieval.RetrievalParameters;
-import com.lnjecit.knowledge.assistant.retrieval.RrfFusionService;
+import com.lnjecit.knowledge.assistant.retrieval.fusion.RrfFusionService;
+import com.lnjecit.knowledge.assistant.retrieval.model.RankedChunk;
+import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalParameters;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;

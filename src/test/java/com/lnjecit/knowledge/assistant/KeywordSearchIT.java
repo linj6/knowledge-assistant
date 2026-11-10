@@ -8,16 +8,16 @@ import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
 import com.lnjecit.knowledge.assistant.ingestion.indexing.EsChunkDocument;
 import com.lnjecit.knowledge.assistant.ingestion.indexing.EsIndexRepository;
-import com.lnjecit.knowledge.assistant.retrieval.KeywordChunkRepository;
-import com.lnjecit.knowledge.assistant.retrieval.KeywordRetriever;
-import com.lnjecit.knowledge.assistant.retrieval.KeywordSearchRepository;
-import com.lnjecit.knowledge.assistant.retrieval.PublishedDocument;
-import com.lnjecit.knowledge.assistant.retrieval.PublishedVersionSnapshot;
-import com.lnjecit.knowledge.assistant.retrieval.RankedChunk;
-import com.lnjecit.knowledge.assistant.retrieval.RetrievalContext;
-import com.lnjecit.knowledge.assistant.retrieval.RetrievalParameters;
-import com.lnjecit.knowledge.assistant.retrieval.RetrievalStatus;
-import com.lnjecit.knowledge.assistant.retrieval.RetrievalStrategy;
+import com.lnjecit.knowledge.assistant.retrieval.keyword.KeywordChunkRepository;
+import com.lnjecit.knowledge.assistant.retrieval.keyword.KeywordRetriever;
+import com.lnjecit.knowledge.assistant.retrieval.keyword.KeywordSearchRepository;
+import com.lnjecit.knowledge.assistant.retrieval.model.RankedChunk;
+import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalContext;
+import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalParameters;
+import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStatus;
+import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStrategy;
+import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedDocument;
+import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshot;
 import java.util.List;
 import java.util.UUID;
 import org.apache.http.HttpHost;
@@ -174,7 +174,7 @@ class KeywordSearchIT extends ElasticsearchIT {
                                         three))
                                 .failure())
                         .isEqualTo(
-                                com.lnjecit.knowledge.assistant.retrieval.RetrievalDiagnostics.Failure
+                                com.lnjecit.knowledge.assistant.retrieval.model.RetrievalDiagnostics.Failure
                                         .TERMS_LIMIT_EXCEEDED);
 
                 assertThat(new KeywordSearchRepository(client, "missing-index")

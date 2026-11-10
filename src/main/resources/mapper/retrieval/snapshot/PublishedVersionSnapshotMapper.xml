@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshotMapper">
+ <select id="read" resultType="com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshotMapper$Row">
+ SELECT k.id AS knowledge_base_id,d.id AS document_id,d.active_version_id,
+ v.id AS version_id,v.document_id AS version_document_id
+ FROM knowledge_base k
+ LEFT JOIN document d ON d.knowledge_base_id=k.id AND d.active_version_id IS NOT NULL
+ LEFT JOIN document_index_version v ON v.id=d.active_version_id
+ WHERE k.id=#{kbId}
+ ORDER BY d.id
+ </select>
+</mapper>

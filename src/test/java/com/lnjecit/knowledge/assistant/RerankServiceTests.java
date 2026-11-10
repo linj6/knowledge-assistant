@@ -3,7 +3,9 @@ package com.lnjecit.knowledge.assistant;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.lnjecit.knowledge.assistant.infrastructure.ai.*;
-import com.lnjecit.knowledge.assistant.retrieval.*;
+import com.lnjecit.knowledge.assistant.retrieval.model.RankedChunk;
+import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalParameters;
+import com.lnjecit.knowledge.assistant.retrieval.rerank.RerankService;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
