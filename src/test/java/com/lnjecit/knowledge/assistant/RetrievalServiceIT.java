@@ -99,6 +99,20 @@ class RetrievalServiceIT extends ElasticsearchIT {
                         beans.getBeanProvider(KeywordRetriever.class),
                         context.getBean(RrfFusionService.class),
                         new RerankService(beans.getBeanProvider(Reranker.class)));
+                // 相同请求重复执行时仅比较证据与分数，不比较波动的耗时。
+                List<com.lnjecit.knowledge.assistant.retrieval.model.RetrievalResult> baseline = service.search(
+                        601L, "body", List.of(RetrievalStrategy.values()), RetrievalParameters.defaults());
+                for (int repeat = 0; repeat < 3; repeat++) {
+                    List<com.lnjecit.knowledge.assistant.retrieval.model.RetrievalResult> repeated = service.search(
+                            601L, "body", List.of(RetrievalStrategy.values()), RetrievalParameters.defaults());
+                    for (int i = 0; i < baseline.size(); i++) {
+                        assertThat(repeated.get(i).chunks())
+                                .isEqualTo(baseline.get(i).chunks());
+                        assertThat(repeated.get(i).diagnostics().snapshotHash())
+                                .isEqualTo(baseline.get(i).diagnostics().snapshotHash());
+                    }
+                }
+                baseline.forEach(result -> System.out.println("M2_ACCEPTANCE " + result));
                 assertThat(service.search(
                                 601L, "body", List.of(RetrievalStrategy.values()), RetrievalParameters.defaults()))
                         .hasSize(4)
