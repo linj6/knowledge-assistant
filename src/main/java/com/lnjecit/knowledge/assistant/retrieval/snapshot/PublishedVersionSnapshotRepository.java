@@ -28,6 +28,11 @@ public class PublishedVersionSnapshotRepository {
                     || !Objects.equals(row.documentId(), row.versionDocumentId())) throw new SnapshotInvalidException();
             documents.add(new PublishedDocument(row.documentId(), row.versionId()));
         }
-        return PublishedVersionSnapshot.of(kbId, documents);
+        // 仅转换快照构造的数据校验异常，数据库读取异常保留原类型。
+        try {
+            return PublishedVersionSnapshot.of(kbId, documents);
+        } catch (IllegalArgumentException invalid) {
+            throw new SnapshotInvalidException();
+        }
     }
 }

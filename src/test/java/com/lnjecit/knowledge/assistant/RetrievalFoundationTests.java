@@ -18,6 +18,34 @@ import org.junit.jupiter.api.Test;
 
 class RetrievalFoundationTests {
     @Test
+    void duplicatePublishedDocumentsAreInvalidButDatabaseFailuresRemainReadFailures() {
+        com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshotMapper mapper =
+                org.mockito.Mockito.mock(
+                        com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshotMapper.class);
+        com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshotMapper.Row row =
+                new com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshotMapper.Row(
+                        1L, 2L, 3L, 3L, 2L);
+        org.mockito.Mockito.when(mapper.read(1L)).thenReturn(List.of(row, row));
+        com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshotRepository repository =
+                new com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshotRepository(mapper);
+        assertThatThrownBy(() -> repository.read(1L))
+                .isInstanceOf(com.lnjecit.knowledge.assistant.retrieval.snapshot.SnapshotInvalidException.class);
+        RetrievalServiceTests fixture = new RetrievalServiceTests();
+        fixture.setup();
+        org.mockito.Mockito.when(fixture.snapshots.read(1L)).thenAnswer(call -> repository.read(1L));
+        assertThat(fixture.search(fixture.all))
+                .allSatisfy(
+                        result -> RetrievalServiceTests.failed(result, RetrievalDiagnostics.Failure.SNAPSHOT_INVALID));
+        org.springframework.dao.DataAccessResourceFailureException connection =
+                new org.springframework.dao.DataAccessResourceFailureException("JDBC_SECRET");
+        org.mockito.Mockito.when(mapper.read(1L)).thenThrow(connection);
+        assertThatThrownBy(() -> repository.read(1L)).isSameAs(connection);
+        assertThat(fixture.search(fixture.all))
+                .allSatisfy(result ->
+                        RetrievalServiceTests.failed(result, RetrievalDiagnostics.Failure.SNAPSHOT_READ_FAILED));
+    }
+
+    @Test
     void strategiesAndParameters() {
         assertThat(RetrievalStrategy.values())
                 .containsExactly(
