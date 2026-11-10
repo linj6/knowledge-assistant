@@ -1,0 +1,15 @@
+# 仅非敏感默认值；个人密码和密钥在外部 config/application-local.yml 中覆盖。
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ka
+    username: ka
+    password: ""
+assistant:
+  model:
+    base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    chat-model: qwen-plus
+    embedding-model: ${ASSISTANT_MODEL_EMBEDDING_MODEL:text-embedding-v4}
+    dimensions: ${ASSISTANT_MODEL_DIMENSIONS:1024}
+  rerank:
+    enabled: false
+    model: qwen3-rerank

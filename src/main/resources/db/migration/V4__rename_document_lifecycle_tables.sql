@@ -1,0 +1,20 @@
+-- 仅重命名物理对象；保留数据、对象标识和约束依赖，不重建表或索引。
+ALTER TABLE index_version RENAME TO document_index_version;
+ALTER TABLE import_task RENAME TO document_import_task;
+
+ALTER TABLE document_index_version RENAME CONSTRAINT index_version_pkey TO document_index_version_pkey;
+ALTER TABLE document_index_version RENAME CONSTRAINT index_version_status_check TO document_index_version_status_check;
+ALTER TABLE document_index_version RENAME CONSTRAINT index_version_expected_chunk_count_check TO document_index_version_expected_chunk_count_check;
+ALTER TABLE document_index_version RENAME CONSTRAINT index_version_embedding_model_check TO document_index_version_embedding_model_check;
+ALTER TABLE document_index_version RENAME CONSTRAINT index_version_embedding_dimension_check TO document_index_version_embedding_dimension_check;
+ALTER TABLE document_index_version RENAME CONSTRAINT index_version_check TO document_index_version_check;
+ALTER TABLE document_import_task RENAME CONSTRAINT import_task_pkey TO document_import_task_pkey;
+ALTER TABLE document_import_task RENAME CONSTRAINT import_task_status_check TO document_import_task_status_check;
+ALTER TABLE document_import_task RENAME CONSTRAINT import_task_attempt_count_check TO document_import_task_attempt_count_check;
+ALTER TABLE document_import_task RENAME CONSTRAINT import_task_claim_epoch_check TO document_import_task_claim_epoch_check;
+
+ALTER INDEX idx_index_version_document RENAME TO idx_document_index_version_document;
+ALTER INDEX idx_task_document RENAME TO idx_document_import_task_document;
+ALTER INDEX idx_task_version RENAME TO idx_document_import_task_version;
+ALTER INDEX idx_task_retry RENAME TO idx_document_import_task_retry;
+ALTER INDEX idx_task_lease RENAME TO idx_document_import_task_lease;

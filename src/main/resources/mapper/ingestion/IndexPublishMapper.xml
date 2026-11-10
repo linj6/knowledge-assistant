@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lnjecit.knowledge.assistant.ingestion.publish.IndexPublishMapper">
+ <update id="publishDocument">
+ UPDATE document SET active_version_id=#{claim.indexVersionId}
+ WHERE id=#{claim.documentId} AND active_version_id IS NULL
+ </update>
+ <update id="publishVersion">
+ UPDATE document_index_version SET status='PUBLISHED',published_at=statement_timestamp()
+ WHERE id=#{claim.indexVersionId} AND document_id=#{claim.documentId}
+ AND status='VERIFIED' AND published_at IS NULL
+ </update>
+ <update id="succeedTask">
+ UPDATE document_import_task SET status='SUCCEEDED',lease_owner=NULL,lease_until=NULL,
+ next_retry_at=NULL,last_error_code=NULL,last_error_message=NULL,updated_at=statement_timestamp()
+ WHERE id=#{claim.taskId} AND document_id=#{claim.documentId} AND index_version_id=#{claim.indexVersionId}
+ AND status='RUNNING' AND lease_owner=#{claim.leaseOwner} AND claim_epoch=#{claim.claimEpoch}
+ AND lease_until &gt; statement_timestamp()
+ </update>
+</mapper>

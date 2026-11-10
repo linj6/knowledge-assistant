@@ -1,8 +1,8 @@
 # Knowledge Assistant — V1 Architecture Specification
 
 - 状态：Final（V1 架构基线）
-- 版本：1.0
-- 日期：2026-11-06
+- 版本：1.1（M1-09 单 Worker 范围修订）
+- 日期：2026-11-08
 - 对应产品基线：[Product Spec](../product/product-spec.md)
 - 范围：P0；P1/P2 仅保留演进接口，不提前实现
 
@@ -122,15 +122,21 @@ flowchart TD
 
 验证包括：PG Chunk 数量等于 expected_chunk_count，所有向量非空/维度匹配；ES Bulk 每项成功、同版本索引数量与 ID 集合一致、必要字段正确，Refresh 后用实际带 KB/版本过滤的查询能命中抽样/代表性数据。**仅计数一致不足以证明集合一致**；小规模 V1 可核对全部 ID 集合。验证与发布之间不允许并发修改该版本的数据；任务发布需有效领取权。PG 发布事务锁定 Document，校验任务、版本、文档关系与 VERIFIED 状态、active_version_id 为空，原子写入三个状态；响应丢失时按已有发布事实返回幂等结果。
 
-MinIO 写成功但 PG 事务失败：尽力删除对象；失败时由按保留时间窗口的孤儿对象清理处理，不得清理上传中的对象。文档上传成功但处理失败：保留文件和任务供诊断与重试。重复内容返回明确的已有文档/任务信息，不新建第二份可检索内容；并发重复上传产生的多余 MinIO 对象须清理。
+原文件先写入同一 Bucket 的 staging/{UUID}，由 MinIO 服务端复制到另一个随机 Key originals/{UUID}，再通过短PG事务创建 Document、IndexVersion、ImportTask，仅持久化正式 Key。网络调用不进入PG事务。成功后尽力删除临时对象；复制结果不确定也补偿本请求目标 Key。PG异常后先查询主库正式对象引用，确认不存在才删除；查询失败保留并告警。并发重复上传仍由唯一约束裁决，仅补偿各自 Key。临时删除失败不改变成功响应，staging/ 由MinIO原生ILM按两天过期；originals/ 不配置自动过期。正式对象补偿失败或进程中断仍可能产生孤儿，告警并按维护窗口人工核对，不保留应用定时扫描。已有正式文件无需迁移，历史孤儿不会自动被ILM接管。文档上传成功但处理失败时保留文件和任务供诊断与重试；重复内容返回已有文档/任务信息，不新建第二份可检索内容。
 
-## 6. 并发领取、幂等与故障恢复
+## 6. 单 Worker 领取、幂等与故障恢复
 
-任务持久化在 PG，后台 Worker 使用条件更新/行锁领取，记录 lease_owner、lease_until、attempt_count；运行中续租，超时后可重新领取；重试有次数上限、退避和永久失败分类。进程启动扫描可领取或过期任务，不依赖内存队列的持久性。V1 不引入 MQ/Saga/Temporal。
+2026-11-08 M1-09 修订：V1 仅支持单个 Worker 实例顺序处理导入任务，PostgreSQL 持久化任务状态，Spring Scheduling 提供简单后台扫描。单 Worker 是部署与运行约束，不是配置开关自动提供的跨进程互斥；不得同时启动两个执行导入的应用实例，不得让手动入口与后台处理并行执行。重启或人工恢复前必须确认原执行进程已停止，不能仅凭租约过期认定旧执行者停止。
 
-**租约过期不等于旧 Worker 已停止**：写入需基于稳定版本/Chunk ID 幂等；发布前核验有效租约和领取代际（建议增加 claim_epoch 单调递增 fencing token），旧 Worker 不能发布。若两个执行者可能同时写同一未发布版本，必须通过单版本写入互斥或执行代际隔离，保证验证后不会被旧执行者覆盖；未落实该约束前不能宣称安全发布。最简单的 V1 实现可对每个版本使用 PG advisory lock 协调写入，并在最终发布时核验领取代际；跨外部调用的锁使用方式须通过崩溃测试确认。**发布版本永不允许后续重试写入**。
+沿用行锁/条件更新领取 PENDING、稳定 Chunk ID、Chunk 初始化与 Embedding 幂等、ES create-only Bulk 和 409 内容比较。保留 claim_epoch、lease_owner、lease_until 及已有条件更新校验，不继续建设 Epoch/Fencing 体系，不实施 ES External Versioning。V1 不支持多实例并发导入，不承诺租约失效后的严格迟到写入防护；多实例调度、分布式锁和严格 fencing 属于未来演进，不作为 V1 验收门槛。不引入 XXL-JOB、Redis/Redisson。
 
-失败矩阵：MinIO 孤儿对象→补偿/延迟清理；Embedding 中断→幂等重建；ES 部分写入→固定 _id 补写并重验；ES 写完但未 Refresh→等待可搜索再验证；发布前崩溃→恢复核验；PG 发布提交但响应丢失→读取 active_version_id 判定已成功。永久错误（格式/解析）不无限重试，暂时错误（超时/服务不可用）有限重试。保存脱敏错误码与诊断信息。
+M1-12 当前实现仍没有生产 TaskProcessor，调度默认关闭，无处理器时不领取任务。领取 PENDING 或到期可重试 FAILED，最多执行4次，退避5/15/45秒并加±20%抖动；未知运行时错误及永久错误不重试。SQL 使用数据库时间设置15分钟租约及重试时间，失败更新核对任务归属、owner、epoch及未过期租约并清理租约。TaskExecutionContext 使用单调时钟提供10分钟协作式截止时间，Worker 在处理前后检查；不续租、不强制中断线程，处理器正常返回不等于成功。M1-13 真实处理器须在每个耗时阶段检查截止时间，并设置各客户端请求超时。
+
+恢复仅锁 Task，在 REQUIRED 事务中将租约已过期且 owner 不同的 RUNNING 转为 FAILED，记录 WORKER_INTERRUPTED，按次数安排退避或终止。当前 owner 的任务不恢复；恢复后走普通领取，不宣称租约过期已 fencing 旧进程。MinIO 使用staging两天生命周期与正式对象即时补偿，移除应用扫描和对象互斥；部署检查及人工清理见 [存储简化验收](../engineering/m1-12-storage-simplification.md)。
+
+V1 仍须完成双索引完整性与可搜索性验证，再在 PG 事务内首次发布；处理完成不能直接标记 SUCCEEDED。保留 Document → IndexVersion → ImportTask 多实体锁顺序；只锁任务的短事务不得反向获取文档/版本锁。**已发布版本不可变，后续重试不得写入**。
+
+部分失败恢复要求保持：MinIO 临时对象→即时补偿/ILM，正式孤儿→告警和人工核对；Embedding 中断→幂等恢复；ES 部分写入→固定 _id 补写并重新验证；ES 写完但未 Refresh→验证可搜索；发布前崩溃→恢复核验；PG 发布提交但响应丢失→读取 active_version_id 判定已成功。基本有限重试、超时、失败恢复和孤儿对象清理由 M1-12 实现，单 Worker 常见故障由 M1-13 验收；保存脱敏错误码和诊断信息，不无限重试永久错误。
 
 ## 7. 查询可见性与规模边界
 
@@ -210,7 +216,7 @@ ContextBuilder 仅使用最终检索候选，按 Chunk ID 去重、按模型 Tok
 - 结构化日志：requestId/importTaskId/versionId、阶段耗时、错误码、重试次数、requested/actualStrategy、降级原因；不记录密钥和敏感原文。
 - 纯逻辑单测：Chunk 位置、RRF、指标计算、状态机、引用校验、Token Budget。
 - Testcontainers 集成：PG+pgvector、ES+IK（兼容镜像）、MinIO；验证真实 BM25、向量过滤、索引发布/刷新、KB 隔离。
-- 故障注入：MinIO/PG 中断、Embedding 超时、ES 部分写入、Refresh 延迟、发布事务前崩溃、提交后响应丢失、租约过期/双 Worker、重复上传、无答案、非法引用、Rerank 失败。
+- 故障注入：MinIO/PG 中断、Embedding 超时、ES 部分写入、Refresh 延迟、发布事务前崩溃、提交后响应丢失、单 Worker 超时与重启恢复、重复上传、无答案、非法引用、Rerank 失败。
 - 测试不得把在线模型非确定性当作全部测试通过的必要条件；用 Fake 模型稳定覆盖业务逻辑，另设可选在线冒烟验证。
 - M1 导入/双索引，M2 四策略，M3 问答引用，M4 评估，M5 文档与故障验收；对应 [Product Spec](../product/product-spec.md) 的 P0 门槛。
 
@@ -220,7 +226,7 @@ ContextBuilder 仅使用最终检索候选，按 Chunk ID 去重、按模型 Tok
 1. 固定 Spring Boot/Spring AI、PostgreSQL/pgvector、Elasticsearch/IK、MinIO、Testcontainers 兼容版本及镜像来源；提供 Docker Compose 和验证记录。
 2. 固定模型提供方、Embedding 维度、Tokenizer、Rerank 接口；验证鉴权、超时、费用边界。
 3. 固定上传大小上限、知识库最大已发布文档数、ES terms 安全上限、任务重试/租约参数、上下文预算；记录配置及合理性。
-4. 对**旧 Worker 写入与发布竞态**确定可验证的互斥/fencing 实现，完成故障注入测试；未通过不得标记 M1 完成。
+4. 明确单 Worker 部署约束，完成基本超时、部分失败及重启恢复测试；正式执行前须解决120秒租约与长任务的关系。多实例并发、严格 fencing 和极端竞态不属于 V1 验收范围。
 5. 对发布版本快照在 PG/ES 两路的一致性及 ES Refresh 后的可搜索性进行真实集成测试。
 
 这些事项由 Implementation Plan 拆成可验收的小任务；不能以“后续优化”为由跳过正确性验证。
@@ -239,3 +245,5 @@ ContextBuilder 仅使用最终检索候选，按 Chunk ID 去重、按模型 Tok
 未来 P1：文档删除/更新、版本切换与旧索引清理、SSE；P2：PDF/Web UI/Git 同步。Memory、Agent 属于独立后续阶段，不在 V1 预埋复杂平台。
 
 当前工程状态与历史验证边界见 [M0 验收报告](../engineering/m0-verification-report.md)；V1 业务参数初始值见 [配置基线](../engineering/configuration-baseline.md)。版本事实修正不改变本文架构决策。
+
+M1-09 架构修订及当前实现边界见 [M1-09 验证记录](../engineering/m1-09-verification.md)。

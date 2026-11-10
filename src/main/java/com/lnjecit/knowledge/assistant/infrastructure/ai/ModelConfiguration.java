@@ -28,11 +28,20 @@ public class ModelConfiguration {
         } catch (RuntimeException ex) {
             throw new IllegalStateException("assistant.model.base-url must be an HTTP endpoint without credentials");
         }
-        if (p.getChatModel() == null
-                || p.getChatModel().isBlank()
-                || p.getEmbeddingModel() == null
-                || p.getEmbeddingModel().isBlank()) {
-            throw new IllegalStateException("assistant.model chat-model and embedding-model are required when enabled");
+    }
+
+    // 模型专属字段在对应客户端入口校验，Embedding 不依赖 Chat 配置。
+    public static void validateChat(ModelProperties p) {
+        validate(p);
+        if (p.getChatModel() == null || p.getChatModel().isBlank()) {
+            throw new IllegalStateException("assistant.model.chat-model is required when enabled");
+        }
+    }
+
+    public static void validateEmbedding(ModelProperties p) {
+        validate(p);
+        if (p.getEmbeddingModel() == null || p.getEmbeddingModel().isBlank()) {
+            throw new IllegalStateException("assistant.model.embedding-model is required when enabled");
         }
         if (p.getDimensions() != null && (p.getDimensions() < 1 || p.getDimensions() > 16000)) {
             throw new IllegalStateException("assistant.model.dimensions must be between 1 and 16000");
@@ -41,7 +50,7 @@ public class ModelConfiguration {
 
     @Bean
     public OpenAiChatModel chatModel(ModelProperties p) {
-        validate(p);
+        validateChat(p);
         // 使用当前版本的客户端构建路径，禁用 SDK 自动重试以限制调用次数。
         return OpenAiChatModel.builder()
                 .options(OpenAiChatOptions.builder()
@@ -57,7 +66,7 @@ public class ModelConfiguration {
 
     @Bean
     public OpenAiEmbeddingModel embeddingModel(ModelProperties p) {
-        validate(p);
+        validateEmbedding(p);
         return OpenAiEmbeddingModel.builder()
                 .options(OpenAiEmbeddingOptions.builder()
                         .apiKey(p.getApiKey())

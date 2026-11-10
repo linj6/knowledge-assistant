@@ -1,0 +1,1 @@
+ALTER TABLE document_chunk ADD COLUMN version INTEGER NOT NULL DEFAULT 0;

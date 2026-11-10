@@ -22,8 +22,8 @@ class BusinessExceptionTests {
     enum TestCode implements ErrorCode {
         REJECTED;
 
-        public String getCode() {
-            return "TEST_REJECTED";
+        public Integer getCode() {
+            return 90001;
         }
 
         public String getMessage() {
@@ -33,7 +33,7 @@ class BusinessExceptionTests {
 
     @RestController
     static class Controller {
-        @GetMapping("/api/business/{code}")
+        @GetMapping("/business/{code}")
         void fail(@PathVariable String code) {
             throw new BusinessException(code.equals("custom") ? TestCode.REJECTED : CommonErrorCode.valueOf(code)) {
                 @Override
@@ -55,9 +55,12 @@ class BusinessExceptionTests {
     @Test
     void commonStatuses() throws Exception {
         CommonErrorCode[] codes = CommonErrorCode.values();
-        int[] statuses = {400, 405, 415, 500};
+        int[] statuses = {404, 400, 405, 415, 404, 500};
+        assertThat(java.util.Arrays.stream(codes).map(CommonErrorCode::getCode).toList())
+                .doesNotHaveDuplicates()
+                .doesNotContain(0, 90001);
         for (int i = 0; i < codes.length; i++) {
-            mvc.perform(get("/api/business/" + codes[i].getCode()))
+            mvc.perform(get("/business/" + codes[i].name()))
                     .andExpect(status().is(statuses[i]))
                     .andExpect(jsonPath("$.code").value(codes[i].getCode()))
                     .andExpect(jsonPath("$.message").value(codes[i].getMessage()));
@@ -66,11 +69,11 @@ class BusinessExceptionTests {
 
     @Test
     void customCodeAndSafeMessage(CapturedOutput output) throws Exception {
-        String body = mvc.perform(get("/api/business/custom").header("X-Request-Id", "safe-123"))
+        String body = mvc.perform(get("/business/custom").header("X-Request-Id", "safe-123"))
                 .andExpect(status().isBadRequest())
                 .andExpect(header().string("X-Request-Id", "safe-123"))
                 .andExpect(jsonPath("$.requestId").value("safe-123"))
-                .andExpect(jsonPath("$.code").value("TEST_REJECTED"))
+                .andExpect(jsonPath("$.code").value(90001))
                 .andExpect(jsonPath("$.message").value("测试请求被拒绝"))
                 .andExpect(jsonPath("$.*").isArray())
                 .andReturn()
@@ -84,7 +87,7 @@ class BusinessExceptionTests {
     @Test
     void generatedIdIsCorrelated() throws Exception {
         MockHttpServletResponse response =
-                mvc.perform(get("/api/business/custom")).andReturn().getResponse();
+                mvc.perform(get("/business/custom")).andReturn().getResponse();
         String id = response.getHeader("X-Request-Id");
         assertThat(id).matches("[a-f0-9-]{36}");
         assertThat(response.getContentAsString()).contains(id);

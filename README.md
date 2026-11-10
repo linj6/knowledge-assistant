@@ -10,12 +10,12 @@ mvn spring-boot:run
 ```
 
 也可在构建后执行 `java -jar target/knowledge-assistant-0.0.1-SNAPSHOT.jar`。
-应用默认监听 8080；停止时按 Ctrl+C。当前没有业务 API，访问根路径返回 404。
-离线测试不需要 Docker、外部服务或模型密钥；应用启动需要配置数据库。
+应用默认监听 8080；停止时按 Ctrl+C。已提供知识库创建/查询、文档上传和导入任务查询 API；访问根路径返回 404。
+默认测试不调用在线模型；部分持久化 Tests 和默认 IT 需要 Docker 及预置镜像。应用启动需要配置数据库。
 本地敏感配置使用已忽略的 `.env` 或 `application-local.yml` 等文件；当前应用不会自动加载 `.env`。
 
 根包为 `com.lnjecit.knowledge.assistant`，启动入口位于根包以覆盖后续组件扫描。
-按架构规格，未来逻辑模块职责如下；目前均无实际业务实现，因此不创建空包或占位类：
+按架构规格，未来逻辑模块职责如下；knowledge、ingestion 与 infrastructure 已有实现；其余随后续任务实现：
 
 | 子包 | 职责 |
 |---|---|
@@ -27,7 +27,7 @@ mvn spring-boot:run
 | infrastructure | 存储、模型客户端适配、配置与观测 |
 
 以上均为同一个 Maven 模块内的 Java 包，随对应任务实现。
-Flyway、配置/错误协议及模型适配已实现；PostgreSQL、Elasticsearch/IK、MinIO 本机功能和 Chat、Embedding、Rerank 历史接入已验证。业务导入、检索与 RAG 尚未实现，构建成功不代表 M0 完全验收。
+Flyway、配置/错误协议及模型适配已实现；PostgreSQL、Elasticsearch/IK、MinIO 本机功能和 Chat、Embedding、Rerank 历史接入已验证。M1 导入与首次发布已有实现；检索与 RAG 尚未实现，构建成功不代表 M0 完全验收。
 
 ## 本地基础设施（M0-03 本机功能已验证，交付部分验证）
 
@@ -43,7 +43,7 @@ docker compose stop
 ```
 
 PG/ES/S3/MinIO Console 分别绑定本机 5432/9200/9000/9001。服务共享项目默认网络，使用三个命名卷。
-应用已配置 PostgreSQL 与 Flyway；ES/MinIO 已有容器功能探针，业务接入尚未实现。修改 PG 初始化凭据不会修改已有卷中的数据库密码。
+应用已配置 PostgreSQL 与 Flyway；ES/MinIO 已有容器功能探针，M1 业务接入已有实现。修改 PG 初始化凭据不会修改已有卷中的数据库密码。
 停止保留卷；不要使用 `down -v`，该命令会删除数据。备份应在升级或主动删除卷之前完成。
 ES 关闭认证仅用于本地单节点开发；生产需要认证、TLS、权限与独立安全设计。
 MinIO 历史远端获取失败保留原记录；固定本地镜像运行、对象读写及重启持久化已验证，空白隔离环境恢复仍未验证。见 [验证记录](docs/engineering/m0-03-infrastructure-verification.md)。
@@ -92,11 +92,11 @@ docker compose up -d --build
 
 ## M0-07 测试入口
 
-- `mvn test`：仅离线测试（含本地回环 HTTP 桩），无需 Docker 或模型密钥。
-- `mvn verify`：离线测试及 DatabaseIT、ElasticsearchIT、MinioIT；需要 Docker 与预置镜像，容器端口随机，不使用开发库或开发卷。
+- `mvn test`：默认 *Tests（含本地回环 HTTP 桩与真实 PG 持久化测试），需要 Docker，无需模型密钥。
+- `mvn verify`：默认 *Tests 及 pom.xml 白名单中的 12 个 IT 类；需要 Docker 与预置镜像，容器端口随机，不使用开发库或开发卷。
 - `mvn -Ponline-model test`：仅 ModelOnlineIT、RerankOnlineIT；必须另获真实请求授权。Chat/Embedding 要求 `ASSISTANT_MODEL_ONLINE_AUTHORIZED=true`、`ASSISTANT_MODEL_ENABLED=true` 及模型配置；Rerank 要求既有 `ASSISTANT_RERANK_ONLINE_AUTHORIZED=true`、启用及配置。缺授权失败，不跳过。不使用该 profile 执行 verify。
 
-局部容器验证先执行 `mvn test-compile`，再执行 `mvn failsafe:integration-test failsafe:verify`（只运行明确白名单的三个容器类）。不要用 `-Dtest=*IT` 扩大选择。Failsafe 缺测试、Docker 不可用、缺镜像或启动失败均导致失败，不将 skip 当作通过。
+局部容器验证先执行 `mvn test-compile`，再执行 `mvn failsafe:integration-test failsafe:verify`（只运行 pom.xml 明确白名单中的容器类）。不要用 `-Dtest=*IT` 扩大选择。Failsafe 缺测试、Docker 不可用、缺镜像或启动失败均导致失败，不将 skip 当作通过。
 
 测试采用 Boot BOM 的 Testcontainers，所有镜像（包括 Ryuk）使用禁止拉取策略；不会在测试中下载或安装 IK。预置与 Compose 相同的 PG digest、`knowledge-assistant-elasticsearch:8.18.0-ik8.18.0`、`knowledge-assistant-minio:RELEASE.2025-09-07T16-13-09Z-local`。ES 在测试之外按既有 infra/elasticsearch 构建流程准备，须单独授权构建；本轮不构建。MinIO 按上文校验归档哈希、load、核对 image ID。目标 daemon 还须准备当前 Testcontainers 的 Ryuk 镜像 `testcontainers/ryuk:0.14.0`（本轮实际使用见验证报告），不能关闭 Ryuk 掩盖缺失。
 
@@ -105,3 +105,9 @@ docker compose up -d --build
 六类业务参数已记录为 [V1 初始配置基线](docs/engineering/configuration-baseline.md)，尚未实现或完成业务验证，不添加未使用配置。M0-07C 历史完整构建已通过（46 项、零失败/错误/跳过），本轮未重跑；隔离环境镜像恢复及负面测试仍未完成。
 
 本轮实施证据见 [M0-07B 验证记录](docs/engineering/m0-07b-verification.md)。
+
+MinIO 上传使用 staging/originals 单 Bucket 流程；部署前配置并检查 [staging 两天生命周期规则](infra/minio/README.md)。已有正式对象仍可直接读取，历史孤儿需按该文档一次性人工核对。
+
+## M1 文档导入与首次发布
+
+当前验收与默认测试发现边界见 [M1 最终综合验收](docs/engineering/m1-final-acceptance.md)。上传上限 2 MiB，支持 UTF-8 Markdown/TXT；新上传202、重复内容200。Worker默认关闭，启用前配置数据库、MinIO、ES、Embedding，并保持单实例单Worker。MinIO staging ILM部署见 [运维说明](infra/minio/README.md)。本轮不实现检索或RAG。

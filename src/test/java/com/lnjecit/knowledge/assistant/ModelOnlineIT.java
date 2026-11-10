@@ -53,23 +53,8 @@ class ModelOnlineIT {
         return value != null && value.matches("[a-zA-Z0-9_.:/-]{1,100}") ? value : "unavailable";
     }
 
-    static void requireAuthorization(java.util.Map<String, String> environment) {
-        if (!"true".equals(environment.get("ASSISTANT_MODEL_ONLINE_AUTHORIZED"))
-                || !"true".equals(environment.get("ASSISTANT_MODEL_ENABLED"))) {
-            throw new IllegalStateException("Explicit model online authorization required");
-        }
-    }
-
     private void runSmoke() {
-        requireAuthorization(System.getenv());
-        ModelProperties p = new ModelProperties();
-        p.setEnabled(true);
-        p.setApiKey(System.getenv("ASSISTANT_MODEL_API_KEY"));
-        p.setChatModel(System.getenv("ASSISTANT_MODEL_CHAT_MODEL"));
-        p.setEmbeddingModel(System.getenv("ASSISTANT_MODEL_EMBEDDING_MODEL"));
-        if (System.getenv("ASSISTANT_MODEL_BASE_URL") != null) p.setBaseUrl(System.getenv("ASSISTANT_MODEL_BASE_URL"));
-        if (System.getenv("ASSISTANT_MODEL_DIMENSIONS") != null)
-            p.setDimensions(Integer.valueOf(System.getenv("ASSISTANT_MODEL_DIMENSIONS")));
+        ModelProperties p = OnlineConfiguration.model(OnlineConfiguration.load());
         p.setTimeoutSeconds(20);
         ModelConfiguration config = new ModelConfiguration();
         OpenAiChatModel chat = config.chatModel(p);

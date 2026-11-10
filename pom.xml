@@ -30,6 +30,42 @@
     </dependencyManagement>
     <dependencies>
         <dependency>
+            <groupId>co.elastic.clients</groupId>
+            <artifactId>elasticsearch-java</artifactId>
+            <version>8.18.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.elasticsearch.client</groupId>
+            <artifactId>elasticsearch-rest-client</artifactId>
+            <version>8.18.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.commonmark</groupId>
+            <artifactId>commonmark</artifactId>
+            <version>0.32.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp-jvm</artifactId>
+            <version>5.1.0</version>
+        </dependency>
+        <dependency>
+            <groupId>io.minio</groupId>
+            <artifactId>minio</artifactId>
+            <version>8.6.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-spring-boot4-starter</artifactId>
+            <version>3.5.18</version>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-openai</artifactId>
         </dependency>
@@ -110,6 +146,19 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <includes>
@@ -125,7 +174,16 @@
                     <includes>
                         <include>**/DatabaseIT.java</include>
                         <include>**/ElasticsearchIT.java</include>
+                        <include>**/EsIndexIT.java</include>
+                        <include>**/EsIntegrityIT.java</include>
+                        <include>**/PgIntegrityIT.java</include>
+                        <include>**/IndexVerificationIT.java</include>
+                        <include>**/IndexPublishIT.java</include>
                         <include>**/MinioIT.java</include>
+                        <include>**/ImportTaskIT.java</include>
+                        <include>**/TaskRecoveryIT.java</include>
+                        <include>**/StorageImportIT.java</include>
+                        <include>**/IngestionPipelineIT.java</include>
                     </includes>
                     <failIfNoTests>true</failIfNoTests>
                 </configuration>

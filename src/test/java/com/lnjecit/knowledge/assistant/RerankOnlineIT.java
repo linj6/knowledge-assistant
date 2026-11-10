@@ -8,33 +8,19 @@ import com.lnjecit.knowledge.assistant.infrastructure.ai.Reranker;
 import com.lnjecit.knowledge.assistant.infrastructure.config.RerankProperties;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
-// IT 命名不在默认 Surefire 范围；即使显式执行，也必须先通过环境变量授权和配置校验。
+// IT 命名不在默认 Surefire 范围；即使显式执行，也必须先通过独立授权和配置校验。
 class RerankOnlineIT {
-    static RerankProperties configuration(Map<String, String> env) {
-        if (!"true".equals(env.get("ASSISTANT_RERANK_ONLINE_AUTHORIZED"))
-                || !"true".equals(env.get("ASSISTANT_RERANK_ENABLED")))
-            throw new IllegalStateException("Explicit rerank online authorization required");
-        RerankProperties properties = new RerankProperties();
-        properties.setEnabled(true);
-        properties.setEndpoint(env.get("ASSISTANT_RERANK_ENDPOINT"));
-        properties.setApiKey(env.get("ASSISTANT_RERANK_API_KEY"));
-        properties.setModel(env.get("ASSISTANT_RERANK_MODEL"));
-        properties.setTimeoutSeconds(20);
-        properties.afterPropertiesSet();
-        return properties;
-    }
-
     @Test
     @Timeout(30)
     void rerankOnce() {
         String stage = "CONFIGURATION";
         long start = System.nanoTime();
         try {
-            RerankProperties properties = configuration(System.getenv());
+            RerankProperties properties = OnlineConfiguration.rerank(OnlineConfiguration.load());
+            properties.setTimeoutSeconds(20);
             Reranker reranker = new RerankConfiguration().reranker(properties);
             List<RerankCandidate> candidates = List.of(
                     new RerankCandidate("spring-di", "Spring Boot 使用依赖注入管理 Bean，由容器注入依赖对象。"),

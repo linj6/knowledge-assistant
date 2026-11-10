@@ -1,0 +1,10 @@
+# 不排除数据库自动配置，容器测试可通过动态属性或命令行提供连接。
+assistant:
+  model:
+    enabled: false
+    online-authorized: false
+  embedding:
+    baseline-authorized: false
+  rerank:
+    enabled: false
+    online-authorized: false
