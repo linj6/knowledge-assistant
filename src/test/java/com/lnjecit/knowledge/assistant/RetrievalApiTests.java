@@ -42,6 +42,96 @@ class RetrievalApiTests {
     }
 
     @Test
+    void logsAndFailedApiDoNotExposeInternalSensitiveData() throws Exception {
+        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger)
+                org.slf4j.LoggerFactory.getLogger(com.lnjecit.knowledge.assistant.retrieval.RetrievalService.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> capture =
+                new ch.qos.logback.core.read.ListAppender<>();
+        capture.start();
+        logger.addAppender(capture);
+        String secret = "QUERY_SENTINEL";
+        float[] vector = new float[1024];
+        vector[0] = .1234567f;
+        when(fixture.embedding.embed(secret))
+                .thenReturn(new com.lnjecit.knowledge.assistant.retrieval.embedding.QueryVector(vector));
+        com.lnjecit.knowledge.assistant.retrieval.model.RankedChunk evidence =
+                new com.lnjecit.knowledge.assistant.retrieval.model.RankedChunk(
+                        4L, 2L, 3L, 1L, "CONTENT_SENTINEL", 0, 16, null, 1, .1, null, null, null, null, null);
+        when(fixture.vector.retrieve(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new com.lnjecit.knowledge.assistant.retrieval.vector.VectorRetriever.Recall(
+                        List.of(evidence),
+                        List.of(new com.lnjecit.knowledge.assistant.retrieval.model.RetrievalDiagnostics.Stage(
+                                com.lnjecit.knowledge.assistant.retrieval.model.RetrievalDiagnostics.Phase.VECTOR,
+                                0,
+                                1,
+                                List.of(
+                                        new com.lnjecit.knowledge.assistant.retrieval.model.RetrievalDiagnostics
+                                                .Candidate(4L, 1, .1)))),
+                        null));
+        String request = body("[\"VECTOR\"]", null).replace("\"query\":\"query\"", "\"query\":\"" + secret + "\"");
+        try {
+            mvc.perform(post("/v1/retrieval/search")
+                            .header("X-Request-Id", "safe-request")
+                            .contentType("application/json")
+                            .content(request))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.results[0].chunks[0].content").value("CONTENT_SENTINEL"));
+            when(fixture.embedding.embed(secret))
+                    .thenThrow(new IllegalStateException(
+                            "EXCEPTION_SENTINEL API_KEY_SENTINEL PROVIDER_RESPONSE_SENTINEL 0.1234567"));
+            String response = mvc.perform(post("/v1/retrieval/search")
+                            .header("X-Request-Id", "safe-request")
+                            .contentType("application/json")
+                            .content(request))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.results[0].diagnostics.error").value("EMBEDDING_FAILED"))
+                    .andReturn()
+                    .getResponse()
+                    .getContentAsString();
+            org.assertj.core.api.Assertions.assertThat(response)
+                    .doesNotContain(
+                            secret,
+                            "CONTENT_SENTINEL",
+                            "EXCEPTION_SENTINEL",
+                            "API_KEY_SENTINEL",
+                            "PROVIDER_RESPONSE_SENTINEL",
+                            "0.1234567",
+                            "stackTrace",
+                            "IllegalStateException");
+            String logs = capture.list.stream()
+                    .map(ch.qos.logback.classic.spi.ILoggingEvent::getFormattedMessage)
+                    .collect(java.util.stream.Collectors.joining("\n"));
+            org.assertj.core.api.Assertions.assertThat(logs)
+                    .contains(
+                            "requestId=safe-request",
+                            "knowledgeBaseId=1",
+                            "requestedStrategy=VECTOR",
+                            "actualStrategy=VECTOR",
+                            "actualStrategy=null",
+                            "status=SUCCESS",
+                            "status=FAILED",
+                            "phase=VECTOR",
+                            "phase=EMBEDDING",
+                            "elapsedMillis=",
+                            "candidateCount=",
+                            "error=EMBEDDING_FAILED")
+                    .doesNotContain(
+                            secret,
+                            "CONTENT_SENTINEL",
+                            "EXCEPTION_SENTINEL",
+                            "API_KEY_SENTINEL",
+                            "PROVIDER_RESPONSE_SENTINEL",
+                            "0.1234567");
+            org.assertj.core.api.Assertions.assertThat(capture.list)
+                    .allSatisfy(event -> org.assertj.core.api.Assertions.assertThat(event.getThrowableProxy())
+                            .isNull());
+        } finally {
+            logger.detachAppender(capture);
+            capture.stop();
+        }
+    }
+
+    @Test
     void fullDiagnosticsAndStringIds() throws Exception {
         mvc.perform(post("/v1/retrieval/search")
                         .contentType("application/json")

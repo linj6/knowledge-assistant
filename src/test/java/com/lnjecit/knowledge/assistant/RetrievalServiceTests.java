@@ -94,6 +94,40 @@ class RetrievalServiceTests {
     }
 
     @Test
+    void failedStagesAreEmptyAndKeepOnlyExecutedPhaseDiagnostics() {
+        when(embedding.embed("query")).thenThrow(new IllegalStateException("MODEL_SECRET"));
+        List<RetrievalResult> embeddingFailed = search(all);
+        for (int i : List.of(0, 2, 3)) {
+            failed(embeddingFailed.get(i), RetrievalDiagnostics.Failure.EMBEDDING_FAILED);
+            assertThat(embeddingFailed.get(i).diagnostics().stages()).hasSize(1);
+            assertThat(embeddingFailed.get(i).diagnostics().stages().getFirst().phase())
+                    .isEqualTo(RetrievalDiagnostics.Phase.EMBEDDING);
+            assertThat(embeddingFailed.get(i).diagnostics().stages().getFirst().candidates())
+                    .isEmpty();
+        }
+        org.mockito.Mockito.reset(embedding);
+        float[] values = new float[1024];
+        values[0] = 1;
+        when(embedding.embed("query")).thenReturn(new QueryVector(values));
+        when(rerank.rerank(any(), any(), any())).thenThrow(new IllegalStateException("MODEL_SECRET"));
+        RetrievalResult rerankFailed = search(all).getLast();
+        failed(rerankFailed, RetrievalDiagnostics.Failure.RERANK_FAILED);
+        assertThat(rerankFailed.diagnostics().stages())
+                .extracting(RetrievalDiagnostics.Stage::phase)
+                .containsExactly(
+                        RetrievalDiagnostics.Phase.EMBEDDING,
+                        RetrievalDiagnostics.Phase.FUSION,
+                        RetrievalDiagnostics.Phase.RERANK);
+        assertThat(rerankFailed.diagnostics().stages().getLast().candidateCount())
+                .isZero();
+        assertThat(rerankFailed.diagnostics().stages().getLast().candidates()).isEmpty();
+        assertThat(rerankFailed.diagnostics().stages()).allSatisfy(stage -> {
+            assertThat(stage.elapsedMillis()).isNotNegative();
+            assertThat(stage.candidateCount()).isEqualTo(stage.candidates().size());
+        });
+    }
+
+    @Test
     void allShareCallsAndOrder() {
         List<RetrievalResult> results = search(all);
         assertThat(results).hasSize(4).allSatisfy(r -> {
