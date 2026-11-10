@@ -74,9 +74,11 @@ class RetrievalFoundationIT {
             assertThat(s.read(1L).documents()).hasSize(2);
             assertThat(old.documents()).hasSize(1);
             j.update("UPDATE document SET active_version_id=999 WHERE id=10");
-            assertThatThrownBy(() -> s.read(1L)).hasMessage("SNAPSHOT_OWNERSHIP_INVALID");
+            assertThatThrownBy(() -> s.read(1L))
+                    .isInstanceOf(com.lnjecit.knowledge.assistant.retrieval.snapshot.SnapshotInvalidException.class);
             j.update("UPDATE document SET active_version_id=22 WHERE id=10");
-            assertThatThrownBy(() -> s.read(1L)).hasMessage("SNAPSHOT_OWNERSHIP_INVALID");
+            assertThatThrownBy(() -> s.read(1L))
+                    .isInstanceOf(com.lnjecit.knowledge.assistant.retrieval.snapshot.SnapshotInvalidException.class);
             j.execute("ALTER TABLE document_index_version RENAME TO unavailable_versions");
             assertThatThrownBy(() -> s.read(1L)).isInstanceOf(org.springframework.dao.DataAccessException.class);
         }

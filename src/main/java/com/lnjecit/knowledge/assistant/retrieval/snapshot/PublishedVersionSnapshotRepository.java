@@ -21,13 +21,11 @@ public class PublishedVersionSnapshotRepository {
         List<PublishedDocument> documents = new ArrayList<>();
         // LEFT JOIN 保留损坏指针；不能用内连接静默隐藏异常关系。
         for (PublishedVersionSnapshotMapper.Row row : rows) {
-            if (!Objects.equals(kbId, row.knowledgeBaseId()))
-                throw new IllegalStateException("SNAPSHOT_OWNERSHIP_INVALID");
+            if (!Objects.equals(kbId, row.knowledgeBaseId())) throw new SnapshotInvalidException();
             if (row.activeVersionId() == null) continue;
             if (row.documentId() == null
                     || !Objects.equals(row.activeVersionId(), row.versionId())
-                    || !Objects.equals(row.documentId(), row.versionDocumentId()))
-                throw new IllegalStateException("SNAPSHOT_OWNERSHIP_INVALID");
+                    || !Objects.equals(row.documentId(), row.versionDocumentId())) throw new SnapshotInvalidException();
             documents.add(new PublishedDocument(row.documentId(), row.versionId()));
         }
         return PublishedVersionSnapshot.of(kbId, documents);

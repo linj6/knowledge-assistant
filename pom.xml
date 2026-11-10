@@ -182,6 +182,7 @@
                         <include>**/RetrievalFoundationIT.java</include>
                         <include>**/VectorSearchIT.java</include>
                         <include>**/KeywordSearchIT.java</include>
+                        <include>**/RetrievalServiceIT.java</include>
                         <include>**/MinioIT.java</include>
                         <include>**/ImportTaskIT.java</include>
                         <include>**/TaskRecoveryIT.java</include>
