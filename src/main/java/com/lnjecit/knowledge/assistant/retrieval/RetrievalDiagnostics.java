@@ -16,6 +16,7 @@ public record RetrievalDiagnostics(
         SNAPSHOT_READ_FAILED,
         SNAPSHOT_INVALID,
         TERMS_LIMIT_EXCEEDED,
+        EMBEDDING_FAILED,
         VECTOR_FAILED,
         BM25_FAILED,
         FUSION_FAILED,
@@ -24,6 +25,7 @@ public record RetrievalDiagnostics(
     }
 
     public enum Phase {
+        EMBEDDING,
         VECTOR,
         BM25,
         FUSION,

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lnjecit.knowledge.assistant.retrieval.VectorSearchMapper">
+ <select id="search" resultType="com.lnjecit.knowledge.assistant.retrieval.VectorSearchMapper$Row">
+  SELECT c.id AS chunk_id,c.document_id,c.index_version_id,c.knowledge_base_id,
+         c.content,c.source_start,c.source_end,c.heading_path,
+         c.embedding &lt;=> #{vector,typeHandler=com.lnjecit.knowledge.assistant.infrastructure.persistence.VectorTypeHandler} AS distance
+  FROM document_chunk c
+  JOIN document d ON d.id=c.document_id AND d.knowledge_base_id=c.knowledge_base_id AND d.active_version_id=c.index_version_id
+  JOIN document_index_version v ON v.id=c.index_version_id AND v.document_id=d.id
+  WHERE c.knowledge_base_id=#{snapshot.knowledgeBaseId} AND c.embedding IS NOT NULL
+  <!-- 成对保留快照归属，全部可见性条件在排序与 LIMIT 前执行。 -->
+  AND ( <foreach collection="snapshot.documents" item="entry" separator=" OR ">
+   (c.document_id=#{entry.documentId} AND c.index_version_id=#{entry.indexVersionId})
+  </foreach> )
+  ORDER BY distance ASC,c.id ASC
+  LIMIT #{topK}
+ </select>
+</mapper>
