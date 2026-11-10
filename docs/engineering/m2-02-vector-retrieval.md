@@ -54,3 +54,22 @@ git diff --cached --check
 ## 收尾结果
 
 最终 QueryEmbeddingTests 4项通过，0失败/错误/跳过；与未变化的其余10项构成15项唯一测试通过。最终 Spotless apply/check 和 test-compile 成功，完整新增代码及 SQL 已审阅；diff 与暂存差异空白检查通过。Commit SHA 由任务最终回复提供，避免自引用。
+
+## M2-02 审查修复：默认集成测试发现（2026-11-10）
+
+基线为 589c2c46d66c2962d3ee1b06dce93a5382c56ea3，分支 feature/m2-retrieval，开始时工作区干净。本次仅在 pom.xml 的 Failsafe includes 中补充 `**/VectorSearchIT.java`。
+
+Surefire 默认 includes 仅匹配 `**/*Tests.java`；online-model profile 单独覆盖为在线模型 IT，本次未启用。Failsafe 已配置显式 includes 名单，不能依赖插件内置的 `*IT` 默认匹配。此前通过 `-Dtest` 在 Surefire 中显式执行 VectorSearchIT 的记录不能证明默认 Failsafe 能发现它。其他 IT 的名单范围本次不调整。
+
+实际执行：
+
+```powershell
+mvn spotless:apply spotless:check '-DskipTests' test-compile
+mvn failsafe:integration-test failsafe:verify
+git diff --check
+git diff --cached --check
+```
+
+Spotless apply/check 和 test-compile 成功。编译后直接执行默认 Failsafe 两个目标，未设置 `-Dtest`、`-Dit.test` 或 includes 覆盖参数，未跳过测试。默认名单共执行 38 项，0 失败、0 错误、0 跳过，BUILD SUCCESS；其中 VectorSearchIT 执行 1 项，0 失败、0 错误、0 跳过，耗时 4.448 秒。完整运行耗时 7 分 23 秒。证据位于忽略的 `target/m2-02-failsafe-default.log` 和 `target/failsafe-reports/`，不提交生成报告。
+
+本次未运行 clean verify、Surefire 全套单元测试或在线供应商验证；未修改 SQL、Embedding、冻结 Spec 或其他测试发现规则，未开始 M2-03。两种 diff 空白检查通过；Commit SHA 由最终回复提供。
