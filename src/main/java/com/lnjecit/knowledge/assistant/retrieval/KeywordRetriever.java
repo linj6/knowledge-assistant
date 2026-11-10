@@ -44,6 +44,9 @@ public class KeywordRetriever {
                     .map(c -> new RetrievalDiagnostics.Candidate(c.chunkId(), c.bm25Rank(), c.bm25Score()))
                     .toList();
             return new Recall(result, List.of(stage(start, candidates)), null);
+        } catch (TermsLimitExceededException failure) {
+            return new Recall(
+                    List.of(), List.of(stage(start, List.of())), RetrievalDiagnostics.Failure.TERMS_LIMIT_EXCEEDED);
         } catch (RuntimeException failure) {
             return new Recall(List.of(), List.of(stage(start, List.of())), RetrievalDiagnostics.Failure.BM25_FAILED);
         }

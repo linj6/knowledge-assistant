@@ -15,7 +15,7 @@ public final class PublishedVersionTerms {
             if (id == null) throw new IllegalArgumentException("TERMS_INVALID_ID");
             unique.add(id);
         }
-        if (unique.size() > MAX_UNIQUE_VERSIONS) throw new IllegalArgumentException("TERMS_LIMIT_EXCEEDED");
+        if (unique.size() > MAX_UNIQUE_VERSIONS) throw new TermsLimitExceededException();
         return List.copyOf(unique);
     }
 }

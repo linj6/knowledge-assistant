@@ -164,7 +164,19 @@ class KeywordSearchIT extends ElasticsearchIT {
                                 new PublishedDocument(2L, 3L),
                                 new PublishedDocument(5L, 6L),
                                 new PublishedDocument(11L, 12L)));
-                assertThatThrownBy(() -> repository.search(three, "Spring", 10)).hasMessage("BM25_FAILED");
+                assertThatThrownBy(() -> repository.search(three, "Spring", 10)).hasMessage("TERMS_LIMIT_EXCEEDED");
+                assertThat(new KeywordRetriever(repository, org.mockito.Mockito.mock(KeywordChunkRepository.class))
+                                .retrieve(new RetrievalContext(
+                                        "limit",
+                                        "Spring",
+                                        RetrievalStrategy.BM25,
+                                        RetrievalParameters.defaults(),
+                                        three))
+                                .failure())
+                        .isEqualTo(
+                                com.lnjecit.knowledge.assistant.retrieval.RetrievalDiagnostics.Failure
+                                        .TERMS_LIMIT_EXCEEDED);
+
                 assertThat(new KeywordSearchRepository(client, "missing-index")
                                 .search(PublishedVersionSnapshot.of(1L, List.of()), "Spring", 2))
                         .isEmpty();

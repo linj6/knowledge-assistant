@@ -57,7 +57,8 @@ public class KeywordSearchRepository {
             Integer limit = termsLimit(settings.settings());
             if (limit == null && settings.defaults() != null) limit = termsLimit(settings.defaults());
             if (limit == null || limit <= 0) throw new IllegalStateException();
-            if (versions.size() > Math.min(2000, limit)) throw new IllegalStateException("TERMS_LIMIT_EXCEEDED");
+            if (versions.size() > Math.min(PublishedVersionTerms.MAX_UNIQUE_VERSIONS, limit))
+                throw new TermsLimitExceededException();
             List<FieldValue> terms =
                     versions.stream().map(v -> FieldValue.of(v.toString())).toList();
             SearchResponse<JsonData> response = client.search(
@@ -101,6 +102,8 @@ public class KeywordSearchRepository {
                 result.add(new Candidate(source, hit.score()));
             }
             return List.copyOf(result);
+        } catch (TermsLimitExceededException failure) {
+            throw failure;
         } catch (Exception failure) {
             throw new IllegalStateException("BM25_FAILED");
         }
@@ -109,9 +112,8 @@ public class KeywordSearchRepository {
     // ES 设置响应通常将 index 包装为一层对象；缺失安全值时拒绝检索。
     private static Integer termsLimit(co.elastic.clients.elasticsearch.indices.IndexSettings settings) {
         if (settings == null) return null;
-        return settings.index() == null
-                ? settings.maxTermsCount()
-                : settings.index().maxTermsCount();
+        Integer nested = settings.index() == null ? null : settings.index().maxTermsCount();
+        return nested != null ? nested : settings.maxTermsCount();
     }
 
     private static Long id(String value) {

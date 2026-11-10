@@ -50,7 +50,7 @@ PG 只对命中 ID 发一次批量查询，LEFT JOIN 保留损坏关系供检查
 
 ## 诊断
 
-空快照不访问 ES/PG；无匹配为空结果；其他依赖或协议错误由 KeywordRetriever 转为 FAILED / BM25_FAILED，返回空候选。
+空快照不访问 ES/PG；无匹配为空结果；应用及实际索引 terms 超限统一为 TERMS_LIMIT_EXCEEDED；其他依赖或协议错误由 KeywordRetriever 转为 FAILED / BM25_FAILED，返回空候选。
 阶段为 BM25，保留真实分数和排名供 M2-04。对外不传播原始异常、响应或查询正文，不新增敏感日志。
 
 ## 验证证据
@@ -108,3 +108,19 @@ M2-04 应复用入口快照和真实候选排名，不把 BM25 分数与向量�
 中间补充测试时出现过格式检查和缺少 import 的编译错误，均已修复并重跑；最终结果不包含这些失败轮次。
 未运行全量 clean verify、在线模型、真实网络中断或性能评估。未 Push、Merge、Rebase 或开始 M2-04。
 最终提交 SHA 由任务回复提供，避免文档自引用。BM25 候选协议可供 M2-04 使用。
+
+## M2-03 审查修复验证（2026-11-10）
+
+基线 458b83bc956a36a185a08b7bddfe8960a1a853c6，工作区起始干净。
+使用 TermsLimitExceededException 统一应用 2000 上限和实际索引上限；Retriever 按类型分类，不匹配异常消息，也不携带供应商响应或查询正文。
+嵌套 index.maxTermsCount 为 null 时继续读取外层，再回退服务器 defaults；缺失或非正数仍拒绝检索。BM25 查询 DSL 未修改。
+
+最终 Spotless apply/check、test-compile 成功。相关五类单测共 16 项通过，失败/错误/跳过均为 0。
+新增 Mock 覆盖嵌套空字段的外层回退、defaults 回退、无安全值拒绝、实际上限分类；应用 2001 个唯一版本验证不访问依赖且分类正确。
+网络 IO、超时及畸形协议仍检查 BM25_FAILED 且不包含原始 cause；不声称执行真实断网注入。
+中间新增测试后的格式检查失败已修正，最终单测已重跑通过。
+
+真实 ES/PG 回归命令沿用上文五类 IT，共 12 项通过（EsIndexIT 4、EsIntegrityIT 2、KeywordSearchIT 3、RetrievalFoundationIT 2、VectorSearchIT 1），失败/错误/跳过均为 0。
+KeywordSearchIT 验证实际上限 2、3 个唯一版本在 Retriever 返回 TERMS_LIMIT_EXCEEDED，并继续通过未超限的真实 BM25 排序、过滤和分数检查。
+完整 diff 已审阅；git diff --check 和 git diff --cached --check 均通过。
+未运行全量 clean verify、在线供应商 API、真实 TCP 故障注入或性能评估。未 Push、Merge、Rebase，未进入 M2-04。

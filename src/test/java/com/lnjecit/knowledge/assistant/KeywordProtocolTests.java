@@ -27,7 +27,19 @@ class KeywordProtocolTests {
     @Test
     @SuppressWarnings("unchecked")
     void malformedResponsesAndDependencyFailuresAreRejected() throws Exception {
-        for (String fault : List.of("good", "timeout", "shard", "source", "id", "score", "duplicate", "network")) {
+        for (String fault : List.of(
+                "good",
+                "timeout",
+                "shard",
+                "source",
+                "id",
+                "score",
+                "duplicate",
+                "network",
+                "limit",
+                "outer",
+                "defaults",
+                "missing")) {
             ElasticsearchClient client = mock(ElasticsearchClient.class, RETURNS_DEEP_STUBS);
             when(client.indices().exists(any(Function.class)).value()).thenReturn(true);
             Map<String, Property> fields = Map.of(
@@ -53,6 +65,19 @@ class KeywordProtocolTests {
                     .thenReturn(fields);
             when(client.indices().getSettings(any(Function.class)).result())
                     .thenReturn(Map.of("test", IndexState.of(s -> s.settings(i -> i.index(n -> n.maxTermsCount(2))))));
+            if (fault.equals("outer"))
+                when(client.indices().getSettings(any(Function.class)).result())
+                        .thenReturn(Map.of(
+                                "test",
+                                IndexState.of(
+                                        s -> s.settings(i -> i.index(n -> n).maxTermsCount(2)))));
+            if (fault.equals("defaults"))
+                when(client.indices().getSettings(any(Function.class)).result())
+                        .thenReturn(Map.of("test", IndexState.of(s -> s.settings(i -> i.index(n -> n))
+                                .defaults(i -> i.maxTermsCount(2)))));
+            if (fault.equals("missing"))
+                when(client.indices().getSettings(any(Function.class)).result())
+                        .thenReturn(Map.of("test", IndexState.of(s -> s.settings(i -> i.index(n -> n)))));
             SearchResponse<JsonData> response = mock(SearchResponse.class, RETURNS_DEEP_STUBS);
             when(response.shards().failed()).thenReturn(fault.equals("shard") ? 1 : 0);
             when(response.timedOut()).thenReturn(fault.equals("timeout"));
@@ -84,7 +109,29 @@ class KeywordProtocolTests {
                 when(client.search(any(Function.class), eq(JsonData.class)))
                         .thenThrow(new java.io.IOException("private"));
             KeywordSearchRepository repository = new KeywordSearchRepository(client, "test");
-            if (fault.equals("good")) {
+            if (fault.equals("limit")) {
+                PublishedVersionSnapshot large = PublishedVersionSnapshot.of(
+                        1L,
+                        List.of(
+                                new PublishedDocument(2L, 3L),
+                                new PublishedDocument(4L, 5L),
+                                new PublishedDocument(6L, 7L)));
+                assertThat(new com.lnjecit.knowledge.assistant.retrieval.KeywordRetriever(
+                                        repository,
+                                        mock(com.lnjecit.knowledge.assistant.retrieval.KeywordChunkRepository.class))
+                                .retrieve(new com.lnjecit.knowledge.assistant.retrieval.RetrievalContext(
+                                        "r",
+                                        "query",
+                                        com.lnjecit.knowledge.assistant.retrieval.RetrievalStrategy.BM25,
+                                        com.lnjecit.knowledge.assistant.retrieval.RetrievalParameters.defaults(),
+                                        large))
+                                .failure())
+                        .isEqualTo(
+                                com.lnjecit.knowledge.assistant.retrieval.RetrievalDiagnostics.Failure
+                                        .TERMS_LIMIT_EXCEEDED);
+                continue;
+            }
+            if (List.of("good", "outer", "defaults").contains(fault)) {
                 assertThat(repository.search(
                                 PublishedVersionSnapshot.of(1L, List.of(new PublishedDocument(2L, 3L))), "query", 20))
                         .hasSize(1);

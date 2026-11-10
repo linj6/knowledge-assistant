@@ -31,6 +31,23 @@ class KeywordRetrievalTests {
     }
 
     @Test
+    void applicationTermsLimitIsClassifiedWithoutDependencies() {
+        co.elastic.clients.elasticsearch.ElasticsearchClient client =
+                mock(co.elastic.clients.elasticsearch.ElasticsearchClient.class);
+        KeywordChunkRepository chunks = mock(KeywordChunkRepository.class);
+        PublishedVersionSnapshot large = PublishedVersionSnapshot.of(
+                1L,
+                java.util.stream.LongStream.rangeClosed(1, 2001)
+                        .mapToObj(id -> new PublishedDocument(id, id))
+                        .toList());
+        assertThat(new KeywordRetriever(new KeywordSearchRepository(client), chunks)
+                        .retrieve(context(large))
+                        .failure())
+                .isEqualTo(RetrievalDiagnostics.Failure.TERMS_LIMIT_EXCEEDED);
+        verifyNoInteractions(client, chunks);
+    }
+
+    @Test
     void emptySnapshotDoesNotAccessDependencies() {
         KeywordSearchRepository search = mock(KeywordSearchRepository.class);
         KeywordChunkRepository chunks = mock(KeywordChunkRepository.class);
