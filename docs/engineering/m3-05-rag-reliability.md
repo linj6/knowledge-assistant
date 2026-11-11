@@ -95,4 +95,3 @@ Failsafe 实际结果（测试 / 失败 / 错误 / 跳过）：
 最终完整 diff 审阅和 git diff --check 通过；工作区 application-local.yml 与基线一致，未 Push/Merge/Rebase。提交 SHA 见交付报告，或通过本文 git log 查询。
 
 结论：READY FOR M3-06，仅表示离线工程可靠性验收通过。真实供应商联调和质量评估尚未执行，需按后续任务单独开展。
-
