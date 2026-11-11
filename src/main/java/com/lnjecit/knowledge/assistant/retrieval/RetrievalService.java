@@ -75,8 +75,11 @@ public class RetrievalService {
             if (failure.getErrorCode() == CommonErrorCode.KNOWLEDGE_BASE_NOT_FOUND) throw failure;
             return failedSnapshot(knowledgeBaseId, requested, parameters, Failure.SNAPSHOT_READ_FAILED);
         } catch (SnapshotInvalidException failure) {
+            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(LOG, "SNAPSHOT_INVALID", failure);
             return failedSnapshot(knowledgeBaseId, requested, parameters, Failure.SNAPSHOT_INVALID);
         } catch (RuntimeException failure) {
+            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
+                    org.slf4j.LoggerFactory.getLogger(RetrievalService.class), "RetrievalService", failure);
             return failedSnapshot(knowledgeBaseId, requested, parameters, Failure.SNAPSHOT_READ_FAILED);
         }
         Output empty = new Output(List.of(), List.of(), null);
@@ -128,6 +131,8 @@ public class RetrievalService {
         try {
             vector = embeddings.getObject().embed(query);
         } catch (RuntimeException failure) {
+            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
+                    org.slf4j.LoggerFactory.getLogger(RetrievalService.class), "EMBEDDING", failure);
             return new Output(List.of(), List.of(stage(Phase.EMBEDDING, start, List.of())), Failure.EMBEDDING_FAILED);
         }
         stages.add(stage(Phase.EMBEDDING, start, List.of()));
@@ -139,6 +144,8 @@ public class RetrievalService {
             stages.addAll(recall.stages());
             return new Output(recall.chunks(), stages, recall.failure());
         } catch (RuntimeException failure) {
+            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
+                    org.slf4j.LoggerFactory.getLogger(RetrievalService.class), "VECTOR", failure);
             stages.add(stage(Phase.VECTOR, start, List.of()));
             return new Output(List.of(), stages, Failure.INTERNAL_ERROR);
         }
@@ -158,6 +165,8 @@ public class RetrievalService {
                     new RetrievalContext(RequestIdContext.current(), query, contextStrategy, parameters, snapshot));
             return new Output(recall.chunks(), recall.stages(), recall.failure());
         } catch (RuntimeException failure) {
+            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
+                    org.slf4j.LoggerFactory.getLogger(RetrievalService.class), "RetrievalService", failure);
             return new Output(List.of(), List.of(stage(Phase.BM25, start, List.of())), Failure.INTERNAL_ERROR);
         }
     }
@@ -174,6 +183,8 @@ public class RetrievalService {
             stages.add(stage(Phase.FUSION, start, candidates(chunks, false)));
             return new Output(chunks, stages, null);
         } catch (RuntimeException failure) {
+            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
+                    org.slf4j.LoggerFactory.getLogger(RetrievalService.class), "RetrievalService", failure);
             stages.add(stage(Phase.FUSION, start, List.of()));
             return new Output(List.of(), stages, Failure.FUSION_FAILED);
         }
@@ -189,6 +200,8 @@ public class RetrievalService {
             stages.add(stage(Phase.RERANK, start, candidates(chunks, true)));
             return new Output(chunks, stages, null);
         } catch (RuntimeException failure) {
+            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
+                    org.slf4j.LoggerFactory.getLogger(RetrievalService.class), "RetrievalService", failure);
             stages.add(stage(Phase.RERANK, start, List.of()));
             return new Output(List.of(), stages, Failure.RERANK_FAILED);
         }
@@ -244,26 +257,28 @@ public class RetrievalService {
                     parameters,
                     output.stages(),
                     output.failure());
-            LOG.info(
-                    "requestId={} knowledgeBaseId={} requestedStrategy={} actualStrategy={} degraded=false status={} error={}",
-                    RequestIdContext.current(),
-                    kb,
-                    strategy,
-                    diagnostics.actualStrategy(),
-                    status,
-                    output.failure());
+            LOG.atLevel(status == RetrievalStatus.FAILED ? org.slf4j.event.Level.DEBUG : org.slf4j.event.Level.INFO)
+                    .log(
+                            "requestId={} knowledgeBaseId={} requestedStrategy={} actualStrategy={} degraded=false status={} error={}",
+                            RequestIdContext.current(),
+                            kb,
+                            strategy,
+                            diagnostics.actualStrategy(),
+                            status,
+                            output.failure());
             for (Stage stage : output.stages())
-                LOG.info(
-                        "requestId={} knowledgeBaseId={} requestedStrategy={} actualStrategy={} degraded=false status={} phase={} elapsedMillis={} candidateCount={} error={}",
-                        RequestIdContext.current(),
-                        kb,
-                        strategy,
-                        diagnostics.actualStrategy(),
-                        status,
-                        stage.phase(),
-                        stage.elapsedMillis(),
-                        stage.candidateCount(),
-                        output.failure());
+                LOG.atLevel(status == RetrievalStatus.FAILED ? org.slf4j.event.Level.DEBUG : org.slf4j.event.Level.INFO)
+                        .log(
+                                "requestId={} knowledgeBaseId={} requestedStrategy={} actualStrategy={} degraded=false status={} phase={} elapsedMillis={} candidateCount={} error={}",
+                                RequestIdContext.current(),
+                                kb,
+                                strategy,
+                                diagnostics.actualStrategy(),
+                                status,
+                                stage.phase(),
+                                stage.elapsedMillis(),
+                                stage.candidateCount(),
+                                output.failure());
             results.add(new RetrievalResult(chunks, diagnostics));
         }
         return List.copyOf(results);

@@ -141,6 +141,8 @@ public class DocumentImportService {
             if (!repository.isObjectReferenced(finalKey)) cleanup(finalKey);
             else ImportEvents.warn(LOG, "code=ORIGINAL_OBJECT_REFERENCED_AFTER_COMMIT_ERROR objectKey={}", finalKey);
         } catch (RuntimeException checkFailure) {
+            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
+                    LOG, "DocumentImportService", checkFailure);
             // 查询本身失败时保留对象，避免误删已经提交的业务文件。
             ImportEvents.warn(LOG, "code=ORIGINAL_OBJECT_REFERENCE_UNKNOWN objectKey={}", finalKey);
         }
@@ -194,6 +196,7 @@ public class DocumentImportService {
         try {
             store.delete(key);
         } catch (RuntimeException ex) {
+            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(LOG, "MINIO_COMPENSATION", ex);
             ImportEvents.warn(
                     LOG,
                     "code={} objectKey={}",

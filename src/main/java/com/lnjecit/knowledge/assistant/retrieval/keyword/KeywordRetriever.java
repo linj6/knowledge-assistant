@@ -53,6 +53,8 @@ public class KeywordRetriever {
             return new Recall(
                     List.of(), List.of(stage(start, List.of())), RetrievalDiagnostics.Failure.TERMS_LIMIT_EXCEEDED);
         } catch (RuntimeException failure) {
+            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
+                    org.slf4j.LoggerFactory.getLogger(getClass()), "KeywordRetriever", failure);
             return new Recall(List.of(), List.of(stage(start, List.of())), RetrievalDiagnostics.Failure.BM25_FAILED);
         }
     }

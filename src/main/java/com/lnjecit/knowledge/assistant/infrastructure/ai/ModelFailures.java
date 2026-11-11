@@ -40,6 +40,10 @@ public final class ModelFailures {
         return new SafeModelException(kind);
     }
 
+    public static SafeModelException rerankFailure(Kind kind, Throwable cause) {
+        return (SafeModelException) new SafeModelException(kind).initCause(cause);
+    }
+
     public static Kind httpStatus(int status) {
         if (status == 401 || status == 403) return Kind.AUTHENTICATION;
         if (status == 429) return Kind.RATE_LIMIT;
@@ -49,8 +53,11 @@ public final class ModelFailures {
     }
 
     public static Kind classify(Throwable failure) {
-        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+        int depth = 0;
+        for (Throwable cause = failure; cause != null && depth++ < 16; cause = cause.getCause()) {
             if (cause instanceof SafeModelException safe) return safe.kind;
+            if (cause instanceof org.springframework.beans.factory.NoSuchBeanDefinitionException)
+                return Kind.CONFIGURATION;
             if (configurationCode(cause) != null) return Kind.CONFIGURATION;
             if (cause instanceof SocketTimeoutException
                     || cause instanceof TimeoutException
@@ -65,7 +72,8 @@ public final class ModelFailures {
             if (cause instanceof ModelResponseChecks.InvalidResponseException
                     || cause instanceof com.openai.errors.OpenAIInvalidDataException) return Kind.INVALID_RESPONSE;
         }
-        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+        depth = 0;
+        for (Throwable cause = failure; cause != null && depth++ < 16; cause = cause.getCause()) {
             if (cause instanceof java.io.IOException || cause instanceof com.openai.errors.OpenAIIoException)
                 return Kind.CONNECTION;
         }
@@ -87,8 +95,8 @@ public final class ModelFailures {
         String code = configurationCode(failure);
         if (code != null)
             return new IllegalStateException(
-                    "Model request failed: stage=" + safeStage + " kind=" + kind + " code=" + code);
-        return new SafeModelException(kind, safeStage);
+                    "Model request failed: stage=" + safeStage + " kind=" + kind + " code=" + code, failure);
+        return (SafeModelException) new SafeModelException(kind, safeStage).initCause(failure);
     }
 
     private static String configurationCode(Throwable failure) {
@@ -107,8 +115,8 @@ public final class ModelFailures {
         };
     }
 
-    // 不传播供应商消息、请求头或异常 cause，防止错误正文回显密钥。
+    // 对外消息保持分类，Cause 仅供日志边界安全诊断，不进入 API。
     public static IllegalStateException safe(Throwable failure) {
-        return new IllegalStateException("Model request failed: " + classify(failure));
+        return new IllegalStateException("Model request failed: " + classify(failure), failure);
     }
 }

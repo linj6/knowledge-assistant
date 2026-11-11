@@ -42,6 +42,8 @@ public class VectorRetriever {
         try {
             vector = embedding.getObject().embed(context.query());
         } catch (RuntimeException failure) {
+            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
+                    org.slf4j.LoggerFactory.getLogger(getClass()), "VectorRetriever", failure);
             return new Recall(
                     List.of(),
                     List.of(stage(RetrievalDiagnostics.Phase.EMBEDDING, start, List.of())),
@@ -90,6 +92,8 @@ public class VectorRetriever {
                             RetrievalDiagnostics.Phase.VECTOR, queryElapsedMillis, candidates.size(), candidates)),
                     null);
         } catch (RuntimeException failure) {
+            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
+                    org.slf4j.LoggerFactory.getLogger(getClass()), "VectorRetriever", failure);
             return new Recall(
                     List.of(),
                     List.of(stage(RetrievalDiagnostics.Phase.VECTOR, start, List.of())),

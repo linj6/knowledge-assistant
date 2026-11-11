@@ -81,11 +81,11 @@ public class EsIndexRepository {
                     || !"ik_smart".equals(content.text().searchAnalyzer())
                     || !"BM25".equals(content.text().similarity())) throw failure("ES_MAPPING_INCOMPATIBLE");
         } catch (JsonException e) {
-            throw failure("ES_PROTOCOL_INVALID");
+            throw new IllegalStateException("ES_PROTOCOL_INVALID", e);
         } catch (IOException e) {
             throw transportFailure(e);
         } catch (ElasticsearchException e) {
-            throw failure("ES_INDEX_REQUEST_REJECTED");
+            throw new IllegalStateException("ES_INDEX_REQUEST_REJECTED", e);
         }
     }
 
@@ -99,6 +99,7 @@ public class EsIndexRepository {
             if (response == null || response.items() == null || response.items().size() != documents.size())
                 throw failure("ES_BULK_PROTOCOL_INVALID");
             boolean rejected = false;
+            IllegalStateException rejection = failure("ES_BULK_ITEM_REJECTED");
             for (int i = 0; i < documents.size(); i++) {
                 BulkResponseItem item = response.items().get(i);
                 EsChunkDocument expected = documents.get(i);
@@ -111,22 +112,31 @@ public class EsIndexRepository {
                             client.get(r -> r.index(index).id(expected.chunk_id()), EsChunkDocument.class);
                     // 比较全部索引业务字段，禁止只凭 ID 将冲突视为成功。
                     if (!existing.found() || !expected.equals(existing.source())) rejected = true;
-                } else if (item.status() != 201 || item.error() != null) rejected = true;
+                } else if (item.status() != 201 || item.error() != null) {
+                    rejected = true;
+                    // 不保留整份 Bulk 响应或文档正文，只保留失败项诊断字段。
+                    rejection.addSuppressed(new IllegalStateException("httpStatus=" + item.status()
+                            + (item.error() == null
+                                    ? ""
+                                    : " providerCode=" + item.error().type() + " reason="
+                                            + item.error().reason())));
+                }
             }
-            if (rejected) throw failure("ES_BULK_ITEM_REJECTED");
+            if (rejected) throw rejection;
         } catch (JsonException e) {
-            throw failure("ES_PROTOCOL_INVALID");
+            throw new IllegalStateException("ES_PROTOCOL_INVALID", e);
         } catch (IOException e) {
             throw transportFailure(e);
         } catch (ElasticsearchException e) {
-            throw failure("ES_BULK_REQUEST_REJECTED");
+            throw new IllegalStateException("ES_BULK_REQUEST_REJECTED", e);
         }
     }
 
     private static IllegalStateException transportFailure(IOException e) {
         // 超时或断连时结果可能已写入；保留服务端数据，调用方用稳定 ID 重试。
-        return failure(
-                e instanceof SocketTimeoutException ? "ES_TIMEOUT_OUTCOME_UNKNOWN" : "ES_CONNECTION_OUTCOME_UNKNOWN");
+        return new IllegalStateException(
+                e instanceof SocketTimeoutException ? "ES_TIMEOUT_OUTCOME_UNKNOWN" : "ES_CONNECTION_OUTCOME_UNKNOWN",
+                e);
     }
 
     private static IllegalStateException failure(String code) {

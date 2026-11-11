@@ -28,13 +28,16 @@ public class QueryEmbeddingService {
             throw new IllegalStateException("QUERY_EMBEDDING_TRANSACTION_FORBIDDEN");
         // 校验实际客户端，不能仅凭配置或相同维度认定向量空间兼容。
         if (!(model instanceof OpenAiEmbeddingModel client))
-            throw ModelFailures.safe("CONFIGURATION", new IllegalStateException());
+            throw ModelFailures.safe("CONFIGURATION", new IllegalStateException("Embedding client type mismatch"));
         OpenAiEmbeddingOptions options = client.getOptions();
         if (!"text-embedding-v4".equals(options.getModel())
                 || !Integer.valueOf(VectorSchema.DIMENSION).equals(options.getDimensions())
                 || !Integer.valueOf(0).equals(options.getMaxRetries())
                 || options.getEncodingFormat() != OpenAiEmbeddingOptions.EncodingFormat.FLOAT)
-            throw ModelFailures.safe("CONFIGURATION", new IllegalStateException());
+            throw ModelFailures.safe(
+                    "CONFIGURATION",
+                    new IllegalStateException(
+                            "Embedding options require text-embedding-v4 dimensions=1024 maxRetries=0 encoding=FLOAT"));
         try {
             // 单次调用，不覆盖客户端的超时、编码及零重试选项。
             EmbeddingResponse response = model.call(new EmbeddingRequest(List.of(query), null));

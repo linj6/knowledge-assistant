@@ -62,10 +62,10 @@ public class EsIntegrityService {
                     || failure instanceof java.net.ConnectException
                     || failure instanceof java.net.UnknownHostException
                     || failure instanceof java.net.SocketException)
-                throw new IllegalStateException("ES_CONNECTION_OUTCOME_UNKNOWN");
-            throw new IllegalStateException("ES_VERIFICATION_FAILED");
+                throw new IllegalStateException("ES_CONNECTION_OUTCOME_UNKNOWN", failure);
+            throw new IllegalStateException("ES_VERIFICATION_FAILED", failure);
         } catch (RuntimeException failure) {
-            throw new IllegalStateException("ES_VERIFICATION_FAILED");
+            throw new IllegalStateException("ES_VERIFICATION_FAILED", failure);
         }
     }
 
@@ -77,7 +77,7 @@ public class EsIntegrityService {
             Map<String, EsChunkDocument> expectedChunksById)
             throws IOException {
         String scrollId = null;
-        boolean verificationFailed = false;
+        Throwable verificationFailure = null;
         try {
             // 缺少索引直接失败，不能因调用现有 ensureIndex 而创建一个空索引。
             if (!client.indices().exists(r -> r.index(indexName)).value()) fail();
@@ -117,7 +117,7 @@ public class EsIntegrityService {
             int searchableSampleCount = verifySearchSamples(indexName, ownershipFilter, expectedChunksById);
             return new Result(expectedChunksById.size(), actualChunkIds.size(), searchableSampleCount);
         } catch (IOException | RuntimeException failure) {
-            verificationFailed = true;
+            verificationFailure = failure;
             throw failure;
         } finally {
             if (scrollId != null) {
@@ -126,9 +126,11 @@ public class EsIntegrityService {
                     if (!client.clearScroll(r -> r.scrollId(cursor)).succeeded()) fail();
                 } catch (IOException | RuntimeException failure) {
                     // 原始验证失败优先；只有验证成功时才让清理错误决定本次结果。
-                    if (!verificationFailed) {
+                    if (verificationFailure == null) {
                         if (failure instanceof IOException io) throw io;
-                        throw new IllegalStateException("ES_VERIFICATION_FAILED");
+                        throw new IllegalStateException("ES_VERIFICATION_FAILED", failure);
+                    } else if (failure != verificationFailure) {
+                        verificationFailure.addSuppressed(failure);
                     }
                 }
             }

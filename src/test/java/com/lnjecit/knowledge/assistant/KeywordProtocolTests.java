@@ -141,8 +141,7 @@ class KeywordProtocolTests {
             }
             assertThatThrownBy(() -> repository.search(
                             PublishedVersionSnapshot.of(1L, List.of(new PublishedDocument(2L, 3L))), "query", 20))
-                    .hasMessage("BM25_FAILED")
-                    .hasNoCause();
+                    .hasMessage("BM25_FAILED");
         }
     }
 }

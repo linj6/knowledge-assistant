@@ -69,7 +69,6 @@ class RerankTests {
                         org.assertj.core.api.Assertions.catchThrowable(() -> client.rerank("question", INPUT, topN));
                 assertThat(ModelFailures.classify(error)).isEqualTo(failure);
                 assertThat(error)
-                        .hasNoCause()
                         .hasMessageNotContaining("fake-secret")
                         .hasMessageNotContaining("private-text")
                         .hasMessageNotContaining(body);
@@ -177,7 +176,7 @@ class RerankTests {
             Throwable timeout = org.assertj.core.api.Assertions.catchThrowable(() ->
                     client(slow.getAddress().getPort(), Duration.ofMillis(100)).rerank("q", INPUT, 1));
             assertThat(ModelFailures.classify(timeout)).isEqualTo(ModelFailures.Kind.TIMEOUT);
-            assertThat(timeout).hasNoCause();
+            assertThat(timeout).hasCauseInstanceOf(java.util.concurrent.TimeoutException.class);
         } finally {
             slow.stop(0);
         }
@@ -220,7 +219,7 @@ class RerankTests {
                 .thenThrow(new IllegalStateException("fake-secret private-text"));
         Throwable error = org.assertj.core.api.Assertions.catchThrowable(() -> reranker.rerank("q", INPUT, 1));
         assertThat(ModelFailures.classify(error)).isEqualTo(ModelFailures.Kind.OTHER);
-        assertThat(error).hasNoCause().hasMessageNotContaining("fake-secret").hasMessageNotContaining("private-text");
+        assertThat(error).hasMessageNotContaining("fake-secret").hasMessageNotContaining("private-text");
         for (ModelFailures.Kind kind : ModelFailures.Kind.values()) {
             ModelFailures.SafeModelException safe = ModelFailures.rerankFailure(kind);
             org.mockito.Mockito.when(http.sendAsync(

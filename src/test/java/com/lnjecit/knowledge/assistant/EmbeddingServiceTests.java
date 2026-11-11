@@ -74,8 +74,7 @@ class EmbeddingServiceTests {
                     : List.of(new Embedding(vector, 0), new Embedding(vector, mode == 1 ? 0 : 1));
             when(model.call(any(EmbeddingRequest.class))).thenReturn(new EmbeddingResponse(results));
             assertThatThrownBy(() -> new EmbeddingService(model, repository, new EmbeddingProperties()).embed(2L, 3L))
-                    .hasMessageContaining("INVALID_RESPONSE")
-                    .hasNoCause();
+                    .hasMessageContaining("INVALID_RESPONSE");
             verify(repository, never()).write(anyLong(), anyLong(), anyList(), anyList());
         }
     }
@@ -125,9 +124,7 @@ class EmbeddingServiceTests {
             return new EmbeddingResponse(results);
         });
         EmbeddingService service = new EmbeddingService(model, repository, new EmbeddingProperties());
-        assertThatThrownBy(() -> service.embed(2L, 3L))
-                .hasMessageNotContaining("secret body")
-                .hasNoCause();
+        assertThatThrownBy(() -> service.embed(2L, 3L)).hasMessageNotContaining("secret body");
         assertThat(chunks.subList(0, 16)).allMatch(c -> c.getEmbedding() != null);
         service.embed(2L, 3L);
         assertThat(calls.get()).isEqualTo(3);

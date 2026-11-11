@@ -57,8 +57,8 @@ class ImportObservabilityTests {
         try {
             assertThatThrownBy(() -> new TaskWorker(tasks, processor).execute(claim))
                     .isSameAs(update);
-            assertThat(appender.list).hasSize(1);
-            String message = appender.list.getFirst().getFormattedMessage();
+            assertThat(appender.list).hasSize(2);
+            String message = appender.list.getLast().getFormattedMessage();
             assertThat(message)
                     .contains(
                             "IMPORT_TASK_FAILURE_UPDATE_FAILED",
@@ -67,7 +67,7 @@ class ImportObservabilityTests {
                             "IllegalArgumentException",
                             "IllegalStateException")
                     .doesNotContain("secret");
-            assertThat(appender.list.getFirst().getThrowableProxy()).isNull();
+            assertThat(appender.list.getLast().getThrowableProxy()).isNull();
         } finally {
             logger.detachAppender(appender);
             appender.stop();

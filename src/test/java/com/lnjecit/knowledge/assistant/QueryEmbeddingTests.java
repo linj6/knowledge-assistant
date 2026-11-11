@@ -70,7 +70,6 @@ class QueryEmbeddingTests {
                 when(model.call(any(EmbeddingRequest.class))).thenReturn(new EmbeddingResponse(results));
             }
             assertThatThrownBy(() -> new QueryEmbeddingService(model).embed("query"))
-                    .hasNoCause()
                     .hasMessageNotContaining("secret");
             verify(model, times(1)).call(any(EmbeddingRequest.class));
         }

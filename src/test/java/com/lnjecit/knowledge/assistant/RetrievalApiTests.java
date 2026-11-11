@@ -42,6 +42,36 @@ class RetrievalApiTests {
     }
 
     @Test
+    void sharedEmbeddingFailureAcrossFourStrategiesLogsOneStack() throws Exception {
+        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger)
+                org.slf4j.LoggerFactory.getLogger(com.lnjecit.knowledge.assistant.retrieval.RetrievalService.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> capture =
+                new ch.qos.logback.core.read.ListAppender<>();
+        capture.start();
+        logger.addAppender(capture);
+        when(fixture.embedding.embed("query"))
+                .thenThrow(new IllegalStateException("connection detail token=fixture-token"));
+        try {
+            mvc.perform(post("/v1/retrieval/search")
+                            .contentType("application/json")
+                            .content(body("[\"VECTOR\",\"BM25\",\"HYBRID_RRF\",\"HYBRID_RERANK\"]", null)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.results[3].diagnostics.error").value("EMBEDDING_FAILED"));
+            org.assertj.core.api.Assertions.assertThat(capture.list)
+                    .filteredOn(event -> event.getThrowableProxy() != null)
+                    .hasSize(1)
+                    .allSatisfy(event -> org.assertj.core.api.Assertions.assertThat(
+                                    ch.qos.logback.classic.spi.ThrowableProxyUtil.asString(event.getThrowableProxy()))
+                            .contains("connection detail")
+                            .doesNotContain("fixture-token"));
+            org.mockito.Mockito.verify(fixture.embedding).embed("query");
+        } finally {
+            logger.detachAppender(capture);
+            capture.stop();
+        }
+    }
+
+    @Test
     void logsAndFailedApiDoNotExposeInternalSensitiveData() throws Exception {
         ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger)
                 org.slf4j.LoggerFactory.getLogger(com.lnjecit.knowledge.assistant.retrieval.RetrievalService.class);
@@ -107,14 +137,12 @@ class RetrievalApiTests {
                             "knowledgeBaseId=1",
                             "requestedStrategy=VECTOR",
                             "actualStrategy=VECTOR",
-                            "actualStrategy=null",
                             "status=SUCCESS",
-                            "status=FAILED",
                             "phase=VECTOR",
                             "phase=EMBEDDING",
                             "elapsedMillis=",
                             "candidateCount=",
-                            "error=EMBEDDING_FAILED")
+                            "boundary=EMBEDDING")
                     .doesNotContain(
                             secret,
                             "CONTENT_SENTINEL",
@@ -123,8 +151,10 @@ class RetrievalApiTests {
                             "PROVIDER_RESPONSE_SENTINEL",
                             "0.1234567");
             org.assertj.core.api.Assertions.assertThat(capture.list)
+                    .filteredOn(event -> event.getLevel() == ch.qos.logback.classic.Level.ERROR)
+                    .hasSize(1)
                     .allSatisfy(event -> org.assertj.core.api.Assertions.assertThat(event.getThrowableProxy())
-                            .isNull());
+                            .isNotNull());
         } finally {
             logger.detachAppender(capture);
             capture.stop();

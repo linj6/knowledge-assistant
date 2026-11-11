@@ -79,8 +79,7 @@ class ModelCapabilityTests {
                 List.of("CONFIGURATION", "CHAT_PLAIN", "CHAT_JSON", "EMBEDDING_SINGLE", "EMBEDDING_BATCH")) {
             assertThat(com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures.safe(stage, secret))
                     .hasMessageContaining(stage)
-                    .hasMessageNotContaining("offline-test-value")
-                    .hasNoCause();
+                    .hasMessageNotContaining("offline-test-value");
         }
         assertThat(com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures.safe("CONFIGURATION", secret))
                 .hasMessageContaining("kind=CONFIGURATION");
@@ -144,7 +143,6 @@ class ModelCapabilityTests {
                 if (status == 429) assertThat(kind.name()).isEqualTo("RATE_LIMIT");
                 if (status == 503) assertThat(kind.name()).isEqualTo("SERVER");
                 assertThat(com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures.safe(failure))
-                        .hasNoCause()
                         .hasMessageNotContaining("offline-test-value");
             } finally {
                 server.stop(0);

@@ -37,8 +37,8 @@ class EmbeddingBaselineTests {
                 IllegalStateException safe =
                         com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures.safe("CONFIGURATION", failure);
                 assertThat(safe).hasMessageContaining(missingKey ? "MISSING_API_KEY" : "MISSING_EMBEDDING_MODEL");
-                assertThat(safe).hasMessageNotContaining("secret-fixture-value").hasNoCause();
-                assertThat(safe.getCause()).isNull();
+                assertThat(safe).hasMessageNotContaining("secret-fixture-value").hasCauseInstanceOf(Throwable.class);
+                assertThat(safe.getCause()).isSameAs(failure);
             }
             assertThat(requests.get()).isZero();
         } finally {
@@ -47,17 +47,17 @@ class EmbeddingBaselineTests {
     }
 
     @Test
-    void unknownRawMessagesAndCausesAreDiscarded() {
+    void rawMessagesStayOutOfPublicMessageAndCausesArePreserved() {
         RuntimeException raw = new IllegalStateException(
                 "secret-fixture-value", new RuntimeException("Authorization: secret-fixture-value"));
         assertThat(com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures.safe("EMBEDDING_SINGLE", raw))
                 .hasMessageContaining("stage=EMBEDDING_SINGLE")
                 .hasMessageNotContaining("secret-fixture-value")
-                .hasNoCause();
+                .hasCauseInstanceOf(Throwable.class);
         assertThat(com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures.safe("CONFIGURATION", raw))
                 .hasMessageContaining("kind=CONFIGURATION")
                 .hasMessageNotContaining("secret-fixture-value")
-                .hasNoCause();
+                .hasCauseInstanceOf(Throwable.class);
     }
 
     @Test

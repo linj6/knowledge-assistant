@@ -26,16 +26,15 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                             ? CommonErrorCode.INTERNAL_ERROR
                             : CommonErrorCode.INVALID_ARGUMENT;
                 };
+        if (status.is5xxServerError())
+            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
+                    LOG, "API_HTTP_" + status.value(), ex);
         return new ResponseEntity<>(error(code), headers, status);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Result<Void>> unexpected(Exception ex) {
-        // 不记录异常消息或堆栈：其中可能包含密钥、SQL 或文档正文。
-        LOG.error(
-                "requestId={} code=INTERNAL_ERROR exceptionType={}",
-                RequestIdContext.current(),
-                ex.getClass().getName());
+        com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(LOG, "API_INTERNAL_ERROR", ex);
         return ResponseEntity.status(500).body(error(CommonErrorCode.INTERNAL_ERROR));
     }
 

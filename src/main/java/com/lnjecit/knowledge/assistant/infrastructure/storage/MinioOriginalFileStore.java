@@ -72,7 +72,7 @@ public class MinioOriginalFileStore implements OriginalFileStore {
                             .build())
                     .build());
         } catch (Exception ex) {
-            throw new IllegalStateException("Object copy failed");
+            throw new IllegalStateException("Object copy failed", ex);
         }
     }
 
@@ -83,7 +83,7 @@ public class MinioOriginalFileStore implements OriginalFileStore {
                     .contentType("application/octet-stream")
                     .build());
         } catch (Exception ex) {
-            throw new IllegalStateException("Object upload failed");
+            throw new IllegalStateException("Object upload failed", ex);
         }
     }
 
@@ -95,8 +95,9 @@ public class MinioOriginalFileStore implements OriginalFileStore {
             if (ex instanceof java.net.SocketTimeoutException || ex instanceof java.net.ConnectException)
                 throw new com.lnjecit.knowledge.assistant.ingestion.task.TaskExecutionException(
                         com.lnjecit.knowledge.assistant.ingestion.task.TaskExecutionException.Code
-                                .INFRASTRUCTURE_TEMPORARY);
-            throw new IllegalStateException("Object read failed");
+                                .INFRASTRUCTURE_TEMPORARY,
+                        ex);
+            throw new IllegalStateException("Object read failed", ex);
         }
     }
 
@@ -114,7 +115,7 @@ public class MinioOriginalFileStore implements OriginalFileStore {
                     .object(key)
                     .build());
         } catch (Exception ex) {
-            throw new IllegalStateException("Object cleanup failed");
+            throw new IllegalStateException("Object cleanup failed", ex);
         }
     }
 }

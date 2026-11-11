@@ -92,18 +92,20 @@ public class IngestionTaskProcessor implements TaskProcessor {
             throw new TaskExecutionException(
                     failure.kind() == ParseException.Kind.UNSUPPORTED_FORMAT
                             ? TaskExecutionException.Code.UNSUPPORTED_FORMAT
-                            : TaskExecutionException.Code.INVALID_CONTENT);
+                            : TaskExecutionException.Code.INVALID_CONTENT,
+                    failure);
         } catch (ModelFailures.SafeModelException failure) {
             throw new TaskExecutionException(
                     switch (failure.kind()) {
                         case TIMEOUT -> TaskExecutionException.Code.MODEL_TIMEOUT;
                         case CONNECTION, RATE_LIMIT, SERVER -> TaskExecutionException.Code.MODEL_UNAVAILABLE;
                         default -> TaskExecutionException.Code.EXECUTION_FAILED;
-                    });
+                    },
+                    failure);
         } catch (IllegalStateException failure) {
             if ("ES_TIMEOUT_OUTCOME_UNKNOWN".equals(failure.getMessage())
                     || "ES_CONNECTION_OUTCOME_UNKNOWN".equals(failure.getMessage()))
-                throw new TaskExecutionException(TaskExecutionException.Code.SEARCH_UNAVAILABLE);
+                throw new TaskExecutionException(TaskExecutionException.Code.SEARCH_UNAVAILABLE, failure);
             throw failure;
         }
     }

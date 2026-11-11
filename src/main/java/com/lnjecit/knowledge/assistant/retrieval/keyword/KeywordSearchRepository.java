@@ -109,7 +109,7 @@ public class KeywordSearchRepository {
         } catch (TermsLimitExceededException failure) {
             throw failure;
         } catch (Exception failure) {
-            throw new IllegalStateException("BM25_FAILED");
+            throw new IllegalStateException("BM25_FAILED", failure);
         }
     }
 

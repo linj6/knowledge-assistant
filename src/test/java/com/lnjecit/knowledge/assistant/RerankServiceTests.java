@@ -263,7 +263,7 @@ class RerankServiceTests {
                         })
                         .rerank("q", List.of(c(1), c(2)), p));
         assertEquals(ModelFailures.Kind.INVALID_RESPONSE, ex.kind());
-        assertNull(ex.getCause());
+        org.junit.jupiter.api.Assertions.assertNotNull(ex.getCause());
         assertEquals(1, calls.get());
     }
 
@@ -382,7 +382,7 @@ class RerankServiceTests {
                         .rerank("q", List.of(c(1), c(2)), p));
         assertEquals(ModelFailures.Kind.OTHER, ex.kind());
         assertEquals("Model request failed: stage=RERANK kind=OTHER", ex.getMessage());
-        assertNull(ex.getCause());
+        org.junit.jupiter.api.Assertions.assertNotNull(ex.getCause());
         assertEquals(0, ex.getSuppressed().length);
     }
 }

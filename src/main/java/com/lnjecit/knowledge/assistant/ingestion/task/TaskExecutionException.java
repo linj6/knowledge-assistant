@@ -36,6 +36,11 @@ public class TaskExecutionException extends RuntimeException {
         this.code = code;
     }
 
+    public TaskExecutionException(Code code, Throwable cause) {
+        super(code.safeMessage(), cause);
+        this.code = code;
+    }
+
     public Code code() {
         return code;
     }

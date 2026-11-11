@@ -153,7 +153,7 @@ public class EmbeddingRepository {
             try {
                 updated = mapper.write(c, vectors.get(i), c.getVersion());
             } catch (RuntimeException failure) {
-                throw new IllegalStateException("Embedding database write failed");
+                throw new IllegalStateException("Embedding database write failed", failure);
             }
             // 合规写入者持有同一Document锁；零行更新是协议外竞争或记录异常，整批回滚。
             // 已完成记录的幂等处理已在上方完成，不以未知竞争结果静默成功。

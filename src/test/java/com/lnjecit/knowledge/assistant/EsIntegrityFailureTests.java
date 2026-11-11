@@ -90,7 +90,15 @@ class EsIntegrityFailureTests {
             assertThatThrownBy(() ->
                             service.verify(1L, 2L, 3L, List.of(new EsChunkDocument("1", "1", "2", "3", 0, "知识库"))))
                     .hasMessage(stage.startsWith("clear") ? "ES_CONNECTION_OUTCOME_UNKNOWN" : "ES_VERIFICATION_FAILED")
-                    .hasNoCause();
+                    .hasCauseInstanceOf(Throwable.class)
+                    .satisfies(error -> {
+                        if (stage.equals("primaryAndClear"))
+                            org.assertj.core.api.Assertions.assertThat(
+                                            error.getCause().getSuppressed())
+                                    .hasSize(1)
+                                    .allSatisfy(suppressed -> org.assertj.core.api.Assertions.assertThat(suppressed)
+                                            .isInstanceOf(java.net.SocketTimeoutException.class));
+                    });
             if (!stage.equals("refresh")) verify(client).clearScroll(any(Function.class));
             if (stage.equals("page")) verify(client).scroll(any(Function.class), eq(JsonData.class));
             if (stage.equals("search")) verify(client, times(2)).search(any(Function.class), eq(JsonData.class));

@@ -29,6 +29,7 @@ public class TaskWorker {
             // 发布必须是处理器最后一步；返回后不再按截止时间尝试失败转换。
             processor.process(task, context);
         } catch (RuntimeException failure) {
+            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(LOG, "TaskWorker", failure);
             // 永不持久化异常正文；条件更新只允许当前且未过期的执行者报告失败。
             TaskExecutionException.Code code = failure instanceof TaskExecutionException known
                     ? known.code()

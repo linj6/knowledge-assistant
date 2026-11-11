@@ -34,7 +34,6 @@ class EsIntegrityTests {
         when(client.indices()).thenThrow(new IllegalStateException("sensitive response"));
         EsIntegrityService service = new EsIntegrityService(client, mock(EsIndexRepository.class));
         assertThatThrownBy(() -> service.verify(1L, 2L, 3L, List.of(new EsChunkDocument("1", "1", "2", "3", 0, "知识库"))))
-                .hasMessage("ES_VERIFICATION_FAILED")
-                .hasNoCause();
+                .hasMessage("ES_VERIFICATION_FAILED");
     }
 }

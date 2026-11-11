@@ -93,25 +93,40 @@ public final class DashScopeReranker implements Reranker {
                 response = pending.get(timeout.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS);
             } catch (java.util.concurrent.TimeoutException ex) {
                 pending.cancel(true);
-                throw ModelFailures.rerankFailure(ModelFailures.Kind.TIMEOUT);
+                throw ModelFailures.rerankFailure(ModelFailures.Kind.TIMEOUT, ex);
             } catch (java.util.concurrent.ExecutionException ex) {
-                throw ModelFailures.rerankFailure(ModelFailures.classify(ex));
+                throw ModelFailures.rerankFailure(ModelFailures.classify(ex), ex);
             } catch (InterruptedException ex) {
                 pending.cancel(true);
                 throw ex;
             }
             if (response.statusCode() != 200)
-                throw ModelFailures.rerankFailure(ModelFailures.httpStatus(response.statusCode()));
+                throw ModelFailures.rerankFailure(
+                        ModelFailures.httpStatus(response.statusCode()),
+                        providerFailure(response.statusCode(), response.body()));
             return parse(response.body(), snapshot, count);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            throw ModelFailures.rerankFailure(ModelFailures.Kind.OTHER);
+            throw ModelFailures.rerankFailure(ModelFailures.Kind.OTHER, ex);
 
         } catch (RuntimeException ex) {
             if (ex instanceof ModelFailures.SafeModelException safe) throw safe;
-            // 未知运行时故障不等于供应商协议错误；不保留可能含敏感正文的 message/cause。
-            throw ModelFailures.rerankFailure(ModelFailures.Kind.OTHER);
+            // 保留原始因果链，由最终日志边界提取并脱敏诊断信息。
+            throw ModelFailures.rerankFailure(ModelFailures.Kind.OTHER, ex);
         }
+    }
+
+    private IllegalStateException providerFailure(int status, byte[] body) {
+        String detail = "Rerank httpStatus=" + status;
+        try {
+            JsonNode error = mapper.readTree(body);
+            // 仅保留供应商错误字段，不携带原始响应体或请求 Payload。
+            detail += " providerCode=" + error.path("code").asText("") + " description="
+                    + error.path("message").asText("");
+        } catch (RuntimeException ignored) {
+            detail += " errorBody=unparseable";
+        }
+        return new IllegalStateException(detail);
     }
 
     private List<RerankResult> parse(byte[] body, List<RerankCandidate> snapshot, int count) {

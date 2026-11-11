@@ -59,6 +59,8 @@ public class TaskScheduler {
                         ImportEvents.elapsed(started));
                 new TaskWorker(tasks, processor, properties).execute(claimed);
             } catch (RuntimeException failure) {
+                com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
+                        LOG, "IMPORT_TASK_SCAN", failure);
                 ImportEvents.warn(
                         LOG,
                         "event=IMPORT_TASK_SCAN_FAILED errorCode=SCAN_FAILED exceptionType={}",

@@ -93,13 +93,9 @@ class EsIndexTests {
         EsIndexRepository repository = new EsIndexRepository(client);
         EsChunkDocument doc = new EsChunkDocument("1", "2", "3", "4", 0, "secret");
         when(client.bulk(any(BulkRequest.class))).thenThrow(new SocketTimeoutException("secret"));
-        assertThatThrownBy(() -> repository.create("test", List.of(doc)))
-                .hasMessage("ES_TIMEOUT_OUTCOME_UNKNOWN")
-                .hasNoCause();
+        assertThatThrownBy(() -> repository.create("test", List.of(doc))).hasMessage("ES_TIMEOUT_OUTCOME_UNKNOWN");
         when(client.bulk(any(BulkRequest.class))).thenThrow(new IOException("secret"));
-        assertThatThrownBy(() -> repository.create("test", List.of(doc)))
-                .hasMessage("ES_CONNECTION_OUTCOME_UNKNOWN")
-                .hasNoCause();
+        assertThatThrownBy(() -> repository.create("test", List.of(doc))).hasMessage("ES_CONNECTION_OUTCOME_UNKNOWN");
     }
 
     @Test
@@ -121,7 +117,10 @@ class EsIndexTests {
                         .error(e -> e.type("fake").reason("secret")))));
         assertThatThrownBy(() -> repository.create("test", List.of(a, b)))
                 .hasMessage("ES_BULK_ITEM_REJECTED")
-                .hasNoCause();
+                .satisfies(error -> org.assertj.core.api.Assertions.assertThat(error.getSuppressed())
+                        .hasSize(1)
+                        .allSatisfy(detail -> org.assertj.core.api.Assertions.assertThat(detail)
+                                .hasMessageContaining("httpStatus=400 providerCode=fake reason=secret")));
         assertThatThrownBy(() -> repository.create("test", List.of(a))).hasMessage("ES_BULK_PROTOCOL_INVALID");
     }
 
