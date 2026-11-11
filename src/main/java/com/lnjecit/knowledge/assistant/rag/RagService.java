@@ -2,16 +2,20 @@ package com.lnjecit.knowledge.assistant.rag;
 
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
+import com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog;
 import com.lnjecit.knowledge.assistant.retrieval.RetrievalService;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalDiagnostics;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalParameters;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalResult;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStrategy;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
 public class RagService {
+    private static final Logger log = LoggerFactory.getLogger(RagService.class);
     public static final int MAX_QUESTION_LENGTH = 4000;
     private final RetrievalService retrieval;
     private final ContextBuilder contexts;
@@ -63,9 +67,11 @@ public class RagService {
                             : RagError.GENERATION_NOT_IMPLEMENTED;
                 } catch (ContextBuilder.InconsistentEvidenceException failure) {
                     error = RagError.CONTEXT_DATA_INCONSISTENT;
+                    logContextFailure(error, failure);
                 } catch (RuntimeException failure) {
                     // 构建故障仅返回固定分类，不回显可能携带正文的异常消息。
                     error = RagError.CONTEXT_BUILD_FAILED;
+                    logContextFailure(error, failure);
                 }
             }
             default -> throw new IllegalStateException("RAG_RETRIEVAL_STATUS_INVALID");
@@ -80,5 +86,12 @@ public class RagService {
                 diagnostics.degraded(),
                 error,
                 new RagAnswer.Diagnostics(diagnostics.status(), diagnostics.error(), diagnostics.snapshotHash()));
+    }
+
+    private void logContextFailure(RagError error, RuntimeException failure) {
+        // 序列化异常可能在消息或原因链中携带正文，仅保留固定分类和故障位置。
+        RuntimeException diagnostic = new RuntimeException(error.name());
+        diagnostic.setStackTrace(failure.getStackTrace());
+        FailureLog.error(log, "RAG_CONTEXT", diagnostic);
     }
 }

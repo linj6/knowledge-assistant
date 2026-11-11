@@ -29,6 +29,116 @@ import org.junit.jupiter.params.provider.ValueSource;
 import tools.jackson.databind.json.JsonMapper;
 
 class ContextBuilderTests {
+    @Test
+    void modelFieldsExcludeServerIdentity() {
+        RankedChunk source = new RankedChunk(
+                987654321L,
+                876543219L,
+                765432198L,
+                654321987L,
+                "正文",
+                123,
+                456,
+                "标题",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                7);
+        AssembledContext result = builder(4000, 16000).build(List.of(source));
+        assertThat(JsonMapper.builder()
+                        .build()
+                        .readTree(result.contextText())
+                        .get(0)
+                        .size())
+                .isEqualTo(3);
+        assertThat(result.contextText())
+                .contains("\"evidenceId\"", "\"headingPath\"", "\"content\"")
+                .doesNotContain(
+                        "987654321",
+                        "876543219",
+                        "765432198",
+                        "654321987",
+                        "chunkId",
+                        "knowledgeBaseId",
+                        "documentId",
+                        "indexVersionId",
+                        "sourceStart",
+                        "sourceEnd",
+                        "finalRank");
+        SelectedEvidence selected = result.selectedEvidence().getFirst();
+        assertThat(selected)
+                .isEqualTo(new SelectedEvidence(
+                        "E1",
+                        source.chunkId(),
+                        source.knowledgeBaseId(),
+                        source.documentId(),
+                        source.indexVersionId(),
+                        source.content(),
+                        123,
+                        456,
+                        "标题",
+                        7));
+        assertThat(result.evidenceMap().get("E1")).isSameAs(selected);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void contextFailuresLogOnceWithoutPayload(boolean inconsistent) {
+        RetrievalService retrieval = mock(RetrievalService.class);
+        ContextBuilder contexts = mock(ContextBuilder.class);
+        List<RankedChunk> chunks = List.of(chunk(1, "CHUNK_PRIVATE", 1));
+        RetrievalDiagnostics diagnostics = new RetrievalDiagnostics(
+                RetrievalStrategy.HYBRID_RRF,
+                RetrievalStrategy.HYBRID_RRF,
+                false,
+                RetrievalStatus.SUCCESS,
+                "hash",
+                RetrievalParameters.defaults(),
+                List.of(),
+                null);
+        when(retrieval.search(any(), any(), any(), any()))
+                .thenReturn(List.of(new RetrievalResult(chunks, diagnostics)));
+        RuntimeException failure = inconsistent
+                ? new ContextBuilder.InconsistentEvidenceException()
+                : new IllegalStateException("QUESTION_PRIVATE CHUNK_PRIVATE CONTEXT_PRIVATE password=secret");
+        failure.initCause(new RuntimeException("CAUSE_PRIVATE"));
+        failure.addSuppressed(new RuntimeException("SUPPRESSED_PRIVATE"));
+        doThrow(failure).when(contexts).build(chunks);
+        ch.qos.logback.classic.Logger logger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(RagService.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                new ch.qos.logback.core.read.ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            RagError expected = inconsistent ? RagError.CONTEXT_DATA_INCONSISTENT : RagError.CONTEXT_BUILD_FAILED;
+            assertThat(new RagService(retrieval, contexts)
+                            .answer(1L, "QUESTION_PRIVATE", null, null)
+                            .error())
+                    .isEqualTo(expected);
+            assertThat(appender.list).hasSize(1);
+            ch.qos.logback.classic.spi.ILoggingEvent event = appender.list.getFirst();
+            assertThat(event.getLevel()).isEqualTo(ch.qos.logback.classic.Level.ERROR);
+            String rendered = event.getFormattedMessage()
+                    + ch.qos.logback.classic.spi.ThrowableProxyUtil.asString(event.getThrowableProxy());
+            assertThat(rendered)
+                    .contains("RAG_CONTEXT", expected.name())
+                    .doesNotContain(
+                            "QUESTION_PRIVATE",
+                            "CHUNK_PRIVATE",
+                            "CONTEXT_PRIVATE",
+                            "CAUSE_PRIVATE",
+                            "SUPPRESSED_PRIVATE",
+                            "secret");
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+    }
+
     RankedChunk chunk(long id, String content, int rank) {
         return new RankedChunk(id, 2L, 3L, 1L, content, 0, 10, "标题", null, null, null, null, null, null, rank);
     }

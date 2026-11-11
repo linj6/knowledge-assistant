@@ -14,6 +14,9 @@ import tools.jackson.databind.json.JsonMapper;
 
 @Component
 public class ContextBuilder {
+    /** 模型只需要证据编号和文本，数据库身份始终留在服务端。 */
+    private record ModelEvidence(String evidenceId, String headingPath, String content) {}
+
     private final int budget;
     private final int maxCharacters;
     private final TokenEstimator estimator;
@@ -76,7 +79,9 @@ public class ContextBuilder {
             SelectedEvidence next = evidence("E" + (selected.size() + 1), c);
             List<SelectedEvidence> trial = new ArrayList<>(selected);
             trial.add(next);
-            String serialized = mapper.writeValueAsString(trial);
+            String serialized = mapper.writeValueAsString(trial.stream()
+                    .map(item -> new ModelEvidence(item.evidenceId(), item.headingPath(), item.content()))
+                    .toList());
             if (serialized.length() > maxCharacters
                     || estimator.estimate(serialized).estimatedTokens() > budget) {
                 excluded++;

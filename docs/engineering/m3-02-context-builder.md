@@ -11,10 +11,10 @@ ContextBuilder 只接收最终 RankedChunk；按 finalRank 稳定排序（历史
 Context 是严格 JSON 数组，例如：
 
 ```json
-[{"evidenceId":"E1","chunkId":604,"knowledgeBaseId":1,"documentId":2,"indexVersionId":3,"content":"Consumer ACK 用于确认消费处理。","sourceStart":0,"sourceEnd":24,"headingPath":"RabbitMQ Consumer ACK","finalRank":1}]
+[{"evidenceId":"E1","headingPath":"RabbitMQ Consumer ACK","content":"Consumer ACK 用于确认消费处理。"}]
 ```
 
-独立 JsonMapper 不受 API Long 字符串模块影响；数字身份可由后端映射恢复，后续组件不能依赖模型解析数字身份。正文、标题均通过 JSON 字符串转义，伪造标签、引号、换行及反斜杠不能新增结构字段。恶意指令作为普通数据保留；这不证明模型一定忽略指令。完整 Prompt Contract 留给 M3-03。
+模型可见的轻量 ModelEvidence 仅含 evidenceId、headingPath、content；内部 ID、来源位置和排名仅保存在服务端 SelectedEvidence 与 evidenceMap。正文、标题均通过 JSON 字符串转义，伪造标签、引号、换行及反斜杠不能新增结构字段。恶意指令作为普通数据保留；这不证明模型一定忽略指令。完整 Prompt Contract 留给 M3-03。
 
 每次试选完整 Chunk 后序列化整个数组并计量，包括 ID、元数据、转义、括号和逗号。超预算跳过当前候选继续尝试；仅成功入选才占用 E 编号。一次构建同时返回文本、List.copyOf 列表及 Map.copyOf 映射，元素也是不可变 record；后续不得重新选择或编号。映射只包含实际入选证据。selectedCount 与 excludedByBudget 分别为入选数和按去重后候选统计的预算排除数。
 
@@ -50,3 +50,13 @@ ContextBuilderTests 覆盖完整选择、排名去重、冲突、序列化开销
 - Maven 原始日志仅在系统临时目录 ka-m302-targeted.log、ka-m302-verify.log，不纳入提交；不提交凭据、业务正文或完整 Context 日志。
 
 提交前审阅全部新增文件和完整 diff，仅涉及本任务9个文件；未改依赖版本、Migration、冻结文档或本地敏感配置。
+
+## 补充审查修正（2026-11-11）
+
+仅修改 ContextBuilder、RagService、ContextBuilderTests 和本文。ContextBuilder 使用内部轻量 ModelEvidence 序列化 evidenceId、headingPath、content；完整 SelectedEvidence 与 evidenceMap 仍保留全部真实身份及来源位置，编号规则不变。预算改为计量实际模型可见 JSON，默认预算及 TokenEstimator 不变。
+
+RagService 两类 Context 异常各调用一次 FailureLog.error，boundary=RAG_CONTEXT。为避免任意序列化异常消息、cause、suppressed 携带正文，先构造只含固定错误分类及原故障栈位置的诊断异常，再交给 FailureLog 重建；不向日志后端传原始 Throwable。此边界有意舍弃原始消息和原因链，不改变 API 错误分类。
+
+新增测试断言模型 JSON 精确三字段、不含内部 ID，服务端身份及 E1 映射完整；原有特殊字符/Prompt Injection 往返测试继续通过。两类异常均以真实 Logback 事件和 ThrowableProxy 渲染验证：每次恰好一条 ERROR，包含安全分类，且问题、正文、Context、cause、suppressed 哨兵均不出现。
+
+验证命令：`mvn "-Dmaven.repo.local=D:/develop/repository" spotless:apply test "-Dtest=ContextBuilderTests,RagApiTests,FailureLogTests"`。Spotless apply/check、编译通过；32项全部通过，0失败/错误/跳过（ContextBuilderTests 14、RagApiTests 10、FailureLogTests 8）。git diff --check 通过。按本次范围未重复默认全量及容器测试，未调用模型、未读取或修改本地敏感配置。补充提交 SHA 由最终交付报告列出，也可查询本文最新 git log。
