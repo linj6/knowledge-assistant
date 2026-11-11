@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.rag;
+package com.lnjecit.knowledge.assistant.rag.context;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;

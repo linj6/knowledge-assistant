@@ -15,10 +15,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.lnjecit.knowledge.assistant.infrastructure.web.ApiExceptionHandler;
 import com.lnjecit.knowledge.assistant.infrastructure.web.RequestIdFilter;
-import com.lnjecit.knowledge.assistant.rag.AnswerGenerator;
-import com.lnjecit.knowledge.assistant.rag.ContextBuilder;
-import com.lnjecit.knowledge.assistant.rag.ContextProperties;
 import com.lnjecit.knowledge.assistant.rag.RagService;
+import com.lnjecit.knowledge.assistant.rag.context.ContextBuilder;
+import com.lnjecit.knowledge.assistant.rag.context.ContextProperties;
+import com.lnjecit.knowledge.assistant.rag.generation.AnswerGenerator;
 import com.lnjecit.knowledge.assistant.retrieval.RetrievalService;
 import java.util.List;
 import org.junit.jupiter.params.ParameterizedTest;

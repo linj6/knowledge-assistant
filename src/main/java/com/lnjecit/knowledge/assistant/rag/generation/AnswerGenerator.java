@@ -1,9 +1,12 @@
-package com.lnjecit.knowledge.assistant.rag;
+package com.lnjecit.knowledge.assistant.rag.generation;
 
 import com.lnjecit.knowledge.assistant.common.RequestIdContext;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.TokenEstimator;
 import com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog;
+import com.lnjecit.knowledge.assistant.rag.context.AssembledContext;
+import com.lnjecit.knowledge.assistant.rag.context.SelectedEvidence;
+import com.lnjecit.knowledge.assistant.rag.model.RagError;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;

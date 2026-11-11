@@ -13,9 +13,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.lnjecit.knowledge.assistant.infrastructure.web.ApiExceptionHandler;
 import com.lnjecit.knowledge.assistant.infrastructure.web.ApiJacksonConfiguration;
 import com.lnjecit.knowledge.assistant.infrastructure.web.RequestIdFilter;
-import com.lnjecit.knowledge.assistant.rag.RagCitation;
 import com.lnjecit.knowledge.assistant.rag.RagService;
 import com.lnjecit.knowledge.assistant.rag.api.RagController;
+import com.lnjecit.knowledge.assistant.rag.model.RagCitation;
 import com.lnjecit.knowledge.assistant.retrieval.RetrievalService;
 import com.lnjecit.knowledge.assistant.retrieval.model.RankedChunk;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalDiagnostics;
@@ -46,9 +46,10 @@ class RagApiTests {
         mapper = builder.build();
         mvc = MockMvcBuilders.standaloneSetup(new RagController(new RagService(
                         retrieval,
-                        new com.lnjecit.knowledge.assistant.rag.ContextBuilder(
-                                new com.lnjecit.knowledge.assistant.rag.ContextProperties()),
-                        org.mockito.Mockito.mock(com.lnjecit.knowledge.assistant.rag.AnswerGenerator.class))))
+                        new com.lnjecit.knowledge.assistant.rag.context.ContextBuilder(
+                                new com.lnjecit.knowledge.assistant.rag.context.ContextProperties()),
+                        org.mockito.Mockito.mock(
+                                com.lnjecit.knowledge.assistant.rag.generation.AnswerGenerator.class))))
                 .setMessageConverters(new JacksonJsonHttpMessageConverter(mapper))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .addFilters(new RequestIdFilter())

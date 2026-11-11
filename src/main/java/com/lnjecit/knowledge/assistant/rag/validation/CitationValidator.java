@@ -1,5 +1,8 @@
-package com.lnjecit.knowledge.assistant.rag;
+package com.lnjecit.knowledge.assistant.rag.validation;
 
+import com.lnjecit.knowledge.assistant.rag.context.AssembledContext;
+import com.lnjecit.knowledge.assistant.rag.context.SelectedEvidence;
+import com.lnjecit.knowledge.assistant.rag.model.RagCitation;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalResult;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStatus;
 import java.util.ArrayList;

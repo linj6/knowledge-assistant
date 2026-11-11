@@ -1,5 +1,6 @@
-package com.lnjecit.knowledge.assistant.rag;
+package com.lnjecit.knowledge.assistant.rag.validation;
 
+import com.lnjecit.knowledge.assistant.rag.generation.RawGenerationResult;
 import java.util.ArrayList;
 import java.util.List;
 import tools.jackson.core.StreamReadFeature;

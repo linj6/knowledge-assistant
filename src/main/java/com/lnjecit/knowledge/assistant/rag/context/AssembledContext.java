@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.rag;
+package com.lnjecit.knowledge.assistant.rag.context;
 
 import com.lnjecit.knowledge.assistant.infrastructure.ai.TokenEstimator;
 import java.util.List;

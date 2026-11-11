@@ -1,5 +1,6 @@
-package com.lnjecit.knowledge.assistant.rag;
+package com.lnjecit.knowledge.assistant.rag.model;
 
+import com.lnjecit.knowledge.assistant.rag.generation.RawGenerationResult;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalDiagnostics;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStatus;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStrategy;

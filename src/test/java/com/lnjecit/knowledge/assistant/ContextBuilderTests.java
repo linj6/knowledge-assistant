@@ -9,12 +9,12 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.lnjecit.knowledge.assistant.infrastructure.ai.TokenEstimator;
-import com.lnjecit.knowledge.assistant.rag.AssembledContext;
-import com.lnjecit.knowledge.assistant.rag.ContextBuilder;
-import com.lnjecit.knowledge.assistant.rag.ContextProperties;
-import com.lnjecit.knowledge.assistant.rag.RagError;
 import com.lnjecit.knowledge.assistant.rag.RagService;
-import com.lnjecit.knowledge.assistant.rag.SelectedEvidence;
+import com.lnjecit.knowledge.assistant.rag.context.AssembledContext;
+import com.lnjecit.knowledge.assistant.rag.context.ContextBuilder;
+import com.lnjecit.knowledge.assistant.rag.context.ContextProperties;
+import com.lnjecit.knowledge.assistant.rag.context.SelectedEvidence;
+import com.lnjecit.knowledge.assistant.rag.model.RagError;
 import com.lnjecit.knowledge.assistant.retrieval.RetrievalService;
 import com.lnjecit.knowledge.assistant.retrieval.model.RankedChunk;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalDiagnostics;
@@ -119,7 +119,8 @@ class ContextBuilderTests {
             assertThat(new RagService(
                                     retrieval,
                                     contexts,
-                                    org.mockito.Mockito.mock(com.lnjecit.knowledge.assistant.rag.AnswerGenerator.class))
+                                    org.mockito.Mockito.mock(
+                                            com.lnjecit.knowledge.assistant.rag.generation.AnswerGenerator.class))
                             .answer(1L, "QUESTION_PRIVATE", null, null)
                             .error())
                     .isEqualTo(expected);
@@ -253,8 +254,8 @@ class ContextBuilderTests {
     void retrievalFailuresDoNotBuildContextAndSuccessClassifiesFailures() {
         RetrievalService retrieval = mock(RetrievalService.class);
         ContextBuilder contexts = mock(ContextBuilder.class);
-        com.lnjecit.knowledge.assistant.rag.AnswerGenerator generator =
-                mock(com.lnjecit.knowledge.assistant.rag.AnswerGenerator.class);
+        com.lnjecit.knowledge.assistant.rag.generation.AnswerGenerator generator =
+                mock(com.lnjecit.knowledge.assistant.rag.generation.AnswerGenerator.class);
         RagService rag = new RagService(retrieval, contexts, generator);
         for (RetrievalStatus status :
                 List.of(RetrievalStatus.EMPTY_RESULT, RetrievalStatus.FAILED, RetrievalStatus.SUCCESS)) {
@@ -289,8 +290,9 @@ class ContextBuilderTests {
         List<RankedChunk> chunks = List.of(chunk(1, "a", 1));
         when(contexts.build(chunks)).thenReturn(new ContextBuilder(new ContextProperties()).build(chunks));
         assertThat(rag.answer(1L, "q", null, null).error()).isEqualTo(RagError.OUTPUT_INVALID);
-        org.mockito.Mockito.doThrow(new com.lnjecit.knowledge.assistant.rag.AnswerGenerator.GenerationException(
-                        RagError.MODEL_TIMEOUT, new java.net.SocketTimeoutException()))
+        org.mockito.Mockito.doThrow(
+                        new com.lnjecit.knowledge.assistant.rag.generation.AnswerGenerator.GenerationException(
+                                RagError.MODEL_TIMEOUT, new java.net.SocketTimeoutException()))
                 .when(generator)
                 .generate(any(), any());
         assertThat(rag.answer(1L, "q", null, null).error()).isEqualTo(RagError.MODEL_TIMEOUT);

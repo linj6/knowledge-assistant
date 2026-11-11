@@ -10,9 +10,9 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.lnjecit.knowledge.assistant.infrastructure.ai.TokenEstimator;
-import com.lnjecit.knowledge.assistant.rag.AnswerGenerator;
-import com.lnjecit.knowledge.assistant.rag.AssembledContext;
-import com.lnjecit.knowledge.assistant.rag.RawGenerationResult;
+import com.lnjecit.knowledge.assistant.rag.context.AssembledContext;
+import com.lnjecit.knowledge.assistant.rag.generation.AnswerGenerator;
+import com.lnjecit.knowledge.assistant.rag.generation.RawGenerationResult;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;

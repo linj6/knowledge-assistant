@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.rag;
+package com.lnjecit.knowledge.assistant.rag.generation;
 
 /** 未经解析和引用校验的内部候选，不能作为 API 答案。 */
 public record RawGenerationResult(

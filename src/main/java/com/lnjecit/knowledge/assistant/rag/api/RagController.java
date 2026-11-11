@@ -1,8 +1,8 @@
 package com.lnjecit.knowledge.assistant.rag.api;
 
 import com.lnjecit.knowledge.assistant.common.api.Result;
-import com.lnjecit.knowledge.assistant.rag.RagAnswer;
 import com.lnjecit.knowledge.assistant.rag.RagService;
+import com.lnjecit.knowledge.assistant.rag.model.RagAnswer;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
