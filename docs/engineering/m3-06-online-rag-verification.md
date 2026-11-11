@@ -31,4 +31,3 @@ Prompt 合约版本由运行代码固定为 `rag-answer-v1`；API 不返回 Prom
 ## 安全与验证
 
 未读取、修改、删除、覆盖或输出 `application-local.yml`；未输出凭据，未修改现有业务数据。只修改工程记录，执行完整 diff 审阅及 `git diff --check`；本次未重跑 Maven 测试，沿用 M3-05 已记录的离线回归。没有发现需要代码修复的缺陷。
-
