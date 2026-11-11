@@ -1,6 +1,6 @@
 # Knowledge Assistant
 
-当前为 Java 21、Spring Boot 4.1.2、Spring AI 2.0.2 的单 Maven 模块工程。M0-01～M0-07 已有实现与验证记录；M0-01、M0-03、M0-07 仍为部分验证，M0 尚未完全验收。详见 [M0 验收报告](docs/engineering/m0-verification-report.md)。
+当前为 Java 21、Spring Boot 4.1.2、Spring AI 2.0.2 的单 Maven 模块工程。M0-01～M0-07 已有实现与验证记录；M0-01、M0-03、M0-07 仍为部分验证，M0 尚未完全验收。详见 [M0 验收报告](docs/engineering/m0-verification-report.md)。M1 导入、M2 检索及 M3 单轮 RAG 已实现；M4 系统评估尚未完成，详见 [M3 最终验收](docs/engineering/m3-final-acceptance.md)。
 
 使用 JDK 21 和 Maven 3.9（本机验证版本 3.9.16）：
 
@@ -27,7 +27,7 @@ mvn spring-boot:run
 | infrastructure | 存储、模型客户端适配、配置与观测 |
 
 以上均为同一个 Maven 模块内的 Java 包，随对应任务实现。
-Flyway、配置/错误协议及模型适配已实现；PostgreSQL、Elasticsearch/IK、MinIO 本机功能和 Chat、Embedding、Rerank 历史接入已验证。M1 导入与首次发布已有实现；检索与 RAG 尚未实现，构建成功不代表 M0 完全验收。
+Flyway、配置/错误协议及模型适配已实现；PostgreSQL、Elasticsearch/IK、MinIO 本机功能和 Chat、Embedding、Rerank 历史接入已验证。M1 导入与首次发布、M2 检索、M3 单轮 RAG 已实现；构建成功不代表 M0 完全验收。
 
 ## 本地基础设施（M0-03 本机功能已验证，交付部分验证）
 
