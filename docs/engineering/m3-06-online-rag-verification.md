@@ -2,7 +2,7 @@
 
 ## 结论
 
-**NOT READY FOR M3-07**：真实业务闭环已运行，但尚未取得 IDEA 阶段日志，无法核对本次 OVERALL 摘要、模型名、候选数和 Context 入选数。供应商侧精确账单不是此结论的阻断原因。5 次授权问答全部 HTTP 200；4 次 ANSWERED、1 次正常拒答；无领域错误。没有重试、Rerank 或追加请求。应用由开发者在 IDEA 启动，监听 8080。
+**READY FOR M3-07**：5 次授权问答全部 HTTP 200，4 次 ANSWERED、1 次正常拒答；开发者提供的 IDEA 运行日志摘录确认六阶段日志、模型、Prompt、检索与 Context 数量以及唯一 OVERALL 摘要。未观察到 M3-06 功能阻断。没有重试、Rerank 或追加请求。应用由开发者在 IDEA 启动，监听 8080。此结论仅表示真实 RAG 链路验收通过，不替代 M4 语义质量评估。
 
 ## 环境与知识库
 
@@ -24,17 +24,25 @@
 
 ## 调用与诊断边界
 
-应用 API 实际问答 5 次。根据各次有模型回答及真实 usage、BM25 不使用 Query Embedding、HYBRID_RRF 的策略实现，预计供应商请求为 Chat 5 次、Embedding 1 次、Rerank 0 次；未取得供应商侧独立请求账单或网络追踪，不能将该推断当作供应商侧精确计数。没有虚构费用。
+应用 API 实际问答 5 次。根据执行路径、响应和开发者提供的阶段日志，推算供应商请求为 Chat 5 次、Embedding 1 次、Rerank 0 次；未取得供应商侧独立请求账单或网络追踪，不能将该推断当作供应商侧精确计数。没有虚构费用。
 
-Prompt 合约版本由运行代码固定为 `rag-answer-v1`；API 不返回 Prompt 版本、模型名或阶段耗时。IDEA 控制台日志未取得，因此本次未独立核对每例阶段日志、OVERALL 摘要、模型名、检索候选数及 Context 入选证据数。A 的 usage 在首次取样时读取了错误字段，未记录，不能补造。现有响应的引用和状态证明核心业务闭环；这些诊断项是本次证据限制。M3-05 离线测试已覆盖阶段日志，但不能替代本次日志检查。
+Prompt 合约版本由运行代码固定为 `rag-answer-v1`，开发者提供的运行日志摘录也确认相同版本与模型 `qwen-plus`；API 本身不返回 Prompt 版本、模型名或阶段耗时。A 的 usage 在首次取样时读取了错误字段，未记录，不能补造。M3-05 离线测试覆盖阶段日志，本次真实运行日志摘录补足在线诊断证据。
 
 ## 最终证据收口（只读）
 
-已保存的 API requestId：A `9db4e65e-537c-4be8-8836-c4521977eb18`；B `d4be9511-dc2d-45fa-8e8d-468c701a51ab`；C `daf730ea-a8da-4dfb-af74-59938207c4b2`；D `5b711f29-6e2f-426f-8e5a-a89916f26a80`；E `3fd5af22-c5fc-4024-8cda-90aec9ef71bd`。这些 ID 来自当次 HTTP 响应，可用于关联已有控制台记录，并不证明日志已经取得。
+此前只读查找未在项目目录或系统临时目录发现运行日志文件，且 Codex 的 Computer Use 本机 UI 管道不可用。以下新增日志证据来自**开发者提供并人工核对的 IDEA 控制台摘录**；Codex 未独立访问或采集 IDEA 控制台。五个 requestId 来自此前各次 HTTP 响应，用于对应场景。
 
-只读查找未在项目目录或系统临时目录发现对应的运行日志文件；代码资源未配置文件日志输出。8080 仍由应用进程监听。尝试通过 Computer Use 查看 IDEA 窗口时，本机 UI 管道返回“系统找不到指定的文件”，因此当前 Codex 无法读取已有 Run 控制台，也没有可访问的进程标准输出记录。未取得 RETRIEVAL、CONTEXT_BUILD、GENERATION、OUTPUT_PARSE、CITATION_VALIDATE 和 OVERALL 的真实逐例日志；Prompt 版本和模型标识也未获得运行日志印证。
+| 场景 | requestId | 请求/实际策略 | candidateCount | selectedEvidenceCount | citationCount | OVERALL(ms) | status |
+|---|---|---|---:|---:|---:|---:|---|
+| A | `9db4e65e-537c-4be8-8836-c4521977eb18` | BM25 / BM25 | 4 | 3 | 1 | 3864 | ANSWERED |
+| B | `d4be9511-dc2d-45fa-8e8d-468c701a51ab` | BM25 / BM25 | 7 | 3 | 3 | 1498 | ANSWERED |
+| C | `daf730ea-a8da-4dfb-af74-59938207c4b2` | BM25 / BM25 | 4 | 3 | 0 | 1009 | INSUFFICIENT_EVIDENCE |
+| D | `5b711f29-6e2f-426f-8e5a-a89916f26a80` | BM25 / BM25 | 7 | 3 | 1 | 1143 | ANSWERED |
+| E | `3fd5af22-c5fc-4024-8cda-90aec9ef71bd` | HYBRID_RRF / HYBRID_RRF | 7 | 3 | 1 | 1691 | ANSWERED |
 
-证据分类：HTTP 状态、RagStatus、策略、引用和 B～E usage 为当次 API 直接证据；Chat 5、Embedding 1、Rerank 0 为按执行路径推算；服务端阶段日志和供应商侧独立计数未取得。尚无已观察到的功能失败。最小补证方式是由能访问 IDEA Run 控制台的开发者，使用上述 requestId 查找现存日志，仅摘录各阶段安全字段与 OVERALL 摘要供核对；若控制台历史已丢失，则需另行决定是否授权一次新的在线请求，本次不执行。
+五次请求均有 RETRIEVAL、CONTEXT_BUILD、GENERATION、OUTPUT_PARSE、CITATION_VALIDATE、OVERALL 六阶段日志，各有唯一 OVERALL 摘要；模型均为 `qwen-plus`，Prompt 版本均为 `rag-answer-v1`，Generation error 均为 null，degraded 均为 false。E 的检索内部阶段为 EMBEDDING 517ms、VECTOR 78ms、BM25 63ms、FUSION 2ms，无 Rerank 阶段。阶段日志、候选数、Context 入选数、状态和总耗时的诊断证据缺口已由开发者摘录关闭。
+
+证据分类：HTTP 状态、RagStatus、策略、引用和 B～E usage 为当次 API 直接证据；上述阶段字段为开发者提供的运行日志证据；Chat 5、Embedding 1、Rerank 0 为执行路径与日志支持的推断。仍未取得供应商侧独立精确计数，A usage 未记录，合法引用也不证明语义质量；这些边界不构成 M3-06 的功能阻断。
 
 ## 安全与验证
 
