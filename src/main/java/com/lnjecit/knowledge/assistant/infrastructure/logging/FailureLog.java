@@ -28,6 +28,15 @@ public final class FailureLog {
         }
     }
 
+    /** 受控协议拒绝仅记录固定分类，不接收原始模型文本或异常。 */
+    public static void rejected(Logger logger, String boundary, String classification) {
+        try {
+            logger.warn("requestId={} boundary={} error={}", RequestIdContext.current(), boundary, classification);
+        } catch (RuntimeException loggingFailure) {
+            // 日志失败不改变领域失败结果。
+        }
+    }
+
     public static String redact(String value) {
         if (value == null) return "";
         String result = value;

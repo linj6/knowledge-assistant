@@ -279,7 +279,7 @@ class ContextBuilderTests {
         org.mockito.Mockito.reset(contexts);
         List<RankedChunk> chunks = List.of(chunk(1, "a", 1));
         when(contexts.build(chunks)).thenReturn(new ContextBuilder(new ContextProperties()).build(chunks));
-        assertThat(rag.answer(1L, "q", null, null).error()).isEqualTo(RagError.GENERATION_NOT_VALIDATED);
+        assertThat(rag.answer(1L, "q", null, null).error()).isEqualTo(RagError.OUTPUT_INVALID);
         org.mockito.Mockito.doThrow(new com.lnjecit.knowledge.assistant.rag.AnswerGenerator.GenerationException(
                         RagError.MODEL_TIMEOUT, new java.net.SocketTimeoutException()))
                 .when(generator)

@@ -7,6 +7,7 @@ import com.lnjecit.knowledge.assistant.retrieval.RetrievalService;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalDiagnostics;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalParameters;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalResult;
+import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStatus;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStrategy;
 import java.util.List;
 import org.slf4j.Logger;
@@ -20,6 +21,8 @@ public class RagService {
     private final RetrievalService retrieval;
     private final ContextBuilder contexts;
     private final AnswerGenerator generator;
+    private final StructuredOutputParser parser = new StructuredOutputParser();
+    private final CitationValidator validator = new CitationValidator();
 
     public RagService(RetrievalService retrieval, ContextBuilder contexts, AnswerGenerator generator) {
         this.retrieval = retrieval;
@@ -47,57 +50,72 @@ public class RagService {
                 .search(knowledgeBaseId, question, List.of(requested), resolved)
                 .getFirst();
         RetrievalDiagnostics diagnostics = result.diagnostics();
-        RagStatus status;
-        RagError error;
-        switch (diagnostics.status()) {
-            case EMPTY_RESULT -> {
-                status = RagStatus.INSUFFICIENT_EVIDENCE;
-                error = null;
-            }
-            case FAILED -> {
-                status = RagStatus.FAILED;
-                error = RagError.RETRIEVAL_FAILED;
-            }
-            case SUCCESS -> {
-                // 仅在检索成功且有实际入选证据时生成；引用校验留给 M3-04。
-                // 只有基于实际上下文完成生成和引用校验后，才允许构造 ANSWERED。
-                status = RagStatus.FAILED;
-                try {
-                    AssembledContext context = contexts.build(result.chunks());
-                    error = context.selectedCount() == 0
-                            ? RagError.CONTEXT_BUDGET_EXCEEDED
-                            : generate(question, context);
-                } catch (ContextBuilder.InconsistentEvidenceException failure) {
-                    error = RagError.CONTEXT_DATA_INCONSISTENT;
-                    logContextFailure(error, failure);
-                } catch (RuntimeException failure) {
-                    // 构建故障仅返回固定分类，不回显可能携带正文的异常消息。
-                    error = RagError.CONTEXT_BUILD_FAILED;
-                    logContextFailure(error, failure);
-                }
-            }
-            default -> throw new IllegalStateException("RAG_RETRIEVAL_STATUS_INVALID");
+        if (diagnostics.status() == RetrievalStatus.EMPTY_RESULT)
+            return response(result, RagStatus.INSUFFICIENT_EVIDENCE, null, List.of(), null, null);
+        if (diagnostics.status() == RetrievalStatus.FAILED)
+            return response(result, RagStatus.FAILED, null, List.of(), RagError.RETRIEVAL_FAILED, null);
+
+        // 同次请求只构建一次上下文，后续校验沿用这一份证据映射。
+        AssembledContext context;
+        try {
+            context = contexts.build(result.chunks());
+        } catch (ContextBuilder.InconsistentEvidenceException failure) {
+            logContextFailure(RagError.CONTEXT_DATA_INCONSISTENT, failure);
+            return response(result, RagStatus.FAILED, null, List.of(), RagError.CONTEXT_DATA_INCONSISTENT, null);
+        } catch (RuntimeException failure) {
+            logContextFailure(RagError.CONTEXT_BUILD_FAILED, failure);
+            return response(result, RagStatus.FAILED, null, List.of(), RagError.CONTEXT_BUILD_FAILED, null);
         }
-        // 问答接口仅保留必要诊断，不回传候选正文或模型原始输出。
-        return new RagAnswer(
-                status,
-                null,
-                List.of(),
-                diagnostics.requestedStrategy(),
-                diagnostics.actualStrategy(),
-                diagnostics.degraded(),
-                error,
-                new RagAnswer.Diagnostics(diagnostics.status(), diagnostics.error(), diagnostics.snapshotHash()));
+        if (context.selectedCount() == 0)
+            return response(result, RagStatus.FAILED, null, List.of(), RagError.CONTEXT_BUDGET_EXCEEDED, null);
+        RawGenerationResult raw;
+        try {
+            raw = generator.generate(question, context);
+        } catch (AnswerGenerator.GenerationException failure) {
+            return response(result, RagStatus.FAILED, null, List.of(), failure.error(), null);
+        }
+        try {
+            StructuredOutputParser.ParsedOutput parsed = parser.parse(raw);
+            List<RagCitation> citations = validator.validate(parsed, knowledgeBaseId, context, result);
+            return response(
+                    result,
+                    parsed.answerable() ? RagStatus.ANSWERED : RagStatus.INSUFFICIENT_EVIDENCE,
+                    parsed.answer(),
+                    citations,
+                    null,
+                    raw.usage());
+        } catch (StructuredOutputParser.InvalidOutputException failure) {
+            FailureLog.rejected(log, "RAG_OUTPUT", "OUTPUT_INVALID");
+            return response(
+                    result,
+                    RagStatus.FAILED,
+                    null,
+                    List.of(),
+                    RagError.OUTPUT_INVALID,
+                    raw == null ? null : raw.usage());
+        } catch (CitationValidator.InvalidCitationException failure) {
+            FailureLog.rejected(log, "RAG_CITATION", "CITATION_INVALID");
+            return response(result, RagStatus.FAILED, null, List.of(), RagError.CITATION_INVALID, raw.usage());
+        }
     }
 
-    private RagError generate(String question, AssembledContext context) {
-        try {
-            generator.generate(question, context);
-            // 原始候选未经引用校验，不能返回正式答案。
-            return RagError.GENERATION_NOT_VALIDATED;
-        } catch (AnswerGenerator.GenerationException failure) {
-            return failure.error();
-        }
+    private RagAnswer response(
+            RetrievalResult result,
+            RagStatus status,
+            String answer,
+            List<RagCitation> citations,
+            RagError error,
+            RawGenerationResult.Usage usage) {
+        RetrievalDiagnostics d = result.diagnostics();
+        return new RagAnswer(
+                status,
+                answer,
+                citations,
+                d.requestedStrategy(),
+                d.actualStrategy(),
+                d.degraded(),
+                error,
+                new RagAnswer.Diagnostics(d.status(), d.error(), d.snapshotHash(), usage));
     }
 
     private void logContextFailure(RagError error, RuntimeException failure) {

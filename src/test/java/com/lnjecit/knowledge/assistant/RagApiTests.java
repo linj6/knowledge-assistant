@@ -100,7 +100,7 @@ class RagApiTests {
         result(RetrievalStatus.SUCCESS);
         request()
                 .andExpect(jsonPath("$.data.status").value("FAILED"))
-                .andExpect(jsonPath("$.data.error").value("GENERATION_NOT_VALIDATED"))
+                .andExpect(jsonPath("$.data.error").value("OUTPUT_INVALID"))
                 .andExpect(jsonPath("$.data.citations").isEmpty())
                 .andExpect(jsonPath("$.data.answer").isEmpty());
     }
