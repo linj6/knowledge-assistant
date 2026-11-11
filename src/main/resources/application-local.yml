@@ -1,15 +1,37 @@
-# 仅非敏感默认值；个人密码和密钥在外部 config/application-local.yml 中覆盖。
+# 非敏感本地配置；密码与真实 API Key 由外部 config/application-local.yml 覆盖。
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/ka
     username: ka
-    password: ""
+    password: replace-with-local-password
 assistant:
+  worker:
+    enabled: false
+  elasticsearch:
+    enabled: true
+    endpoint: http://localhost:9200
+  minio:
+    endpoint: http://localhost:9000
+    access-key: ${KA_INFRA_MINIO_USER:replace-with-local-user}
+    secret-key: ${KA_INFRA_MINIO_PASSWORD:replace-with-local-password}
+    bucket: knowledge-assistant
   model:
+    enabled: true
+    online-authorized: true
     base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
     chat-model: qwen-plus
-    embedding-model: ${ASSISTANT_MODEL_EMBEDDING_MODEL:text-embedding-v4}
-    dimensions: ${ASSISTANT_MODEL_DIMENSIONS:1024}
+    embedding-model: text-embedding-v4
+    dimensions: 1024
+    api-key: "REPLACE_WITH_DASHSCOPE_API_KEY"
+    timeout-seconds: 30
+  embedding:
+    baseline-authorized: false
   rerank:
-    enabled: false
+    enabled: true
+    online-authorized: true
     model: qwen3-rerank
+    endpoint: https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank
+    api-key: "REPLACE_WITH_DASHSCOPE_API_KEY"
+    timeout-seconds: 30
+server:
+  port: 8080
