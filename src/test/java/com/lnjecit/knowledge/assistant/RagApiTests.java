@@ -47,7 +47,8 @@ class RagApiTests {
         mvc = MockMvcBuilders.standaloneSetup(new RagController(new RagService(
                         retrieval,
                         new com.lnjecit.knowledge.assistant.rag.ContextBuilder(
-                                new com.lnjecit.knowledge.assistant.rag.ContextProperties()))))
+                                new com.lnjecit.knowledge.assistant.rag.ContextProperties()),
+                        org.mockito.Mockito.mock(com.lnjecit.knowledge.assistant.rag.AnswerGenerator.class))))
                 .setMessageConverters(new JacksonJsonHttpMessageConverter(mapper))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .addFilters(new RequestIdFilter())
@@ -99,7 +100,7 @@ class RagApiTests {
         result(RetrievalStatus.SUCCESS);
         request()
                 .andExpect(jsonPath("$.data.status").value("FAILED"))
-                .andExpect(jsonPath("$.data.error").value("GENERATION_NOT_IMPLEMENTED"))
+                .andExpect(jsonPath("$.data.error").value("GENERATION_NOT_VALIDATED"))
                 .andExpect(jsonPath("$.data.citations").isEmpty())
                 .andExpect(jsonPath("$.data.answer").isEmpty());
     }

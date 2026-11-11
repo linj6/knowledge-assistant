@@ -115,7 +115,10 @@ class ContextBuilderTests {
         logger.addAppender(appender);
         try {
             RagError expected = inconsistent ? RagError.CONTEXT_DATA_INCONSISTENT : RagError.CONTEXT_BUILD_FAILED;
-            assertThat(new RagService(retrieval, contexts)
+            assertThat(new RagService(
+                                    retrieval,
+                                    contexts,
+                                    org.mockito.Mockito.mock(com.lnjecit.knowledge.assistant.rag.AnswerGenerator.class))
                             .answer(1L, "QUESTION_PRIVATE", null, null)
                             .error())
                     .isEqualTo(expected);
@@ -243,7 +246,9 @@ class ContextBuilderTests {
     void retrievalFailuresDoNotBuildContextAndSuccessClassifiesFailures() {
         RetrievalService retrieval = mock(RetrievalService.class);
         ContextBuilder contexts = mock(ContextBuilder.class);
-        RagService rag = new RagService(retrieval, contexts);
+        com.lnjecit.knowledge.assistant.rag.AnswerGenerator generator =
+                mock(com.lnjecit.knowledge.assistant.rag.AnswerGenerator.class);
+        RagService rag = new RagService(retrieval, contexts, generator);
         for (RetrievalStatus status :
                 List.of(RetrievalStatus.EMPTY_RESULT, RetrievalStatus.FAILED, RetrievalStatus.SUCCESS)) {
             RetrievalDiagnostics diagnostics = new RetrievalDiagnostics(
@@ -270,5 +275,15 @@ class ContextBuilderTests {
                 assertThat(rag.answer(1L, "q", null, null).error()).isEqualTo(RagError.CONTEXT_BUILD_FAILED);
             }
         }
+        verifyNoInteractions(generator);
+        org.mockito.Mockito.reset(contexts);
+        List<RankedChunk> chunks = List.of(chunk(1, "a", 1));
+        when(contexts.build(chunks)).thenReturn(new ContextBuilder(new ContextProperties()).build(chunks));
+        assertThat(rag.answer(1L, "q", null, null).error()).isEqualTo(RagError.GENERATION_NOT_VALIDATED);
+        org.mockito.Mockito.doThrow(new com.lnjecit.knowledge.assistant.rag.AnswerGenerator.GenerationException(
+                        RagError.MODEL_TIMEOUT, new java.net.SocketTimeoutException()))
+                .when(generator)
+                .generate(any(), any());
+        assertThat(rag.answer(1L, "q", null, null).error()).isEqualTo(RagError.MODEL_TIMEOUT);
     }
 }

@@ -46,13 +46,17 @@ public final class FailureLog {
     }
 
     public static void error(Logger logger, String boundary, Throwable failure) {
+        error(logger, boundary, failure, java.util.List.of());
+    }
+
+    public static void error(Logger logger, String boundary, Throwable failure, java.util.List<String> payloads) {
         try {
             logger.error(
                     "requestId={} boundary={} kind={}",
                     RequestIdContext.current(),
                     boundary,
                     ModelFailures.classify(failure),
-                    diagnostic(failure, Collections.newSetFromMap(new IdentityHashMap<>()), 0));
+                    diagnostic(failure, Collections.newSetFromMap(new IdentityHashMap<>()), 0, payloads));
         } catch (RuntimeException loggingFailure) {
             // 日志故障不能改变失败状态写入、补偿及对外错误协议，也不递归记录日志。
         }
@@ -74,10 +78,13 @@ public final class FailureLog {
         }
     }
 
-    private static Throwable diagnostic(Throwable source, Set<Throwable> seen, int depth) {
+    private static Throwable diagnostic(
+            Throwable source, Set<Throwable> seen, int depth, java.util.List<String> payloads) {
         if (source == null || depth >= 16 || !seen.add(source)) return null;
         String type = source.getClass().getName();
         String message = redact(source.getMessage());
+        if (!payloads.isEmpty() && source instanceof com.openai.errors.OpenAIInvalidDataException)
+            message = "Invalid model response (raw data omitted)";
         if (source instanceof com.openai.errors.OpenAIServiceException service)
             message = "httpStatus=" + service.statusCode() + " providerCode="
                     + redact(service.code().orElseGet(() -> providerField(service, "code"))) + " providerType="
@@ -98,11 +105,14 @@ public final class FailureLog {
                     + " providerCode=" + redact(minio.errorResponse().code()) + " reason="
                     + redact(minio.errorResponse().message())
                     + " rawResponse=omitted(headers/body may contain credentials)";
+        for (String payload : payloads) {
+            if (payload != null && !payload.isBlank()) message = message.replace(redact(payload), "[PAYLOAD_OMITTED]");
+        }
         RuntimeException copy = new RuntimeException(type + ": " + message);
         copy.setStackTrace(source.getStackTrace());
-        copy.initCause(diagnostic(source.getCause(), seen, depth + 1));
+        copy.initCause(diagnostic(source.getCause(), seen, depth + 1, payloads));
         for (Throwable suppressed : source.getSuppressed()) {
-            Throwable safe = diagnostic(suppressed, seen, depth + 1);
+            Throwable safe = diagnostic(suppressed, seen, depth + 1, payloads);
             if (safe != null) copy.addSuppressed(safe);
         }
         return copy;

@@ -19,10 +19,12 @@ public class RagService {
     public static final int MAX_QUESTION_LENGTH = 4000;
     private final RetrievalService retrieval;
     private final ContextBuilder contexts;
+    private final AnswerGenerator generator;
 
-    public RagService(RetrievalService retrieval, ContextBuilder contexts) {
+    public RagService(RetrievalService retrieval, ContextBuilder contexts, AnswerGenerator generator) {
         this.retrieval = retrieval;
         this.contexts = contexts;
+        this.generator = generator;
     }
 
     public RagAnswer answer(
@@ -57,14 +59,14 @@ public class RagService {
                 error = RagError.RETRIEVAL_FAILED;
             }
             case SUCCESS -> {
-                // 后续接入 AnswerGenerator、CitationValidator，本次只构建证据。
+                // 仅在检索成功且有实际入选证据时生成；引用校验留给 M3-04。
                 // 只有基于实际上下文完成生成和引用校验后，才允许构造 ANSWERED。
                 status = RagStatus.FAILED;
                 try {
                     AssembledContext context = contexts.build(result.chunks());
                     error = context.selectedCount() == 0
                             ? RagError.CONTEXT_BUDGET_EXCEEDED
-                            : RagError.GENERATION_NOT_IMPLEMENTED;
+                            : generate(question, context);
                 } catch (ContextBuilder.InconsistentEvidenceException failure) {
                     error = RagError.CONTEXT_DATA_INCONSISTENT;
                     logContextFailure(error, failure);
@@ -86,6 +88,16 @@ public class RagService {
                 diagnostics.degraded(),
                 error,
                 new RagAnswer.Diagnostics(diagnostics.status(), diagnostics.error(), diagnostics.snapshotHash()));
+    }
+
+    private RagError generate(String question, AssembledContext context) {
+        try {
+            generator.generate(question, context);
+            // 原始候选未经引用校验，不能返回正式答案。
+            return RagError.GENERATION_NOT_VALIDATED;
+        } catch (AnswerGenerator.GenerationException failure) {
+            return failure.error();
+        }
     }
 
     private void logContextFailure(RagError error, RuntimeException failure) {
