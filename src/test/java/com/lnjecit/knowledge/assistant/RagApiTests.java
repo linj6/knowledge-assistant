@@ -44,7 +44,10 @@ class RagApiTests {
         JsonMapper.Builder builder = JsonMapper.builder();
         new ApiJacksonConfiguration().longAsString().customize(builder);
         mapper = builder.build();
-        mvc = MockMvcBuilders.standaloneSetup(new RagController(new RagService(retrieval)))
+        mvc = MockMvcBuilders.standaloneSetup(new RagController(new RagService(
+                        retrieval,
+                        new com.lnjecit.knowledge.assistant.rag.ContextBuilder(
+                                new com.lnjecit.knowledge.assistant.rag.ContextProperties()))))
                 .setMessageConverters(new JacksonJsonHttpMessageConverter(mapper))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .addFilters(new RequestIdFilter())
