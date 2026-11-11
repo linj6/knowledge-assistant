@@ -1,6 +1,8 @@
 package com.lnjecit.knowledge.assistant.ingestion.upload;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.lnjecit.knowledge.assistant.common.error.BusinessException;
+import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.Document;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentMapper;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask;
@@ -15,11 +17,29 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public class DocumentImportRepository {
+    public static final int MAX_DOCUMENTS_PER_KNOWLEDGE_BASE = 1000;
+    private final ImportCapacityMapper capacity;
+
+    public void lockCapacity(Long kbId) {
+        if (capacity.lockKnowledgeBase(kbId) == null)
+            throw new BusinessException(CommonErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
+    }
+
+    public void checkCapacity(Long kbId) {
+        if (countDocuments(kbId) >= MAX_DOCUMENTS_PER_KNOWLEDGE_BASE)
+            throw new BusinessException(ImportErrorCode.KNOWLEDGE_BASE_CAPACITY_EXCEEDED);
+    }
+
     private final DocumentMapper documents;
     private final IndexVersionMapper versions;
     private final ImportTaskMapper tasks;
 
-    public DocumentImportRepository(DocumentMapper documents, IndexVersionMapper versions, ImportTaskMapper tasks) {
+    public DocumentImportRepository(
+            DocumentMapper documents,
+            IndexVersionMapper versions,
+            ImportTaskMapper tasks,
+            ImportCapacityMapper capacity) {
+        this.capacity = capacity;
         this.documents = documents;
         this.versions = versions;
         this.tasks = tasks;
@@ -37,6 +57,10 @@ public class DocumentImportRepository {
                 .last("LIMIT 1"));
         if (task == null) throw new IllegalStateException("Document has no import task");
         return task;
+    }
+
+    public long countDocuments(Long kbId) {
+        return documents.selectCount(new LambdaQueryWrapper<Document>().eq(Document::getKnowledgeBaseId, kbId));
     }
 
     public boolean isObjectReferenced(String key) {
