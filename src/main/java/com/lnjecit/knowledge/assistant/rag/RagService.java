@@ -1,5 +1,6 @@
 package com.lnjecit.knowledge.assistant.rag;
 
+import com.lnjecit.knowledge.assistant.common.RequestIdContext;
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
 import com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog;
@@ -10,6 +11,7 @@ import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalResult;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStatus;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStrategy;
 import java.util.List;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,42 @@ public class RagService {
 
     public RagAnswer answer(
             Long knowledgeBaseId, String question, RetrievalStrategy strategy, RetrievalParameters parameters) {
+        Observation observation = new Observation();
+        long started = System.nanoTime();
+        RagAnswer outcome = null;
+        try {
+            outcome = execute(knowledgeBaseId, question, strategy, parameters, observation);
+            return outcome;
+        } finally {
+            // 程序缺陷继续传播，全局处理器负责唯一的 ERROR 堆栈。
+            try {
+                log.info(
+                        "requestId={} stage=OVERALL elapsedMillis={} status={} error={} requestedStrategy={} actualStrategy={} degraded={} selectedEvidenceCount={} citationCount={}",
+                        RequestIdContext.current(),
+                        (System.nanoTime() - started) / 1_000_000,
+                        outcome == null ? null : outcome.status(),
+                        outcome == null ? null : outcome.error(),
+                        outcome == null ? strategy : outcome.requestedStrategy(),
+                        outcome == null ? null : outcome.actualStrategy(),
+                        outcome == null ? null : outcome.degraded(),
+                        observation.selectedCount,
+                        outcome == null ? null : outcome.citations().size());
+            } catch (RuntimeException loggingFailure) {
+                // 日志后端故障不改变领域返回。
+            }
+        }
+    }
+
+    private static final class Observation {
+        private int selectedCount;
+    }
+
+    private RagAnswer execute(
+            Long knowledgeBaseId,
+            String question,
+            RetrievalStrategy strategy,
+            RetrievalParameters parameters,
+            Observation observation) {
         if (knowledgeBaseId == null
                 || knowledgeBaseId <= 0
                 || question == null
@@ -46,9 +84,9 @@ public class RagService {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT);
         }
         // 单次问答只请求一个策略，复用 M2 的发布快照、召回和失败隔离。
-        RetrievalResult result = retrieval
+        RetrievalResult result = timed("RETRIEVAL", () -> retrieval
                 .search(knowledgeBaseId, question, List.of(requested), resolved)
-                .getFirst();
+                .getFirst());
         RetrievalDiagnostics diagnostics = result.diagnostics();
         if (diagnostics.status() == RetrievalStatus.EMPTY_RESULT)
             return response(result, RagStatus.INSUFFICIENT_EVIDENCE, null, List.of(), null, null);
@@ -58,25 +96,27 @@ public class RagService {
         // 同次请求只构建一次上下文，后续校验沿用这一份证据映射。
         AssembledContext context;
         try {
-            context = contexts.build(result.chunks());
+            context = timed("CONTEXT_BUILD", () -> contexts.build(result.chunks()));
         } catch (ContextBuilder.InconsistentEvidenceException failure) {
             logContextFailure(RagError.CONTEXT_DATA_INCONSISTENT, failure);
             return response(result, RagStatus.FAILED, null, List.of(), RagError.CONTEXT_DATA_INCONSISTENT, null);
-        } catch (RuntimeException failure) {
+        } catch (tools.jackson.core.JacksonException failure) {
             logContextFailure(RagError.CONTEXT_BUILD_FAILED, failure);
             return response(result, RagStatus.FAILED, null, List.of(), RagError.CONTEXT_BUILD_FAILED, null);
         }
+        observation.selectedCount = context.selectedCount();
         if (context.selectedCount() == 0)
             return response(result, RagStatus.FAILED, null, List.of(), RagError.CONTEXT_BUDGET_EXCEEDED, null);
         RawGenerationResult raw;
         try {
-            raw = generator.generate(question, context);
+            raw = timed("GENERATION", () -> generator.generate(question, context));
         } catch (AnswerGenerator.GenerationException failure) {
-            return response(result, RagStatus.FAILED, null, List.of(), failure.error(), null);
+            return response(result, RagStatus.FAILED, null, List.of(), failure.error(), failure.usage());
         }
         try {
-            StructuredOutputParser.ParsedOutput parsed = parser.parse(raw);
-            List<RagCitation> citations = validator.validate(parsed, knowledgeBaseId, context, result);
+            StructuredOutputParser.ParsedOutput parsed = timed("OUTPUT_PARSE", () -> parser.parse(raw));
+            List<RagCitation> citations =
+                    timed("CITATION_VALIDATE", () -> validator.validate(parsed, knowledgeBaseId, context, result));
             return response(
                     result,
                     parsed.answerable() ? RagStatus.ANSWERED : RagStatus.INSUFFICIENT_EVIDENCE,
@@ -96,6 +136,23 @@ public class RagService {
         } catch (CitationValidator.InvalidCitationException failure) {
             FailureLog.rejected(log, "RAG_CITATION", "CITATION_INVALID");
             return response(result, RagStatus.FAILED, null, List.of(), RagError.CITATION_INVALID, raw.usage());
+        }
+    }
+
+    private <T> T timed(String stage, Supplier<T> action) {
+        long started = System.nanoTime();
+        try {
+            return action.get();
+        } finally {
+            try {
+                log.info(
+                        "requestId={} stage={} elapsedMillis={}",
+                        RequestIdContext.current(),
+                        stage,
+                        (System.nanoTime() - started) / 1_000_000);
+            } catch (RuntimeException loggingFailure) {
+                // 不让观测改变业务语义，也不递归记录日志故障。
+            }
         }
     }
 

@@ -40,7 +40,7 @@ public final class StructuredOutputParser {
             if (answer.isBlank() || (answerable ? citations.isEmpty() : !citations.isEmpty()))
                 throw new IllegalArgumentException();
             return new ParsedOutput(answerable, answer, citations);
-        } catch (RuntimeException invalid) {
+        } catch (tools.jackson.core.JacksonException | IllegalArgumentException invalid) {
             // 不保留 Jackson 的原始异常，避免位置及消息携带模型文本。
             throw new InvalidOutputException();
         }

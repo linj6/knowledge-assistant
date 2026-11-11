@@ -103,7 +103,8 @@ class ContextBuilderTests {
                 .thenReturn(List.of(new RetrievalResult(chunks, diagnostics)));
         RuntimeException failure = inconsistent
                 ? new ContextBuilder.InconsistentEvidenceException()
-                : new IllegalStateException("QUESTION_PRIVATE CHUNK_PRIVATE CONTEXT_PRIVATE password=secret");
+                : new tools.jackson.core.JacksonException(
+                        "QUESTION_PRIVATE CHUNK_PRIVATE CONTEXT_PRIVATE password=secret") {};
         failure.initCause(new RuntimeException("CAUSE_PRIVATE"));
         failure.addSuppressed(new RuntimeException("SUPPRESSED_PRIVATE"));
         doThrow(failure).when(contexts).build(chunks);
@@ -122,8 +123,14 @@ class ContextBuilderTests {
                             .answer(1L, "QUESTION_PRIVATE", null, null)
                             .error())
                     .isEqualTo(expected);
-            assertThat(appender.list).hasSize(1);
-            ch.qos.logback.classic.spi.ILoggingEvent event = appender.list.getFirst();
+            assertThat(appender.list.stream()
+                            .filter(e -> e.getLevel() == ch.qos.logback.classic.Level.ERROR)
+                            .toList())
+                    .hasSize(1);
+            ch.qos.logback.classic.spi.ILoggingEvent event = appender.list.stream()
+                    .filter(e -> e.getLevel() == ch.qos.logback.classic.Level.ERROR)
+                    .findFirst()
+                    .orElseThrow();
             assertThat(event.getLevel()).isEqualTo(ch.qos.logback.classic.Level.ERROR);
             String rendered = event.getFormattedMessage()
                     + ch.qos.logback.classic.spi.ThrowableProxyUtil.asString(event.getThrowableProxy());
@@ -271,7 +278,9 @@ class ContextBuilderTests {
                 assertThat(rag.answer(1L, "q", null, null).error()).isEqualTo(RagError.CONTEXT_BUDGET_EXCEEDED);
                 when(contexts.build(chunks)).thenThrow(new ContextBuilder.InconsistentEvidenceException());
                 assertThat(rag.answer(1L, "q", null, null).error()).isEqualTo(RagError.CONTEXT_DATA_INCONSISTENT);
-                doThrow(new IllegalStateException("private")).when(contexts).build(chunks);
+                doThrow(new tools.jackson.core.JacksonException("private") {})
+                        .when(contexts)
+                        .build(chunks);
                 assertThat(rag.answer(1L, "q", null, null).error()).isEqualTo(RagError.CONTEXT_BUILD_FAILED);
             }
         }

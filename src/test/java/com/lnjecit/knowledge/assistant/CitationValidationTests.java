@@ -313,11 +313,23 @@ class CitationValidationTests {
             assertThat(answer.citations()).isEmpty();
             assertThat(answer.error())
                     .isEqualTo(text.startsWith("{") ? RagError.CITATION_INVALID : RagError.OUTPUT_INVALID);
-            assertThat(appender.list).hasSize(1);
-            assertThat(appender.list.getFirst().getFormattedMessage())
+            assertThat(appender.list.stream()
+                            .filter(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN)
+                            .toList())
+                    .hasSize(1);
+            assertThat(appender.list.stream()
+                            .filter(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN)
+                            .findFirst()
+                            .orElseThrow()
+                            .getFormattedMessage())
                     .contains("requestId=", "RAG_")
                     .doesNotContain("PRIVATE_RAW", "PRIVATE_CONTEXT", "PRIVATE_QUESTION");
-            assertThat(appender.list.getFirst().getThrowableProxy()).isNull();
+            assertThat(appender.list.stream()
+                            .filter(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN)
+                            .findFirst()
+                            .orElseThrow()
+                            .getThrowableProxy())
+                    .isNull();
         } finally {
             logger.detachAppender(appender);
         }

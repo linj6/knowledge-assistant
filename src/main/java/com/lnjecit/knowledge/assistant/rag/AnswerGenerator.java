@@ -78,18 +78,8 @@ public class AnswerGenerator {
             if (model instanceof OpenAiChatModel openAi)
                 modelId = openAi.getOptions().getModel();
             ChatResponse response = model.call(prompt(question, context, model));
-            Generation generation = response == null ? null : response.getResult();
-            String finish = generation == null || generation.getMetadata() == null
-                    ? null
-                    : generation.getMetadata().getFinishReason();
-            if ("length".equalsIgnoreCase(finish))
-                throw new GenerationException(RagError.MODEL_RESPONSE_TRUNCATED, null);
-            String text = generation == null || generation.getOutput() == null
-                    ? null
-                    : generation.getOutput().getText();
-            if (text == null || text.isBlank()) throw new GenerationException(RagError.MODEL_RESPONSE_EMPTY, null);
             RawGenerationResult.Usage usage = null;
-            if (response.getMetadata() != null) {
+            if (response != null && response.getMetadata() != null) {
                 if (response.getMetadata().getModel() != null)
                     modelId = response.getMetadata().getModel();
                 org.springframework.ai.chat.metadata.Usage source =
@@ -98,6 +88,17 @@ public class AnswerGenerator {
                     usage = new RawGenerationResult.Usage(
                             source.getPromptTokens(), source.getCompletionTokens(), source.getTotalTokens());
             }
+            Generation generation = response == null ? null : response.getResult();
+            String finish = generation == null || generation.getMetadata() == null
+                    ? null
+                    : generation.getMetadata().getFinishReason();
+            if ("length".equalsIgnoreCase(finish))
+                throw new GenerationException(RagError.MODEL_RESPONSE_TRUNCATED, null, usage);
+            String text = generation == null || generation.getOutput() == null
+                    ? null
+                    : generation.getOutput().getText();
+            if (text == null || text.isBlank())
+                throw new GenerationException(RagError.MODEL_RESPONSE_EMPTY, null, usage);
             return new RawGenerationResult(text, modelId, PROMPT_VERSION, usage, finish, elapsed(started));
         } catch (GenerationException failure) {
             error = failure.error();
@@ -121,13 +122,17 @@ public class AnswerGenerator {
             throw new GenerationException(error, failure);
         } finally {
             // 模型名称只用于安全诊断，不打印任何输入和候选文本。
-            log.info(
-                    "requestId={} stage=RAG_GENERATION elapsedMillis={} model={} promptVersion={} error={}",
-                    RequestIdContext.current(),
-                    elapsed(started),
-                    safeModel(modelId),
-                    PROMPT_VERSION,
-                    error);
+            try {
+                log.info(
+                        "requestId={} stage=RAG_GENERATION elapsedMillis={} model={} promptVersion={} error={}",
+                        RequestIdContext.current(),
+                        elapsed(started),
+                        safeModel(modelId),
+                        PROMPT_VERSION,
+                        error);
+            } catch (RuntimeException loggingFailure) {
+                // 诊断失败不改变模型调用结果。
+            }
         }
     }
 
@@ -141,10 +146,20 @@ public class AnswerGenerator {
 
     public static final class GenerationException extends RuntimeException {
         private final RagError error;
+        private final RawGenerationResult.Usage usage;
 
         public GenerationException(RagError error, Throwable cause) {
+            this(error, cause, null);
+        }
+
+        public GenerationException(RagError error, Throwable cause, RawGenerationResult.Usage usage) {
             super(error.name(), cause);
+            this.usage = usage;
             this.error = error;
+        }
+
+        public RawGenerationResult.Usage usage() {
+            return usage;
         }
 
         public RagError error() {
