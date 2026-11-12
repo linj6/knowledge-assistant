@@ -135,7 +135,7 @@ public final class DashScopeReranker implements Reranker {
             root = mapper.readTree(body);
         } catch (tools.jackson.core.JacksonException ex) {
             // 只有解析响应时的 JSON 错误属于协议失败，不能把任意运行时异常都归入此类。
-            throw invalid();
+            throw (ModelFailures.SafeModelException) invalid().initCause(ex);
         }
         if (root == null) throw invalid();
         JsonNode results = root.path("output").path("results");

@@ -60,8 +60,7 @@ class RetrievalApiTests {
             org.assertj.core.api.Assertions.assertThat(capture.list)
                     .filteredOn(event -> event.getThrowableProxy() != null)
                     .hasSize(1)
-                    .allSatisfy(event -> org.assertj.core.api.Assertions.assertThat(
-                                    ch.qos.logback.classic.spi.ThrowableProxyUtil.asString(event.getThrowableProxy()))
+                    .allSatisfy(event -> org.assertj.core.api.Assertions.assertThat(LoggingBoundaryTests.render(event))
                             .contains("connection detail")
                             .doesNotContain("fixture-token"));
             org.mockito.Mockito.verify(fixture.embedding).embed("query");

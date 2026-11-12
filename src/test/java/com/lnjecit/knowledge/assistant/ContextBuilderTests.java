@@ -86,7 +86,7 @@ class ContextBuilderTests {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void contextFailuresLogOnceWithoutPayload(boolean inconsistent) {
+    void contextFailuresKeepRealCauseAndRedactCredentialsOnce(boolean inconsistent) {
         RetrievalService retrieval = mock(RetrievalService.class);
         ContextBuilder contexts = mock(ContextBuilder.class);
         List<RankedChunk> chunks = List.of(chunk(1, "CHUNK_PRIVATE", 1));
@@ -133,17 +133,10 @@ class ContextBuilderTests {
                     .findFirst()
                     .orElseThrow();
             assertThat(event.getLevel()).isEqualTo(ch.qos.logback.classic.Level.ERROR);
-            String rendered = event.getFormattedMessage()
-                    + ch.qos.logback.classic.spi.ThrowableProxyUtil.asString(event.getThrowableProxy());
+            String rendered = LoggingBoundaryTests.render(event);
             assertThat(rendered)
-                    .contains("RAG_CONTEXT", expected.name())
-                    .doesNotContain(
-                            "QUESTION_PRIVATE",
-                            "CHUNK_PRIVATE",
-                            "CONTEXT_PRIVATE",
-                            "CAUSE_PRIVATE",
-                            "SUPPRESSED_PRIVATE",
-                            "secret");
+                    .contains("RAG_CONTEXT", expected.name(), "CAUSE_PRIVATE", "SUPPRESSED_PRIVATE")
+                    .doesNotContain("password=secret");
         } finally {
             logger.detachAppender(appender);
             appender.stop();

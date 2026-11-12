@@ -94,6 +94,34 @@ class RetrievalServiceTests {
     }
 
     @Test
+    void snapshotFailureLogsRealCauseOnceWithoutChangingResult() {
+        RuntimeException failure = new IllegalStateException(
+                "synthetic snapshot failure", new java.sql.SQLException("connection rejected", "08006"));
+        when(snapshots.read(1L)).thenThrow(failure);
+        ch.qos.logback.classic.Logger logger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(RetrievalService.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> events =
+                new ch.qos.logback.core.read.ListAppender<>();
+        events.start();
+        logger.addAppender(events);
+        try {
+            List<RetrievalResult> results = service.search(1L, "q", all, parameters);
+            assertThat(results)
+                    .allSatisfy(
+                            result -> assertThat(result.diagnostics().status()).isEqualTo(RetrievalStatus.FAILED));
+            List<ch.qos.logback.classic.spi.ILoggingEvent> stacks = events.list.stream()
+                    .filter(e -> e.getThrowableProxy() != null)
+                    .toList();
+            assertThat(stacks).hasSize(1);
+            assertThat(LoggingBoundaryTests.render(stacks.getFirst()))
+                    .contains("synthetic snapshot failure", "SQLException", "sqlState=08006");
+        } finally {
+            logger.detachAppender(events);
+            events.stop();
+        }
+    }
+
+    @Test
     void failedStagesAreEmptyAndKeepOnlyExecutedPhaseDiagnostics() {
         when(embedding.embed("query")).thenThrow(new IllegalStateException("MODEL_SECRET"));
         List<RetrievalResult> embeddingFailed = search(all);

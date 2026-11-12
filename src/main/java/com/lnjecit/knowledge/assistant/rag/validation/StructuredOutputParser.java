@@ -42,8 +42,8 @@ public final class StructuredOutputParser {
                 throw new IllegalArgumentException();
             return new ParsedOutput(answerable, answer, citations);
         } catch (tools.jackson.core.JacksonException | IllegalArgumentException invalid) {
-            // 不保留 Jackson 的原始异常，避免位置及消息携带模型文本。
-            throw new InvalidOutputException();
+            // 保留解析位置和原因，凭据保护由统一日志输出负责。
+            throw new InvalidOutputException(invalid);
         }
     }
 
@@ -59,6 +59,10 @@ public final class StructuredOutputParser {
     }
 
     public static final class InvalidOutputException extends RuntimeException {
+        public InvalidOutputException(Throwable cause) {
+            super("OUTPUT_INVALID", cause);
+        }
+
         public InvalidOutputException() {
             super("OUTPUT_INVALID");
         }

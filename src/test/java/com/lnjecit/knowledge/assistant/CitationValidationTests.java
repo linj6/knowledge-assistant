@@ -85,7 +85,7 @@ class CitationValidationTests {
         assertThatThrownBy(() -> parser.parse(raw(text)))
                 .isInstanceOf(StructuredOutputParser.InvalidOutputException.class)
                 .hasMessage("OUTPUT_INVALID")
-                .hasNoCause();
+                .hasCauseInstanceOf(RuntimeException.class);
     }
 
     @Test
@@ -314,22 +314,22 @@ class CitationValidationTests {
             assertThat(answer.error())
                     .isEqualTo(text.startsWith("{") ? RagError.CITATION_INVALID : RagError.OUTPUT_INVALID);
             assertThat(appender.list.stream()
-                            .filter(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN)
+                            .filter(e -> e.getLevel() == ch.qos.logback.classic.Level.ERROR)
                             .toList())
                     .hasSize(1);
             assertThat(appender.list.stream()
-                            .filter(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN)
+                            .filter(e -> e.getLevel() == ch.qos.logback.classic.Level.ERROR)
                             .findFirst()
                             .orElseThrow()
                             .getFormattedMessage())
                     .contains("requestId=", "RAG_")
                     .doesNotContain("PRIVATE_RAW", "PRIVATE_CONTEXT", "PRIVATE_QUESTION");
             assertThat(appender.list.stream()
-                            .filter(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN)
+                            .filter(e -> e.getLevel() == ch.qos.logback.classic.Level.ERROR)
                             .findFirst()
                             .orElseThrow()
                             .getThrowableProxy())
-                    .isNull();
+                    .isNotNull();
         } finally {
             logger.detachAppender(appender);
         }

@@ -72,7 +72,7 @@ public class RerankProperties implements InitializingBean {
                     || timeoutSeconds < 1
                     || timeoutSeconds > 300) throw new IllegalArgumentException();
         } catch (RuntimeException ex) {
-            throw new IllegalStateException("Invalid assistant.rerank configuration");
+            throw new IllegalStateException("Invalid assistant.rerank configuration", ex);
         }
     }
 }

@@ -59,7 +59,10 @@ public class DocumentQueryService {
                         if (version == null || !Objects.equals(d.getId(), version.getDocumentId()))
                             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR);
                         if (version.getStatus() != IndexVersionStatus.PUBLISHED || version.getPublishedAt() == null)
-                            LOG.warn("PUBLICATION_METADATA_INCONSISTENT");
+                            LOG.warn(
+                                    "event=PUBLICATION_METADATA_INCONSISTENT documentId={} indexVersionId={}",
+                                    d.getId(),
+                                    d.getActiveVersionId());
                     }
                     ImportTask task = tasks.get(d.getId());
                     return new DocumentSummaryResponse(
@@ -97,7 +100,10 @@ public class DocumentQueryService {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR);
         IndexVersion active = versions.getFirst();
         if (active.getStatus() != IndexVersionStatus.PUBLISHED || active.getPublishedAt() == null)
-            LOG.warn("PUBLICATION_METADATA_INCONSISTENT");
+            LOG.warn(
+                    "event=PUBLICATION_METADATA_INCONSISTENT documentId={} indexVersionId={}",
+                    d.getId(),
+                    d.getActiveVersionId());
         // 只允许当前活动版本，发布元数据不额外限制 M2 可见性。
         if (!Objects.equals(versionId, active.getId())) throw new BusinessException(CommonErrorCode.NOT_FOUND);
         DocumentChunk c = repository.chunk(chunkId);

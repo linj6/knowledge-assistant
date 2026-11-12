@@ -59,7 +59,7 @@ class ImportObservabilityTests {
                     .isSameAs(update);
             assertThat(appender.list).hasSize(2);
             assertThat(appender.list.getFirst().getThrowableProxy().getMessage())
-                    .doesNotContain("secret");
+                    .contains("document secret");
             String message = appender.list.getLast().getFormattedMessage();
             assertThat(message)
                     .contains(

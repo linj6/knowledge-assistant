@@ -15,7 +15,7 @@ final class ParserSource {
                     .decode(ByteBuffer.wrap(bytes))
                     .toString();
         } catch (CharacterCodingException exception) {
-            throw new ParseException(ParseException.Kind.INVALID_UTF8);
+            throw (ParseException) new ParseException(ParseException.Kind.INVALID_UTF8).initCause(exception);
         }
         if (source.codePoints().allMatch(cp -> cp == 0xFEFF || Character.isWhitespace(cp) || Character.isSpaceChar(cp)))
             throw new ParseException(ParseException.Kind.NO_CONTENT);

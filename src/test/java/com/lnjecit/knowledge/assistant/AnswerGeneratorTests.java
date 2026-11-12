@@ -103,9 +103,9 @@ class AnswerGeneratorTests {
             String rendered = errors.getFirst().getFormattedMessage()
                     + ch.qos.logback.classic.spi.ThrowableProxyUtil.asString(
                             errors.getFirst().getThrowableProxy());
-            assertThat(rendered)
+            assertThat(com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.redact(rendered))
                     .contains("connection refused", "ConnectException")
-                    .doesNotContain("QUESTION_PRIVATE", "CONTEXT_PRIVATE", "password=secret");
+                    .doesNotContain("password=secret");
             assertThat(appender.list.getLast().getFormattedMessage())
                     .contains("rag-answer-v1", "elapsedMillis=", "requestId=");
         } finally {

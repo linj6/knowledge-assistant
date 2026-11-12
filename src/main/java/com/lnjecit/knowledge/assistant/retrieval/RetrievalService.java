@@ -73,6 +73,8 @@ public class RetrievalService {
             snapshot = snapshots.read(knowledgeBaseId);
         } catch (BusinessException failure) {
             if (failure.getErrorCode() == CommonErrorCode.KNOWLEDGE_BASE_NOT_FOUND) throw failure;
+            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
+                    LOG, "SNAPSHOT_READ_FAILED", failure);
             return failedSnapshot(knowledgeBaseId, requested, parameters, Failure.SNAPSHOT_READ_FAILED);
         } catch (SnapshotInvalidException failure) {
             com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(LOG, "SNAPSHOT_INVALID", failure);
@@ -166,7 +168,7 @@ public class RetrievalService {
             return new Output(recall.chunks(), recall.stages(), recall.failure());
         } catch (RuntimeException failure) {
             com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
-                    org.slf4j.LoggerFactory.getLogger(RetrievalService.class), "RetrievalService", failure);
+                    org.slf4j.LoggerFactory.getLogger(RetrievalService.class), "BM25", failure);
             return new Output(List.of(), List.of(stage(Phase.BM25, start, List.of())), Failure.INTERNAL_ERROR);
         }
     }
@@ -184,7 +186,7 @@ public class RetrievalService {
             return new Output(chunks, stages, null);
         } catch (RuntimeException failure) {
             com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
-                    org.slf4j.LoggerFactory.getLogger(RetrievalService.class), "RetrievalService", failure);
+                    org.slf4j.LoggerFactory.getLogger(RetrievalService.class), "FUSION", failure);
             stages.add(stage(Phase.FUSION, start, List.of()));
             return new Output(List.of(), stages, Failure.FUSION_FAILED);
         }
@@ -201,7 +203,7 @@ public class RetrievalService {
             return new Output(chunks, stages, null);
         } catch (RuntimeException failure) {
             com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
-                    org.slf4j.LoggerFactory.getLogger(RetrievalService.class), "RetrievalService", failure);
+                    org.slf4j.LoggerFactory.getLogger(RetrievalService.class), "RERANK", failure);
             stages.add(stage(Phase.RERANK, start, List.of()));
             return new Output(List.of(), stages, Failure.RERANK_FAILED);
         }

@@ -26,7 +26,8 @@ public class ModelConfiguration {
                 throw new IllegalArgumentException();
             }
         } catch (RuntimeException ex) {
-            throw new IllegalStateException("assistant.model.base-url must be an HTTP endpoint without credentials");
+            throw new IllegalStateException(
+                    "assistant.model.base-url must be an HTTP endpoint without credentials", ex);
         }
     }
 

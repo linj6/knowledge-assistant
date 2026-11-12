@@ -27,7 +27,8 @@ public final class ModelResponseChecks {
                 if (!citation.isString()) throw new IllegalArgumentException();
             }
         } catch (RuntimeException ex) {
-            throw new InvalidResponseException("Invalid structured model response");
+            throw (InvalidResponseException)
+                    new InvalidResponseException("Invalid structured model response").initCause(ex);
         }
     }
 

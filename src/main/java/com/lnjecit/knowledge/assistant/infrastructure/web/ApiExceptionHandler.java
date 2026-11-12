@@ -41,7 +41,10 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Result<Void>> business(BusinessException ex) {
         ErrorCode code = ex.getErrorCode();
-        LOG.warn("requestId={} code={}", RequestIdContext.current(), code.getCode());
+        if (code == CommonErrorCode.INTERNAL_ERROR)
+            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
+                    LOG, "API_BUSINESS_INTERNAL_ERROR", ex);
+        else LOG.warn("requestId={} code={}", RequestIdContext.current(), code.getCode());
         return ResponseEntity.status(statusFor(code)).body(error(code));
     }
 

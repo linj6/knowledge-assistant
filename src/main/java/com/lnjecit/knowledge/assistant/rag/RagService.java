@@ -135,7 +135,7 @@ public class RagService {
                     null,
                     raw.usage());
         } catch (StructuredOutputParser.InvalidOutputException failure) {
-            FailureLog.rejected(log, "RAG_OUTPUT", "OUTPUT_INVALID");
+            FailureLog.error(log, "RAG_OUTPUT errorCode=OUTPUT_INVALID", failure);
             return response(
                     result,
                     RagStatus.FAILED,
@@ -144,7 +144,7 @@ public class RagService {
                     RagError.OUTPUT_INVALID,
                     raw == null ? null : raw.usage());
         } catch (CitationValidator.InvalidCitationException failure) {
-            FailureLog.rejected(log, "RAG_CITATION", "CITATION_INVALID");
+            FailureLog.error(log, "RAG_CITATION errorCode=CITATION_INVALID", failure);
             return response(result, RagStatus.FAILED, null, List.of(), RagError.CITATION_INVALID, raw.usage());
         }
     }
@@ -186,9 +186,6 @@ public class RagService {
     }
 
     private void logContextFailure(RagError error, RuntimeException failure) {
-        // 序列化异常可能在消息或原因链中携带正文，仅保留固定分类和故障位置。
-        RuntimeException diagnostic = new RuntimeException(error.name());
-        diagnostic.setStackTrace(failure.getStackTrace());
-        FailureLog.error(log, "RAG_CONTEXT", diagnostic);
+        FailureLog.error(log, "RAG_CONTEXT errorCode=" + error, failure);
     }
 }

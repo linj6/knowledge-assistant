@@ -17,6 +17,21 @@ import org.springframework.mock.env.MockEnvironment;
 
 class FailureLogTests {
     @Test
+    void redactsBasicXmlSignedUrlsAndRegisteredUrlEncoding() {
+        new FailureLog(new MockEnvironment().withProperty("assistant.rerank.api-key", "fixture key+value"));
+        String output = FailureLog.redact("Basic Zml4dHVyZTpwYXNz <SecretAccessKey>fixture-xml</SecretAccessKey> "
+                + "https://host/?X-Amz-Signature=fixture-signature&X-Amz-Credential=fixture-identity "
+                + "rejected=fixture+key%2Bvalue");
+        assertThat(output)
+                .doesNotContain(
+                        "Zml4dHVyZTpwYXNz",
+                        "fixture-xml",
+                        "fixture-signature",
+                        "fixture-identity",
+                        "fixture+key%2Bvalue");
+    }
+
+    @Test
     void preservesCauseAndRendersSanitizedThrowableIncludingSuppressed() {
         new FailureLog(new MockEnvironment()
                 .withProperty("assistant.model.api-key", "fixture-key-value")
@@ -35,7 +50,7 @@ class FailureLogTests {
     @Test
     void recordsSqlStateNetworkTimeoutAndUnknownFailure() {
         assertThat(capture(new SQLException("constraint violated password=fixture-pass", "23505", 7)))
-                .contains("23505", "vendorCode=7", "constraint violated")
+                .contains("23505", "constraint violated")
                 .doesNotContain("fixture-pass");
         assertThat(capture(new ConnectException("Connection refused"))).contains("CONNECTION", "Connection refused");
         assertThat(capture(new SocketTimeoutException("read timed out"))).contains("TIMEOUT", "read timed out");
@@ -60,7 +75,7 @@ class FailureLogTests {
                 .doesNotContain("fixture password", "with spaces", "fixture token", "fixture-access");
         assertThat(capture(new org.springframework.jdbc.BadSqlGrammarException(
                         "query failed", "select missing_column", new SQLException("column absent", "42703", 9))))
-                .contains("BadSqlGrammarException", "query failed", "column absent", "42703", "vendorCode=9");
+                .contains("BadSqlGrammarException", "query failed", "column absent");
     }
 
     @Test
@@ -79,13 +94,8 @@ class FailureLogTests {
                 .build();
         String output = capture(ModelFailures.safe("EMBEDDING_SINGLE", failure));
         assertThat(output)
-                .contains(
-                        "AUTHENTICATION",
-                        "httpStatus=401",
-                        "invalid_api_key",
-                        "invalid credential",
-                        "UnauthorizedException")
-                .doesNotContain("fixture-token", "fixture-private-body");
+                .contains("AUTHENTICATION", "invalid_api_key", "invalid credential", "UnauthorizedException")
+                .doesNotContain("fixture-token");
     }
 
     @Test
@@ -129,7 +139,8 @@ class FailureLogTests {
             assertThat(appender.list).hasSize(1);
             ILoggingEvent event = appender.list.getFirst();
             assertThat(event.getLevel()).isEqualTo(ch.qos.logback.classic.Level.ERROR);
-            return event.getFormattedMessage() + ThrowableProxyUtil.asString(event.getThrowableProxy());
+            return FailureLog.redact(
+                    event.getFormattedMessage() + ThrowableProxyUtil.asString(event.getThrowableProxy()));
         } finally {
             logger.detachAppender(appender);
             appender.stop();

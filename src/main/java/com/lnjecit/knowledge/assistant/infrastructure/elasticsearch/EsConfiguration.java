@@ -40,7 +40,7 @@ public class EsConfiguration {
                     || uri.getPort() > 65535) throw new IllegalArgumentException();
             return HttpHost.create(uri.toString());
         } catch (RuntimeException failure) {
-            throw new IllegalArgumentException("ES endpoint invalid");
+            throw new IllegalArgumentException("ES endpoint invalid", failure);
         }
     }
 

@@ -32,7 +32,7 @@ public class PublishedVersionSnapshotRepository {
         try {
             return PublishedVersionSnapshot.of(kbId, documents);
         } catch (IllegalArgumentException invalid) {
-            throw new SnapshotInvalidException();
+            throw (SnapshotInvalidException) new SnapshotInvalidException().initCause(invalid);
         }
     }
 }

@@ -5,7 +5,6 @@ import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.TokenEstimator;
 import com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog;
 import com.lnjecit.knowledge.assistant.rag.context.AssembledContext;
-import com.lnjecit.knowledge.assistant.rag.context.SelectedEvidence;
 import com.lnjecit.knowledge.assistant.rag.model.RagError;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -115,13 +114,7 @@ public class AnswerGenerator {
                 case AUTHENTICATION -> RagError.MODEL_AUTHENTICATION_FAILED;
                 default -> RagError.GENERATION_FAILED;
             };
-            List<String> payloads = new java.util.ArrayList<>(List.of(question, context.contextText(), contract));
-            // 供应商可能在错误描述中回显单条证据，脱敏列表仅在本次日志调用内生效。
-            for (SelectedEvidence evidence : context.selectedEvidence()) {
-                payloads.add(evidence.content());
-                payloads.add(evidence.headingPath());
-            }
-            FailureLog.error(log, "RAG_GENERATION", failure, payloads);
+            FailureLog.error(log, "RAG_GENERATION", failure);
             throw new GenerationException(error, failure);
         } finally {
             // 模型名称只用于安全诊断，不打印任何输入和候选文本。

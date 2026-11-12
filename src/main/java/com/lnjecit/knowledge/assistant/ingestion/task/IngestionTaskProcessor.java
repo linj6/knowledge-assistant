@@ -259,7 +259,7 @@ public class IngestionTaskProcessor implements TaskProcessor {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
         } catch (NoSuchAlgorithmException impossible) {
-            throw new IllegalStateException("SHA256_UNAVAILABLE");
+            throw new IllegalStateException("SHA256_UNAVAILABLE", impossible);
         }
     }
 }

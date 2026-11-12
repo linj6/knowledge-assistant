@@ -55,7 +55,7 @@ class EsIndexTests {
                             com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsConfiguration
                                     .validatedEndpoint(endpoint))
                     .hasMessage("ES endpoint invalid")
-                    .hasNoCause();
+                    .hasCauseInstanceOf(IllegalArgumentException.class);
         }
         assertThat(com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsConfiguration.validatedEndpoint(
                                 "https://localhost:9200")

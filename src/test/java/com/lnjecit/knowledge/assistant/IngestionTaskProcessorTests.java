@@ -80,6 +80,40 @@ class IngestionTaskProcessorTests {
                 .thenReturn(new IndexVerificationService.Result(2L, 3L, 1, 1, 1, null, "VERIFIED"));
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"storage", "pg", "es"})
+    void workerLogsInfrastructureCauseOnce(String stage) {
+        IllegalStateException failure = new IllegalStateException(
+                "synthetic " + stage + " failed",
+                new java.sql.SQLException("synthetic underlying detail password=fixture-stage-password", "08006"));
+        if (stage.equals("storage"))
+            org.mockito.Mockito.doThrow(failure).when(files).read(any());
+        if (stage.equals("pg"))
+            org.mockito.Mockito.doThrow(failure).when(embeddings).embed(eq(2L), eq(3L), any(Runnable.class));
+        if (stage.equals("es")) org.mockito.Mockito.doThrow(failure).when(es).index(2L, 3L);
+        ch.qos.logback.classic.Logger logger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(TaskWorker.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> events =
+                new ch.qos.logback.core.read.ListAppender<>();
+        events.start();
+        logger.addAppender(events);
+        try {
+            TaskService service = mock(TaskService.class);
+            new TaskWorker(service, processor).execute(claim);
+            java.util.List<ch.qos.logback.classic.spi.ILoggingEvent> stacks = events.list.stream()
+                    .filter(e -> e.getThrowableProxy() != null)
+                    .toList();
+            org.assertj.core.api.Assertions.assertThat(stacks).hasSize(1);
+            org.assertj.core.api.Assertions.assertThat(LoggingBoundaryTests.render(stacks.getFirst()))
+                    .contains("taskId=1", "synthetic " + stage + " failed", "SQLException", "sqlState=08006")
+                    .doesNotContain("fixture-stage-password");
+            verify(service).fail(claim, TaskExecutionException.Code.EXECUTION_FAILED);
+        } finally {
+            logger.detachAppender(events);
+            events.stop();
+        }
+    }
+
     @Test
     void logsStagesAndDistinguishesExistingPublication(org.springframework.boot.test.system.CapturedOutput output) {
         processor.process(claim, context);

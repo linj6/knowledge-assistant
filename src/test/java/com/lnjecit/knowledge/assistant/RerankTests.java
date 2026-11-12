@@ -176,7 +176,12 @@ class RerankTests {
             Throwable timeout = org.assertj.core.api.Assertions.catchThrowable(() ->
                     client(slow.getAddress().getPort(), Duration.ofMillis(100)).rerank("q", INPUT, 1));
             assertThat(ModelFailures.classify(timeout)).isEqualTo(ModelFailures.Kind.TIMEOUT);
-            assertThat(timeout).hasCauseInstanceOf(java.util.concurrent.TimeoutException.class);
+            // JDK HTTP 超时与外层总时限可能先后竞争，两者都必须保留实际 Cause。
+            assertThat(timeout.getCause())
+                    .isInstanceOfAny(
+                            java.util.concurrent.TimeoutException.class, java.util.concurrent.ExecutionException.class);
+            if (timeout.getCause() instanceof java.util.concurrent.ExecutionException execution)
+                assertThat(execution.getCause()).isInstanceOf(java.net.http.HttpTimeoutException.class);
         } finally {
             slow.stop(0);
         }

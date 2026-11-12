@@ -87,7 +87,7 @@ public class EmbeddingRepository {
             for (String value : values)
                 if (!Float.isFinite(Float.parseFloat(value.trim()))) throw new IllegalArgumentException();
         } catch (RuntimeException failure) {
-            throw new IllegalStateException("Embedding stored vector invalid");
+            throw new IllegalStateException("Embedding stored vector invalid", failure);
         }
     }
 

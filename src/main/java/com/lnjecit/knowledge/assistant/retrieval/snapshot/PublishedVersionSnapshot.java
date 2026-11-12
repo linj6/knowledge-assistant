@@ -42,7 +42,7 @@ public record PublishedVersionSnapshot(Long knowledgeBaseId, List<PublishedDocum
                         .array());
             return HexFormat.of().formatHex(digest.digest());
         } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA256_UNAVAILABLE");
+            throw new IllegalStateException("SHA256_UNAVAILABLE", e);
         }
     }
 
