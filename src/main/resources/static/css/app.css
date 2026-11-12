@@ -214,3 +214,6 @@ p {
         scroll-behavior: auto
     }
 }
+
+#knowledge article { padding: 16px; margin: 16px 0; background: white; border: 1px solid #e5e7eb; border-radius: 10px; overflow-wrap: anywhere; }
+#knowledge input { width: 100%; font: inherit; padding: 10px; border: 1px solid #d7dce2; border-radius: 8px; }

@@ -1,3 +1,4 @@
+import { initializeKnowledge } from './knowledge.js';
 import {
     ApiError,
     request
@@ -35,20 +36,29 @@ subscribe(state => {
         el.textContent = '当前知识库 · ' + (selected?.name ?? '尚未选择');
     });
 });
-selector.addEventListener('change', () => updateState({
-    selectedKnowledgeBaseId: selector.value
-}));
-async function loadKnowledgeBases() {
+selector.addEventListener('change', () => {
+    selectionRevision++;
+    updateState({ selectedKnowledgeBaseId: selector.value });
+});
+let generation = 0;
+let selectionRevision = 0;
+async function loadKnowledgeBases(preferredId, expectedRevision = selectionRevision) {
+    const revision = selectionRevision;
+    const current = ++generation;
     reload.disabled = true;
     selector.disabled = true;
     status.textContent = '正在加载知识库…';
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
     try {
         const {
             data
-        } = await request('../api/v1/knowledge-bases');
+        } = await request('../api/v1/knowledge-bases', { signal: controller.signal });
+        if (current !== generation) return false;
         // 拒绝数值 ID，避免精度损失后悄悄绑定错误知识库。
-        if (!Array.isArray(data) || data.some(kb => !kb || typeof kb.id !== 'string' || typeof kb.name !== 'string')) throw new ApiError('protocol');
-        const selected = data.some(kb => kb.id === AppState.selectedKnowledgeBaseId) ? AppState.selectedKnowledgeBaseId : (data[0]?.id ?? '');
+        if (!Array.isArray(data) || data.some(kb => !kb || typeof kb.id !== 'string' || !/^[1-9]\d*$/.test(kb.id) || typeof kb.name !== 'string' || (kb.description !== null && typeof kb.description !== 'string'))) throw new ApiError('protocol');
+        const candidate = typeof preferredId === 'string' && expectedRevision === selectionRevision && revision === selectionRevision ? preferredId : AppState.selectedKnowledgeBaseId;
+        const selected = data.some(kb => kb.id === candidate) ? candidate : (data[0]?.id ?? '');
         selector.replaceChildren();
         for (const kb of data) {
             const option = document.createElement('option');
@@ -68,8 +78,10 @@ async function loadKnowledgeBases() {
             initialized: true
         });
         selector.disabled = !data.length;
-        status.textContent = data.length ? '知识库已加载' : '暂无知识库，创建功能将在 WEB-03 接入。';
+        status.textContent = data.length ? '知识库已加载' : '暂无知识库，请在知识库页面创建。';
+        return true;
     } catch (error) {
+        if (current !== generation) return false;
         selector.replaceChildren();
         const option = document.createElement('option');
         option.textContent = '知识库不可用';
@@ -95,10 +107,12 @@ async function loadKnowledgeBases() {
             requestId: error.requestId ?? null
         });
     } finally {
-        reload.disabled = false;
+        clearTimeout(timer);
+        if (current === generation) reload.disabled = false;
     }
 }
 window.addEventListener('hashchange', navigate);
 reload.addEventListener('click', loadKnowledgeBases);
+initializeKnowledge(loadKnowledgeBases, () => selectionRevision);
 navigate();
 loadKnowledgeBases();
