@@ -65,7 +65,9 @@ class WebStaticResourcesTests {
                 "/api/js/state.js",
                 "/api/js/knowledge.js",
                 "/api/js/chat.js",
-                "/api/js/evidence.js"
+                "/api/js/evidence.js",
+                "/api/js/import.js",
+                "/api/js/retrieval.js"
             }) {
                 HttpResponse<String> response = client.send(
                         HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
@@ -73,6 +75,10 @@ class WebStaticResourcesTests {
                         HttpResponse.BodyHandlers.ofString());
                 assertEquals(200, response.statusCode(), path);
                 assertTrue(!response.body().isBlank(), path);
+                if (path.endsWith(".html") || path.endsWith(".css")) {
+                    String mime = response.headers().firstValue("Content-Type").orElse("");
+                    assertTrue(mime.contains(path.endsWith(".css") ? "text/css" : "text/html"), path + " " + mime);
+                }
                 if (path.endsWith(".js")) {
                     String mime = response.headers().firstValue("Content-Type").orElse("");
                     assertTrue(mime.contains("javascript"), path + " " + mime);
