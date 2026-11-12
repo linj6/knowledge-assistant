@@ -1,3 +1,4 @@
+import { initializeChat } from './chat.js';
 import { initializeKnowledge } from './knowledge.js';
 import {
     ApiError,
@@ -114,5 +115,6 @@ async function loadKnowledgeBases(preferredId, expectedRevision = selectionRevis
 window.addEventListener('hashchange', navigate);
 reload.addEventListener('click', loadKnowledgeBases);
 initializeKnowledge(loadKnowledgeBases, () => selectionRevision);
+initializeChat();
 navigate();
 loadKnowledgeBases();
