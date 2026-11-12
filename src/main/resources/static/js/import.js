@@ -16,13 +16,13 @@ export function validateTask(task) {
 }
 export function initializeImport(root, refreshDocuments) {
     const node = (tag, text) => { const el = document.createElement(tag); el.textContent = text ?? ''; return el; };
-    const area = node('article');
+    const area = node('article'); area.className = 'upload-panel';
     area.append(node('h2', '上传文档'), node('p', '支持 UTF-8 .md / .txt，非空，最大 2 MiB。刷新页面后通过文档列表确认状态；当前任务不持久保存。'));
     const input = node('input'); input.type = 'file'; input.accept = '.md,.txt'; input.id = 'import-file';
     const label = node('label', '选择一个文件'); label.htmlFor = input.id;
     const info = node('p', 'IDLE · 尚未选择文件');
     const message = node('p'); message.setAttribute('role', 'status');
-    const taskText = node('p');
+    const taskText = node('p'); taskText.setAttribute('role', 'status');
     const upload = node('button', '上传文件'); upload.type = 'button';
     const manual = node('button', '刷新任务状态'); manual.type = 'button';
     const chat = node('a', '进入 AI 问答'); chat.href = '#chat'; chat.hidden = true;

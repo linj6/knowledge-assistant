@@ -12,7 +12,9 @@ export function createEvidence(root) {
     const closeButton = node('button', '关闭证据'); closeButton.type = 'button';
     const status = node('p'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
     const body = node('div'); const retry = node('button', '重试读取'); retry.type = 'button'; retry.hidden = true;
-    dialog.append(closeButton, title, status, body, retry); root.append(dialog);
+    const toolbar = node('div'); toolbar.className = 'evidence-toolbar'; toolbar.append(title, closeButton);
+    body.className = 'evidence-body';
+    dialog.append(toolbar, status, body, retry); root.append(dialog);
     let generation = 0, pending = null, context = null, trigger = null;
     function invalidate() { generation++; if (pending) { clearTimeout(pending.timer); pending.controller.abort(); pending = null; } }
     function close() { invalidate(); context = null; body.replaceChildren(); if (dialog.open) dialog.close(); if (trigger?.isConnected) trigger.focus(); trigger = null; }
@@ -32,7 +34,7 @@ export function createEvidence(root) {
             const response = await request(`../api/v1/knowledge-bases/${kb}/documents/${citation.documentId}/versions/${citation.indexVersionId}/chunks/${citation.chunkId}`, { signal: controller.signal });
             if (current !== generation || !context) return;
             const data = validateEvidence(response.data, citation);
-            body.append(node('h3', data.filename), node('p', data.headingPath ?? '无标题路径'), node('pre', data.content), node('p', `来源区间：[${data.sourceStart}, ${data.sourceEnd})（Unicode 码点）`));
+            body.append(node('p', '文件名：' + data.filename), node('p', '标题路径：' + (data.headingPath ?? '无标题路径')), node('p', `来源区间：[${data.sourceStart}, ${data.sourceEnd})（Unicode 码点）`), node('pre', data.content));
             status.textContent = '证据已加载。';
         } catch (error) {
             if (current !== generation || !context) return;

@@ -42,7 +42,7 @@ export function initializeKnowledge(refreshKnowledgeBases, getSelectionRevision 
     initializeImport(root, () => load(1));
     const status = node('p');
     status.setAttribute('role', 'status');
-    const documents = node('div');
+    const documents = node('div'); documents.className = 'document-list';
     root.append(status, documents);
     let busy = false;
     let page = 1;
@@ -88,11 +88,15 @@ export function initializeKnowledge(refreshKnowledgeBases, getSelectionRevision 
             status.textContent = `第 ${page} 页 / ${last} 页 · 共 ${data.total} 个文档${BigInt(page) > last ? ' · 当前页超出范围，请返回首页' : ''}${last > BigInt(maxPage) ? ' · 总页数超过接口页码上限，末页按钮仅到达最大可查询页' : ''}`;
             if (!data.items.length) documents.append(node('p', '暂无文档，可选择文件上传。'));
             for (const item of data.items) {
-                const row = node('article');
+                const row = node('article'); row.className = 'document-row';
                 row.append(node('h3', item.filename), node('p', `创建时间：${item.createdAt} · 发布状态：${publication[item.publicationStatus]}`));
                 row.append(node('p', `最新导入任务：${item.importTask ? tasks[item.importTask.status] : '暂无任务'}`));
                 if (item.importTask?.failureCode) row.append(node('p', '失败分类：' + item.importTask.failureCode));
-                if (item.publishedAt) row.append(node('p', '发布时间：' + item.publishedAt));
+                const metadata = node('details'); metadata.append(node('summary', '文档详情'));
+                for (const key of ['documentId','activeVersionId','publishedAt']) metadata.append(node('p', key + '：' + (item[key] ?? '未提供')));
+                if (item.publishedAt) metadata.append(node('p', '发布时间：' + item.publishedAt));
+                if (item.importTask) for (const key of ['importTaskId','indexVersionId','createdAt','updatedAt']) metadata.append(node('p', key + '：' + (item.importTask[key] ?? '未提供')));
+                row.append(metadata);
                 documents.append(row);
             }
         } catch (error) {

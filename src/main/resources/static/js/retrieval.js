@@ -80,13 +80,33 @@ export function initializeRetrieval() {
                 const d = r.diagnostics; const card = node('article');
                 card.append(node('h2',d.requestedStrategy),node('p',`实际策略：${d.actualStrategy ?? '不适用'} · ${d.status} · ${r.chunks.length} Chunks`));
                 if (d.status !== 'SUCCESS') card.append(node('p',d.status === 'EMPTY_RESULT' ? '没有找到匹配内容' : '该策略执行失败：' + d.error));
-                for (const c of r.chunks) { const chunk = node('section'); chunk.append(node('h3','排名：' + (c.finalRank ?? '不适用')),node('p',c.headingPath ?? '无标题路径'),node('pre',c.content)); for (const k of ['chunkId','documentId','indexVersionId','sourceStart','sourceEnd','vectorRank','vectorDistance','bm25Rank','bm25Score','rrfScore','rerankScore']) chunk.append(node('p',k + '：' + (c[k] ?? '不适用'))); card.append(chunk); }
                 const detail = node('details'); detail.append(node('summary','Diagnostics'));
                 for (const k of ['requestedStrategy','actualStrategy','degraded','status','snapshotHash','error']) detail.append(node('p',k + '：' + (d[k] ?? '未提供')));
                 detail.append(node('pre',JSON.stringify(d.parameters,null,2)));
                 if (!d.stages.length) detail.append(node('p','未提供阶段数据'));
                 for (const s of d.stages) { detail.append(node('h3',`${s.phase} · ${s.elapsedMillis} ms · ${s.candidateCount} 候选`)); for (const c of s.candidates) detail.append(node('p',`${c.chunkId} · rank ${c.rank} · score ${c.score ?? '不适用'}`)); }
-                card.append(detail); output.append(card);
+                // Diagnostics 紧邻策略标题；正文折叠只控制展示，不修改原始数据。
+                card.append(detail);
+                for (const c of r.chunks) {
+                    const chunk = node('section'); chunk.className = 'retrieval-chunk';
+                    chunk.append(node('h3','排名：' + (c.finalRank ?? '不适用')),node('p',c.headingPath ?? '无标题路径'));
+                    const content = node('pre',c.content); content.className = 'chunk-preview';
+                    const toggle = node('button','展开全文'); toggle.type = 'button'; toggle.setAttribute('aria-expanded','false');
+                    let expanded = false;
+                    toggle.addEventListener('click', () => {
+                        expanded = !expanded;
+                        content.className = expanded ? 'chunk-full' : 'chunk-preview';
+                        toggle.textContent = expanded ? '收起正文' : '展开全文';
+                        toggle.setAttribute('aria-expanded',String(expanded));
+                    });
+                    chunk.append(content,toggle);
+                    const scores = node('div'); scores.className = 'chunk-scores';
+                    for (const k of ['vectorRank','vectorDistance','bm25Rank','bm25Score','rrfScore','rerankScore']) scores.append(node('p',k + '：' + (c[k] ?? '不适用')));
+                    const metadata = node('details'); metadata.append(node('summary','技术元数据'));
+                    for (const k of ['chunkId','documentId','indexVersionId','knowledgeBaseId','sourceStart','sourceEnd']) metadata.append(node('p',k + '：' + c[k]));
+                    chunk.append(scores,metadata); card.append(chunk);
+                }
+                output.append(card);
             }
             status.textContent = '检索完成。requestId：' + (response.requestId ?? '未提供');
         } catch (error) { if (current === generation) status.textContent = '请求失败：' + ({protocol:'响应格式异常',network:'网络连接失败',http:'HTTP 错误',business:'业务错误',aborted:'等待已取消'}[error.kind] ?? '未知错误') + '；requestId：' + (error.requestId ?? '未提供'); }

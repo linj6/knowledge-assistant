@@ -33,3 +33,19 @@ test('参数恢复、修改和折叠不请求',async()=>{const h=await lab();con
 
 test('失败快照必须为文本',async()=>{const h=await lab();const r=result('HYBRID_RRF','FAILED');r.diagnostics.snapshotHash={secret:'bad'};await h.finish(await h.submit(),[r]);assert.match(h.text(),/响应格式异常/);});
 test('无候选空结果不伪造Chunk',async()=>{const h=await lab();await h.finish(await h.submit(),[result('HYBRID_RRF','EMPTY_RESULT')]);assert.match(h.text(),/没有找到匹配内容/);assert.equal(h.nodes().filter(e=>e.tag==='section').length,0);});
+
+test('正文摘要展开收起保留完整文本且不请求',async()=>{
+ const h=await lab();const r=result();const text='<script>不可信</script>\n'+'长正文'.repeat(2000);r.chunks[0].content=text;
+ await h.finish(await h.submit(),[r]);const pre=h.nodes().find(e=>e.tag==='pre'&&e.textContent===text);assert.equal(pre.className,'chunk-preview');
+ const toggle=h.nodes().find(e=>e.tag==='button'&&e.textContent==='展开全文');const count=h.calls.length;
+ await toggle.fire('click');assert.equal(pre.className,'chunk-full');assert.equal(pre.textContent,text);assert.equal(toggle.textContent,'收起正文');
+ await toggle.fire('click');assert.equal(pre.className,'chunk-preview');assert.equal(toggle.textContent,'展开全文');assert.equal(pre.textContent,text);assert.equal(h.calls.length,count);assert.equal(h.nodes().some(e=>e.tag==='script'),false);
+});
+test('元数据与Diagnostics独立折叠且位于正文之前',async()=>{
+ const h=await lab();await h.finish(await h.submit());const nodes=h.nodes();
+ const diagnostics=nodes.find(e=>e.tag==='details'&&e.children[0].textContent==='Diagnostics');
+ const metadata=nodes.find(e=>e.tag==='details'&&e.children[0].textContent==='技术元数据');
+ assert.ok(!diagnostics.open);assert.ok(!metadata.open);assert.ok(nodes.indexOf(diagnostics)<nodes.findIndex(e=>e.className==='retrieval-chunk'));
+ metadata.open=true;await metadata.fire('toggle');for(const k of ['chunkId','documentId','indexVersionId','knowledgeBaseId','sourceStart','sourceEnd'])assert.ok(metadata.textContent.includes(k+'：'));
+ assert.ok(!diagnostics.open);diagnostics.open=true;await diagnostics.fire('toggle');assert.equal(metadata.open,true);
+});

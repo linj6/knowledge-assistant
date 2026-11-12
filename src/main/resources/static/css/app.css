@@ -226,3 +226,72 @@ p {
 #retrieval section { border-top: 1px solid #ddd; padding-block: 1rem; }
 #retrieval input[type=checkbox] { width: auto; margin-inline: .5rem; }
 #retrieval p { overflow-wrap: anywhere; }
+
+/* WEB-06：紧凑的信息层级与阅读区域 */
+h1 { font-size: 28px; line-height: 1.3; }
+h2, h3, summary { overflow-wrap: anywhere; }
+button, input, select, textarea { max-width: 100%; min-width: 0; }
+button { min-height: 42px; }
+button:not(:disabled):hover { background: #eff4ff; }
+button[type=submit], .upload-panel > button:first-of-type { background: #2563EB; color: white; }
+button[type=submit]:disabled { background: #F1F3F5; color: #667085; }
+main > header { max-width: 1060px; margin-inline: auto; }
+main > header label { margin-top: 0; font-size: 13px; }
+[role=status] { font-size: 13px; overflow-wrap: anywhere; }
+[role=status]:empty { margin: 0; }
+.context { font-size: 13px; margin-block: 8px 18px; }
+section { margin-block: 28px; }
+summary { font-size: 13px; color: #475467; padding-block: 6px; }
+details[open] > summary { margin-bottom: 8px; }
+#chat .chat-turn { padding: 18px 20px; margin-block: 16px; }
+#chat .chat-turn h2 { font-size: 12px; color: #667085; margin: 0; }
+#chat .chat-turn h2 + p { background: #F1F3F5; padding: 10px 12px; border-radius: 6px; margin-block: 6px 16px; }
+#chat .chat-turn h3 { font-size: 14px; margin-block: 12px 6px; }
+#chat .chat-turn p { line-height: 1.8; margin-block: 8px; }
+#chat .chat-turn .request-meta { font-size: 12px; color: #667085; }
+#chat .citation-button { font-size: 12px; min-height: 34px; padding: 5px 10px; margin: 8px 6px 0 0; }
+#chat .chat-composer { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding-top: 14px; border-top: 1px solid #e5e7eb; }
+#chat .chat-composer label, #chat .chat-composer textarea { grid-column: 1 / -1; }
+#chat .chat-composer label { margin: 0; }
+#chat .chat-composer textarea { min-height: 88px; }
+#chat .chat-composer button { justify-self: start; }
+#knowledge .upload-panel { padding: 16px; margin-block: 20px; background: #F1F3F5; }
+.upload-panel h2 { font-size: 17px; margin: 0; }
+.upload-panel p { font-size: 13px; margin-block: 8px; }
+.upload-panel button { margin: 8px 8px 0 0; }
+#knowledge .document-list { border-top: 1px solid #e5e7eb; }
+#knowledge .document-row { margin: 0; padding: 12px 4px; border: 0; border-bottom: 1px solid #e5e7eb; border-radius: 0; background: transparent; }
+.document-row h3 { font-size: 14px; line-height: 1.5; margin: 0 0 6px; }
+.document-row p { font-size: 12px; color: #475467; margin: 3px 0; }
+.document-row details { margin: 4px 0 0; }
+.evidence-drawer { width: min(520px, 100vw); padding: 20px; }
+.evidence-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #d7dce2; padding-bottom: 12px; }
+.evidence-toolbar h2 { font-size: 17px; margin: 0; }
+.evidence-toolbar button { flex-shrink: 0; font-size: 13px; padding: 6px 12px; }
+.evidence-body p { font-size: 12px; color: #475467; margin-block: 8px; }
+.evidence-body pre { background: white; padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px; line-height: 1.8; max-height: 55dvh; overflow-y: auto; }
+#retrieval fieldset { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px; padding: 12px; }
+#retrieval fieldset label { font-size: 13px; font-weight: 500; margin: 0; }
+#retrieval form > details { padding: 10px 14px; background: #F1F3F5; border-radius: 8px; }
+#retrieval input[type=number] { font: inherit; width: 100px; padding: 6px 10px; border: 1px solid #d7dce2; border-radius: 6px; margin-left: 12px; }
+#retrieval form > details label { display: inline-flex; align-items: center; flex-wrap: wrap; font-size: 13px; margin: 8px 16px 8px 0; }
+#retrieval article { background: white; padding: 18px; margin-block: 18px; }
+#retrieval article h2 { font-size: 18px; margin: 0; }
+#retrieval article > p { font-size: 13px; }
+#retrieval article > details { margin: 10px 0; padding: 8px 12px; background: #F1F3F5; border-radius: 6px; }
+#retrieval .retrieval-chunk { margin: 14px 0 0; padding: 14px 0 0; max-width: none; }
+.retrieval-chunk h3 { font-size: 14px; margin: 0; }
+#retrieval .chunk-preview, #retrieval .chunk-full { font: inherit; line-height: 1.7; background: #FAFAF8; padding: 12px; margin-block: 10px; }
+#retrieval .chunk-preview { max-height: 8.4em; overflow: hidden; }
+.retrieval-chunk button { min-height: 34px; padding: 5px 10px; font-size: 12px; }
+.chunk-scores { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; margin-top: 12px; }
+#retrieval .chunk-scores p { font-size: 12px; margin: 0; color: #475467; }
+#retrieval details p { font-size: 12px; margin-block: 4px; }
+#retrieval details pre { font-size: 12px; }
+@media(max-width:767px) {
+    main { padding: 20px 16px; }
+    #retrieval fieldset, .chunk-scores { grid-template-columns: minmax(0, 1fr); }
+    #retrieval article, #chat .chat-turn { padding: 14px; }
+    .evidence-drawer { padding: 16px; }
+    #knowledge .actions { gap: 8px; justify-content: flex-start; }
+}

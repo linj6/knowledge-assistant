@@ -22,8 +22,8 @@ export function initializeChat() {
     const node = (tag, text) => { const el = document.createElement(tag); if (text !== undefined) el.textContent = text; return el; };
     root.replaceChildren(node('h1', 'AI 问答'));
     const context = node('p'); context.className = 'context';
-    const history = node('div');
-    const form = node('form');
+    const history = node('div'); history.className = 'chat-history';
+    const form = node('form'); form.className = 'chat-composer';
     const label = node('label', '你的问题'); label.setAttribute('for', 'question');
     const question = node('textarea'); question.id = 'question'; question.maxLength = 4000; question.required = true;
     const send = node('button', '发送'); send.type = 'submit';
@@ -64,7 +64,7 @@ export function initializeChat() {
         const controller = new AbortController();
         pending = { controller, timer: setTimeout(() => stop('等待超时，服务端可能仍在执行；再次发送可能重复执行。'), 60000) };
         controls(); status.textContent = '正在等待答案…';
-        const item = node('article'); item.append(node('h2', '问题'), node('p', text)); history.append(item);
+        const item = node('article'); item.className = 'chat-turn'; item.append(node('h2', '你'), node('p', text)); history.append(item);
         try {
             // 不传历史；回调写入前校验代次和知识库，取消也不能让旧响应覆盖新页面。
             const response = await request('../api/v1/chat/answers', { method: 'POST', body: { knowledgeBaseId: selectedKb, question: text, strategy: 'HYBRID_RRF' }, signal: controller.signal });
@@ -75,8 +75,8 @@ export function initializeChat() {
             item.append(node('h3', { ANSWERED: '已回答', INSUFFICIENT_EVIDENCE: '证据不足', FAILED: '问答失败' }[data.status]));
             if (data.answer) item.append(node('p', data.answer));
             if (data.status === 'FAILED') item.append(node('p', '问答处理失败，请稍后自行重试。错误码：' + data.error));
-            data.citations.forEach(c => { const button = node('button', '引用：' + c.evidenceId + ' · 查看证据'); button.type = 'button'; button.addEventListener('click', () => evidence.open(selectedKb, c, button)); item.append(button); });
-            if (response.requestId) item.append(node('p', 'requestId：' + response.requestId));
+            data.citations.forEach(c => { const button = node('button', '引用：' + c.evidenceId + ' · 查看证据'); button.className = 'citation-button'; button.type = 'button'; button.addEventListener('click', () => evidence.open(selectedKb, c, button)); item.append(button); });
+            if (response.requestId) { const meta = node('p', 'requestId：' + response.requestId); meta.className = 'request-meta'; item.append(meta); }
             status.textContent = '本轮请求已完成。';
         } catch (error) {
             if (current !== generation || selectedKb !== kb) return;

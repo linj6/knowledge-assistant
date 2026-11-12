@@ -39,3 +39,10 @@ for(const kind of ['404','500','network','timeout','envelope'])test('错误与�
 for(const citations of [[{...citation,evidenceId:'<img>',sourceStart:0,sourceEnd:2}],[{...citation,evidenceId:'E1',sourceStart:0,sourceEnd:2},{...citation,evidenceId:'E1',sourceStart:0,sourceEnd:2}]])test('非法或重复 evidenceId 拒绝整份回答',async()=>{const h=await fixture(citations);assert.equal(h.buttons.length,0);assert.match(h.elements.chat.textContent,/响应格式异常/);});
 test('服务器错误 HTML 与非法 requestId 不展示',async()=>{const h=await fixture();const i=await h.click(0);h.calls[i].resolve({ok:false,status:500,headers:{get:()=>null},json:async()=>({code:50000,message:'<img onerror=alert(1)>secret',requestId:'<script>secret'})});await h.tick();assert.match(h.dialog.textContent,/读取失败/);assert.doesNotMatch(h.dialog.textContent,/secret|<img|<script/);});
 test('成功后清除超时定时器，旧定时器不能污染重开',async()=>{const h=await fixture();const i=await h.click(0);const entry=[...h.pendingTimers.entries()].filter(([,t])=>t.delay===20000).at(-1);await h.respond(i,data());assert.equal(h.pendingTimers.has(entry[0]),false);await h.closeButton.fire('click');await h.click(1);entry[1].callback();assert.match(h.dialog.textContent,/正在读取/);assert.doesNotMatch(h.dialog.textContent,/超时/);});
+
+test('证据紧凑来源保持完整安全文本，正文独立区域不影响关闭',async()=>{
+ const f=await fixture();const i=await f.click(0);
+ await f.respond(i,{...data(),filename:'<img>'+ '长文件名'.repeat(100),headingPath:'标题'.repeat(100)});
+ assert.ok(f.dialog.textContent.includes('<img>'));assert.equal(f.nodes().some(e=>e.tag==='img'),false);
+ const body=f.nodes().find(e=>e.className==='evidence-body');assert.ok(body);assert.ok(body.textContent.includes('来源区间'));assert.equal(body.children.at(-1).tag,'pre');
+});
