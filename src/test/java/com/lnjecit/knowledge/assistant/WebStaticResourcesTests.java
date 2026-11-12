@@ -59,7 +59,7 @@ class WebStaticResourcesTests {
                     HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/"))
                             .build(),
                     HttpResponse.BodyHandlers.ofString());
-            System.out.println("WEB-01 /api/ actual status: " + welcome.statusCode());
+            assertEquals(200, welcome.statusCode());
         }
     }
 }

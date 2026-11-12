@@ -111,3 +111,5 @@ MinIO 上传使用 staging/originals 单 Bucket 流程；部署前配置并检�
 ## M1 文档导入与首次发布
 
 当前验收与默认测试发现边界见 [M1 最终综合验收](docs/engineering/m1-final-acceptance.md)。上传上限 2 MiB，支持 UTF-8 Markdown/TXT；新上传202、重复内容200。Worker默认关闭，启用前配置数据库、MinIO、ES、Embedding，并保持单实例单Worker。MinIO staging ILM部署见 [运维说明](infra/minio/README.md)。本轮不实现检索或RAG。
+
+WEB-01 正式入口：`http://localhost:8080/api/index.html`，启动方式同上。保留 `spring.mvc.servlet.path=/api`。`/api/` 实测返回 200；正式访问请使用明确的 index.html 路径，支持 `#chat`、`#knowledge`、`#retrieval`。
