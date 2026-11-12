@@ -58,6 +58,8 @@ class ImportObservabilityTests {
             assertThatThrownBy(() -> new TaskWorker(tasks, processor).execute(claim))
                     .isSameAs(update);
             assertThat(appender.list).hasSize(2);
+            assertThat(appender.list.getFirst().getThrowableProxy().getMessage())
+                    .doesNotContain("secret");
             String message = appender.list.getLast().getFormattedMessage();
             assertThat(message)
                     .contains(

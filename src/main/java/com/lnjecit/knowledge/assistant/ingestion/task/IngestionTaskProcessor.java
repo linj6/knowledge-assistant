@@ -163,18 +163,24 @@ public class IngestionTaskProcessor implements TaskProcessor {
         byte[] bytes = files.read(key);
         context.checkTimeout();
         if (!sha256(bytes).equals(document.getContentHash())) invalid();
+        long parseStarted = System.nanoTime();
+        stage("IMPORT_PARSE_STARTED", task, current.getAttemptCount(), 0, parseStarted);
         ParsedDocument parsed = parsers.parse(document.getFilename(), bytes);
         context.checkTimeout();
+        stage("IMPORT_PARSE_COMPLETED", task, current.getAttemptCount(), 0, parseStarted);
         long started = System.nanoTime();
+        stage("IMPORT_CHUNK_STARTED", task, current.getAttemptCount(), 0, started);
         int chunkCount =
                 chunks.initialize(document.getId(), version.getId(), parsed).size();
         stage("IMPORT_CHUNK_COMPLETED", task, current.getAttemptCount(), chunkCount, started);
         started = System.nanoTime();
         context.checkTimeout();
+        stage("IMPORT_EMBEDDING_PG_VECTOR_STARTED", task, current.getAttemptCount(), chunkCount, started);
         embeddings.embed(document.getId(), version.getId(), context::checkTimeout);
         context.checkTimeout();
         stage("IMPORT_EMBEDDING_COMPLETED", task, current.getAttemptCount(), chunkCount, started);
         started = System.nanoTime();
+        stage("IMPORT_ES_STARTED", task, current.getAttemptCount(), chunkCount, started);
         es.index(document.getId(), version.getId());
         stage("IMPORT_ES_COMPLETED", task, current.getAttemptCount(), chunkCount, started);
         context.checkTimeout();
@@ -189,6 +195,7 @@ public class IngestionTaskProcessor implements TaskProcessor {
         // VERIFIED 仍需重新核验；最终领取权由发布事务使用数据库时间裁决。
         context.checkTimeout();
         long started = System.nanoTime();
+        stage("IMPORT_VERIFY_STARTED", task, current.getAttemptCount(), 0, started);
         IndexVerificationService.Result result = verification.verify(document.getId(), version.getId());
         if (result == null
                 || !"VERIFIED".equals(result.verificationStatus())
@@ -200,6 +207,7 @@ public class IngestionTaskProcessor implements TaskProcessor {
 
     private void publish(ClaimedTask task, TaskExecutionContext context, boolean confirmed) {
         long started = System.nanoTime();
+        stage("IMPORT_PUBLISH_STARTED", task, null, 0, started);
         String outcome = confirmed ? "EXISTING_FACTS_CONFIRMED" : "FIRST_PUBLISH";
         try {
             publisher.publish(task);
@@ -232,14 +240,15 @@ public class IngestionTaskProcessor implements TaskProcessor {
     private static void stage(String event, ClaimedTask task, Integer attemptCount, int count, long started) {
         ImportEvents.info(
                 LOG,
-                "event={} taskId={} documentId={} indexVersionId={} attemptCount={} chunkCount={} elapsedMs={}",
+                "event={} taskId={} documentId={} indexVersionId={} attemptCount={} chunkCount={} elapsedMs={} includesPgVectorWrite={}",
                 event,
                 task.taskId(),
                 task.documentId(),
                 task.indexVersionId(),
                 attemptCount,
                 count,
-                ImportEvents.elapsed(started));
+                ImportEvents.elapsed(started),
+                "IMPORT_EMBEDDING_COMPLETED".equals(event));
     }
 
     private static void invalid() {

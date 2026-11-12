@@ -85,6 +85,9 @@ class IngestionTaskProcessorTests {
         processor.process(claim, context);
         org.assertj.core.api.Assertions.assertThat(output.getOut())
                 .contains(
+                        "event=IMPORT_PARSE_STARTED",
+                        "event=IMPORT_PARSE_COMPLETED",
+                        "includesPgVectorWrite=true",
                         "event=IMPORT_CHUNK_COMPLETED",
                         "event=IMPORT_EMBEDDING_COMPLETED",
                         "event=IMPORT_ES_COMPLETED",
