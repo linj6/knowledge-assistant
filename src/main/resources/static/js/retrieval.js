@@ -95,4 +95,3 @@ export function initializeRetrieval() {
     root.append(node('p','Vector Distance 为距离；BM25 Score 为关键词评分；RRF Score 为融合评分；Rerank Score 为重排评分。不同分数不能直接比较或当作百分比。阶段可能共享，耗时不能直接相加作为请求总耗时。'));
     controls();
 }
-
