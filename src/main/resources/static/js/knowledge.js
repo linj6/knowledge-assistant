@@ -96,7 +96,8 @@ export function initializeKnowledge(refreshKnowledgeBases, getSelectionRevision 
                 documents.append(row);
             }
         } catch (error) {
-            if (current === sequence && error.kind !== 'aborted') status.textContent = errorText(error) + '，请刷新文档重试。';
+            // 当前代次的取消来自等待超时；切库导致的旧请求取消仍保持静默。
+            if (current === sequence) status.textContent = (error.kind === 'aborted' ? '文档加载等待超时' : errorText(error)) + '，请刷新文档重试。';
         } finally {
             clearTimeout(timer);
             if (current === sequence) {
