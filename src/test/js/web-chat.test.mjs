@@ -34,6 +34,45 @@ async function chat() {
  h.submit=async(text='问题')=>{h.input.value=text;void h.form.fire('submit');await h.tick();return h.calls.length-1;};return h;
 }
 const answer=()=>({status:'ANSWERED',requestedStrategy:'HYBRID_RRF',answer:'答案 [E99] <script>alert(1)</script>',citations:[{evidenceId:'E1',chunkId:'9007199254740993',documentId:'2',indexVersionId:'3',sourceStart:0,sourceEnd:1}],error:null});
+for (const result of ['ANSWERED', 'INSUFFICIENT_EVIDENCE', 'FAILED', 'network', 'timeout']) {
+    test('立即清空且完成不改写后续输入 ' + result, async () => {
+        const h = await chat();
+        h.input.value = '  本轮问题  ';
+        void h.form.fire('submit');
+        assert.equal(h.input.value, '');
+        assert.equal(h.input.disabled, true);
+        assert.match(h.elements.chat.textContent, /本轮问题/);
+        await h.tick();
+        const i = h.calls.length - 1;
+        assert.equal(JSON.parse(h.calls[i].options.body).question, '本轮问题');
+        assert.equal(h.input.value, '');
+        // 模拟后续草稿，验证任何完成回调均不会改写输入值。
+        h.input.value = '下一轮草稿';
+        if (result === 'network') { h.calls[i].reject(new Error('network')); await h.tick(); }
+        else if (result === 'timeout') {
+            [...h.pendingTimers.values()].find(t => t.delay === 60000).callback();
+            await h.respond(i, answer());
+        } else {
+            const data = answer();
+            if (result !== 'ANSWERED') Object.assign(data, { status: result, answer: null, citations: [], error: result === 'FAILED' ? 'GENERATION_FAILED' : null });
+            await h.respond(i, data);
+        }
+        assert.equal(h.input.value, '下一轮草稿');
+        assert.equal(h.input.disabled, false);
+        assert.match(h.elements.chat.textContent, /本轮问题/);
+        if (result === 'network') assert.match(h.elements.chat.textContent, /网络连接失败/);
+    });
+}
+for (const [name, text, kb] of [['空白', '  ', '1'], ['超长', '问'.repeat(4001), '1'], ['未选库', '保留问题', '']]) {
+    test('非法提交保留输入 ' + name, async () => {
+        const h = await chat();
+        h.state.updateState({ selectedKnowledgeBaseId: kb });
+        const count = h.calls.length;
+        await h.submit(text);
+        assert.equal(h.input.value, text);
+        assert.equal(h.calls.length, count);
+    });
+}
 for(const [name,text,kb] of [['空白','  ','1'],['UTF16超长','😀'.repeat(2001),'1'],['无知识库','问题','']])test(name,async()=>{const h=await chat();h.state.updateState({selectedKnowledgeBaseId:kb});const n=h.calls.length;await h.submit(text);assert.equal(h.calls.length,n);});
 test('固定策略、字符串ID、重复提交锁、完成恢复、单轮隔离',async()=>{const h=await chat();h.state.updateState({selectedKnowledgeBaseId:'9007199254740993'});const i=await h.submit();assert.equal(h.send.disabled,true);await h.submit();assert.equal(h.calls.length,i+1);assert.equal(h.nodes().some(e=>e.tag==='select'),false);assert.deepEqual(JSON.parse(h.calls[i].options.body),{knowledgeBaseId:'9007199254740993',question:'问题',strategy:'HYBRID_RRF'});await h.respond(i,answer());assert.equal(h.send.disabled,false);const j=await h.submit('第二问');assert.equal(Object.keys(JSON.parse(h.calls[j].options.body)).length,3);await h.respond(j,answer());});
 for(const [name,mutate] of [['未知状态',d=>d.status='UNKNOWN'],['非法响应',d=>d.citations=null],['空引用',d=>d.citations=[]],['非法标识',d=>d.citations[0].evidenceId='<img>'],['数值ID',d=>d.citations[0].chunkId=123]])test(name,async()=>{const h=await chat();const i=await h.submit();const d=answer();mutate(d);await h.respond(i,d);assert.match(h.elements.chat.textContent,/响应格式异常/);assert.equal(h.send.disabled,false);});

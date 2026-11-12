@@ -60,6 +60,8 @@ export function initializeChat() {
         const text = question.value.trim();
         if (pending || !kb || AppState.activePage !== 'chat') return;
         if (!text || question.value.length > 4000) { status.textContent = '请输入 1～4000 字符的问题。'; return; }
+        // 校验通过后立即清空；请求和历史使用已保存的问题，响应不修改后续输入。
+        question.value = '';
         const current = ++generation, selectedKb = kb;
         const controller = new AbortController();
         pending = { controller, timer: setTimeout(() => stop('等待超时，服务端可能仍在执行；再次发送可能重复执行。'), 60000) };
