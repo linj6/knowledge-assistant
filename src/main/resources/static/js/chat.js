@@ -1,3 +1,4 @@
+import { createEvidence } from './evidence.js';
 import { request, ApiError } from './api.js';
 import { AppState, subscribe } from './state.js';
 
@@ -6,6 +7,7 @@ export function validateAnswer(data) {
     const id = value => typeof value === 'string' && /^[1-9]\d*$/.test(value);
     if (!data || !strategies.includes(data.requestedStrategy) || !Array.isArray(data.citations)) throw new ApiError('protocol');
     if (data.citations.some(c => !c || typeof c.evidenceId !== 'string' || !/^E[1-9]\d*$/.test(c.evidenceId) || !id(c.chunkId) || !id(c.documentId) || !id(c.indexVersionId) || !Number.isInteger(c.sourceStart) || !Number.isInteger(c.sourceEnd) || c.sourceStart < 0 || c.sourceEnd <= c.sourceStart)) throw new ApiError('protocol');
+    if (new Set(data.citations.map(c => c.evidenceId)).size !== data.citations.length) throw new ApiError('protocol');
     const valid = data.status === 'ANSWERED' ? typeof data.answer === 'string' && data.answer.trim() && data.citations.length && data.error == null
         : data.status === 'INSUFFICIENT_EVIDENCE' ? !data.citations.length && data.error == null && (data.answer == null || typeof data.answer === 'string' && data.answer.trim())
         : data.status === 'FAILED' && data.answer == null && !data.citations.length && typeof data.error === 'string' && /^[A-Z_]+$/.test(data.error);
@@ -29,6 +31,7 @@ export function initializeChat() {
     const status = node('p'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
     form.append(label, question, send, cancel);
     root.append(context, node('p', '每次只发送当前问题；历史仅供本页阅读，刷新后清空。'), history, form, status);
+    const evidence = createEvidence(root);
     let generation = 0, pending = null, kb = AppState.selectedKnowledgeBaseId, page = AppState.activePage;
     function controls() { send.disabled = !!pending || !kb || AppState.activePage !== 'chat'; question.disabled = !!pending; cancel.hidden = !pending; }
     function stop(message) {
@@ -72,7 +75,7 @@ export function initializeChat() {
             item.append(node('h3', { ANSWERED: '已回答', INSUFFICIENT_EVIDENCE: '证据不足', FAILED: '问答失败' }[data.status]));
             if (data.answer) item.append(node('p', data.answer));
             if (data.status === 'FAILED') item.append(node('p', '问答处理失败，请稍后自行重试。错误码：' + data.error));
-            data.citations.forEach(c => item.append(node('p', '引用：' + c.evidenceId)));
+            data.citations.forEach(c => { const button = node('button', '引用：' + c.evidenceId + ' · 查看证据'); button.type = 'button'; button.addEventListener('click', () => evidence.open(selectedKb, c, button)); item.append(button); });
             if (response.requestId) item.append(node('p', 'requestId：' + response.requestId));
             status.textContent = '本轮请求已完成。';
         } catch (error) {
