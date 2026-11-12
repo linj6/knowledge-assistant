@@ -1,5 +1,6 @@
 // 仅供人工浏览器验收：零持久化、无代理、无模型和基础设施依赖。
 import http from 'node:http';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -8,6 +9,10 @@ const root = fileURLToPath(new URL('../../main/resources/static/', import.meta.u
 const time = '2026-11-12T00:00:00Z';
 const bases = [{ id: '1001', name: 'Mock 多页知识库', description: '仅内存测试', createdAt: time }, { id: '1002', name: 'Mock 空知识库', description: '', createdAt: time }];
 const tasks = new Map();
+const documents = new Map(bases.map(kb => [kb.id, []]));
+documents.set('1001', Array.from({ length: 21 }, (_, i) => ({ documentId: String(2001 + i), filename: `Mock-${'长文件名'.repeat(20)}-${i}.md`, createdAt: time, publicationStatus: 'PUBLISHED', activeVersionId: '4001', publishedAt: time, importTask: null })));
+const uploads = new Map();
+const responseTask = task => ({ importTaskId: task.id, documentId: task.document.documentId, status: task.status, createdAt: task.createdAt, updatedAt: task.updatedAt, failureCode: task.status === 'FAILED' ? 'IMPORT_FAILED' : null });
 let next = 3000;
 const parameters = { vectorTopK: 20, bm25TopK: 20, rrfK: 60, fusionTopK: 20, finalTopK: 5 };
 const citation = n => ({ evidenceId: `E${n}`, chunkId: String(5000 + n), documentId: '2001', indexVersionId: '4001', sourceStart: 0, sourceEnd: 80 });
@@ -45,26 +50,51 @@ const server = http.createServer(async (req, res) => {
             if (req.method === 'POST') {
                 if (!body.name?.trim() || body.name.length > 100 || (body.description?.length ?? 0) > 1000) return send(null, 400, 40000);
                 const kb = { id: String(++next), name: body.name, description: body.description ?? '', createdAt: time };
-                bases.push(kb); return send(kb, 201);
+                bases.push(kb); documents.set(kb.id, []); return send(kb, 201);
             }
         }
         if (/\/documents$/.test(url.pathname) && req.method === 'GET') {
             const page = Number(url.searchParams.get('page') ?? 1);
-            const total = url.pathname.includes('/1001/') ? 21 : 0;
-            const items = Array.from({ length: Math.max(0, Math.min(20, total - (page - 1) * 20)) }, (_, i) => ({ documentId: String(2001 + (page - 1) * 20 + i), filename: `Mock-${'长文件名'.repeat(20)}-${i}.md`, createdAt: time, publicationStatus: 'PUBLISHED', activeVersionId: '4001', publishedAt: time, importTask: null }));
-            return send({ items, page, pageSize: 20, total: String(total) });
+            const records = documents.get(url.pathname.split('/')[4]);
+            if (!records) return send(null, 404, 40401);
+            const pageSize = Number(url.searchParams.get('pageSize') ?? 20);
+            if (!Number.isInteger(page) || page < 1 || page > 2147483647 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) return send(null, 400, 40000);
+            const sorted = [...records].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || (BigInt(a.documentId) < BigInt(b.documentId) ? 1 : -1));
+            return send({ items: sorted.slice((page - 1) * pageSize, page * pageSize), page, pageSize, total: String(records.length) });
         }
         if (url.pathname.endsWith('/documents:import') && req.method === 'POST') {
-            const duplicate = raw.includes('duplicate.');
-            const id = String(++next);
-            tasks.set(id, { polls: 0, failed: raw.includes('failed.') });
-            return send({ importTaskId: id, documentId: '2001', status: 'RECEIVED', createdAt: time, updatedAt: time, failureCode: null }, duplicate ? 200 : 202);
+            const kb = url.pathname.split('/')[4], records = documents.get(kb);
+            if (!records) return send(null, 404, 40401);
+            // 解析浏览器单文件 FormData，按同库文件内容字节去重，不按文件名伪造去重。
+            const boundary = req.headers['content-type']?.match(/boundary=(?:"([^"]+)"|([^; ]+))/);
+            if (!boundary) return send(null, 400, 40000);
+            const parts = Buffer.concat(chunks).toString('latin1').split('--' + (boundary[1] ?? boundary[2]));
+            const files = parts.filter(part => /name="file"; filename="/.test(part));
+            if (files.length !== 1) return send(null, 400, 40000);
+            const part = files[0], headerEnd = part.indexOf('\r\n\r\n');
+            const filename = Buffer.from(part.match(/filename="([^"\r\n]*)"/)[1], 'latin1').toString('utf8');
+            const content = Buffer.from(part.slice(headerEnd + 4, -2), 'latin1');
+            if (!content.length || content.length > 2097152 || !/\.(md|txt)$/i.test(filename)) return send(null, 400, 40000);
+            const key = kb + ':' + createHash('sha256').update(content).digest('hex');
+            if (uploads.has(key)) return send(responseTask(tasks.get(uploads.get(key))), 200);
+            const createdAt = new Date().toISOString();
+            const document = { documentId: String(++next), filename, createdAt, publicationStatus: 'UNPUBLISHED', activeVersionId: null, publishedAt: null, importTask: null };
+            const task = { id: String(++next), version: String(++next), document, polls: 0, failed: filename.startsWith('failed.'), status: 'RECEIVED', createdAt, updatedAt: createdAt };
+            document.importTask = { ...responseTask(task), indexVersionId: task.version };
+            records.push(document); tasks.set(task.id, task); uploads.set(key, task.id);
+            return send(responseTask(task), 202);
         }
         if (/\/import-tasks\/\d+$/.test(url.pathname) && req.method === 'GET') {
             const id = url.pathname.split('/').at(-1), task = tasks.get(id);
             if (!task) return send(null, 404, 40400);
-            const status = ++task.polls < 2 ? 'PROCESSING' : task.failed ? 'FAILED' : 'READY';
-            return send({ importTaskId: id, documentId: '2001', status, createdAt: time, updatedAt: time, failureCode: status === 'FAILED' ? 'IMPORT_FAILED' : null });
+            if (!['READY', 'FAILED'].includes(task.status)) {
+                task.status = ++task.polls < 2 ? 'PROCESSING' : task.failed ? 'FAILED' : 'READY';
+                task.updatedAt = new Date().toISOString();
+                // 仅模拟 Worker 完成发布，不执行 Embedding、ES 或 MinIO 操作。
+                if (task.status === 'READY') Object.assign(task.document, { publicationStatus: 'PUBLISHED', activeVersionId: task.version, publishedAt: task.updatedAt });
+                task.document.importTask = { ...responseTask(task), indexVersionId: task.version };
+            }
+            return send(responseTask(task));
         }
         if (url.pathname === '/api/v1/chat/answers' && req.method === 'POST') {
             const status = text.includes('empty') ? 'INSUFFICIENT_EVIDENCE' : text.includes('failed') ? 'FAILED' : 'ANSWERED';
