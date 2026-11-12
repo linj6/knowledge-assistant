@@ -111,7 +111,7 @@ GET /api/v1/knowledge-bases/{kbId}/documents?page=1&pageSize=20。Controller Map
 
 新增摘要包含 indexVersionId 以明确任务对应版本；不是修改既有 ImportTaskResponse。importTask 选该文档按 createdAt DESC、id DESC 的最新任务，可为 null；其状态不决定发布事实，亦不保证属于活动版本。重复上传仍按既有接口语义返回首个任务，不改变旧逻辑。
 
-Document、IndexVersion、ImportTask 通过 documentId、indexVersionId 关联；模型允许文档关联多个版本和任务，不以当前导入一次创建三条记录推断永久一对一。Document.activeVersionId 为 null 时 UNPUBLISHED，publishedAt=null；非 null 须验证版本存在、documentId 一致、状态 PUBLISHED、publishedAt 非空，才 PUBLISHED。异常指针返回安全500/50000并记录内部诊断，不能伪装未发布。
+Document、IndexVersion、ImportTask 通过 documentId、indexVersionId 关联；模型允许文档关联多个版本和任务，不以当前导入一次创建三条记录推断永久一对一。Document.activeVersionId 为 null 时 UNPUBLISHED，publishedAt=null；非 null 须验证版本存在、documentId 一致、即可判定 PUBLISHED；status 与 publishedAt 仅用于发布元数据完整性诊断，不作为可见性准入条件。异常指针返回安全500/50000并记录内部诊断，不能伪装未发布。
 
 publishedAt 可以可靠读取活动 IndexVersion.publishedAt，发布 SQL 在事务中写入，不能使用任务 updatedAt 或文档 createdAt 代替。activeVersionId 保持原指针；total 采用 Long 故输出字符串。
 
@@ -123,7 +123,7 @@ GET /api/v1/knowledge-bases/{kbId}/documents/{documentId}/versions/{versionId}/c
 {"code":0,"message":"成功","data":{"chunkId":"5001","documentId":"2001","indexVersionId":"4001","filename":"notes.md","headingPath":"事务","content":"事务是一组操作。","sourceStart":0,"sourceEnd":80},"requestId":"example-evidence"}
 ```
 
-查询顺序与强制校验：KB 存在；Document.knowledgeBaseId 等于 kbId；IndexVersion.documentId 等于 documentId；Chunk.documentId/indexVersionId/knowledgeBaseId 全部匹配路径；Document.activeVersionId 等于 versionId，版本 PUBLISHED 且 publishedAt 有效；sourceStart >= 0、sourceEnd > sourceStart。参数非正或无法解析400/40000；KB 缺失404/40401；资源缺失、归属不匹配、非活动版本统一404/40400；存储内部完整性损坏返回500/50000，不泄露其他归属实体。
+查询顺序与强制校验：KB 存在；Document.knowledgeBaseId 等于 kbId；IndexVersion.documentId 等于 documentId；Chunk.documentId/indexVersionId/knowledgeBaseId 全部匹配路径；Document.activeVersionId 等于 versionId，活动版本存在且属于该文档（与 M2 快照一致）；status 非 PUBLISHED 或 publishedAt 为空只记录安全完整性日志，不拒绝读取，发布时间为空时返回 null；sourceStart >= 0、sourceEnd > sourceStart。参数非正或无法解析400/40000；KB 缺失404/40401；资源缺失、归属不匹配、非活动版本统一404/40400；存储内部完整性损坏返回500/50000，不泄露其他归属实体。
 
 区间单位是原始文本 Unicode 码点，左闭右开，不是 JavaScript UTF-16 下标，也不要求等于渲染后 Chunk 内容长度。当前查询模型没有原文总码点数，不能声称查询时验证了终点不超过原文总长；该上界依赖既有导入验证，不新增 MinIO 读取或字段。前端展示 Chunk 正文与区间，不据此直接 substring 高亮原文。
 
