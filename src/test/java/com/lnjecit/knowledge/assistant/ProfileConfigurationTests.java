@@ -31,6 +31,8 @@ class ProfileConfigurationTests {
         StandardEnvironment common = load(null, false);
         assertThat(common.getProperty("spring.application.name")).isEqualTo("knowledge-assistant");
         assertThat(common.getProperty("assistant.model.enabled", Boolean.class)).isFalse();
+        assertThat(common.getProperty("assistant.model.online-authorized", Boolean.class))
+                .isFalse();
         assertThat(common.getProperty("spring.datasource.url")).isNull();
         ModelProperties commonModel = Binder.get(common)
                 .bind("assistant.model", ModelProperties.class)
@@ -45,7 +47,9 @@ class ProfileConfigurationTests {
         assertThat(properties.getDimensions()).isEqualTo(1024);
         assertThat(properties.getChatModel()).isEqualTo("qwen-plus");
         assertThat(properties.getBaseUrl()).isEqualTo(EmbeddingBaselineOnlineIT.ENDPOINT);
-        assertThat(properties.isEnabled()).isFalse();
+        assertThat(properties.isEnabled()).isTrue();
+        assertThat(local.getProperty("assistant.model.online-authorized", Boolean.class))
+                .isTrue();
     }
 
     @Test
@@ -53,12 +57,14 @@ class ProfileConfigurationTests {
         Files.writeString(
                 directory.resolve("application-local.yml"),
                 "assistant.model.embedding-model: overridden-model\nassistant.model.dimensions: 768\n");
-        ModelProperties properties = Binder.get(load("local", true))
-                .bind("assistant.model", ModelProperties.class)
-                .get();
+        StandardEnvironment local = load("local", true);
+        ModelProperties properties =
+                Binder.get(local).bind("assistant.model", ModelProperties.class).get();
         assertThat(properties.getEmbeddingModel()).isEqualTo("overridden-model");
         assertThat(properties.getDimensions()).isEqualTo(768);
-        assertThat(properties.isEnabled()).isFalse();
+        assertThat(properties.isEnabled()).isTrue();
+        assertThat(local.getProperty("assistant.model.online-authorized", Boolean.class))
+                .isTrue();
     }
 
     @Test
