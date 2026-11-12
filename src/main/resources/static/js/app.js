@@ -1,3 +1,4 @@
+import { initializeRetrieval } from './retrieval.js';
 import { initializeChat } from './chat.js';
 import { initializeKnowledge } from './knowledge.js';
 import {
@@ -116,5 +117,6 @@ window.addEventListener('hashchange', navigate);
 reload.addEventListener('click', loadKnowledgeBases);
 initializeKnowledge(loadKnowledgeBases, () => selectionRevision);
 initializeChat();
+initializeRetrieval();
 navigate();
 loadKnowledgeBases();
