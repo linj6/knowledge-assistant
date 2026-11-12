@@ -23,6 +23,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @Service
 @ConditionalOnProperty(name = "assistant.model.enabled", havingValue = "true")
 public class EmbeddingService {
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(EmbeddingService.class);
     private final EmbeddingModel model;
     private final EmbeddingRepository repository;
     private final EmbeddingProperties properties;
@@ -55,28 +56,64 @@ public class EmbeddingService {
         } else {
             throw new IllegalStateException("Unsupported embedding client");
         }
+        int effectiveBatchSize = properties.effectiveBatchSize(version.getEmbeddingModel());
         List<DocumentChunk> pending =
                 initial.stream().filter(c -> c.getEmbedding() == null).toList();
-        for (int offset = 0; offset < pending.size(); offset += properties.getBatchSize()) {
+        for (int offset = 0; offset < pending.size(); offset += effectiveBatchSize) {
             checkDeadline.run();
-            List<DocumentChunk> batch =
-                    pending.subList(offset, Math.min(pending.size(), offset + properties.getBatchSize()));
-            List<String> texts = batch.stream().map(DocumentChunk::getContent).toList();
-            for (String text : texts)
-                if (text == null || text.isBlank() || text.codePointCount(0, text.length()) > 800)
-                    throw new IllegalStateException("Embedding input limit exceeded");
-            List<String> vectors = new ArrayList<>(Collections.nCopies(batch.size(), null));
+            long started = System.nanoTime();
+            int batchIndex = offset / effectiveBatchSize + 1;
+            int batchCount = (pending.size() + effectiveBatchSize - 1) / effectiveBatchSize;
+            List<DocumentChunk> batch = pending.subList(offset, Math.min(pending.size(), offset + effectiveBatchSize));
+            batchEvent(
+                    "EMBEDDING_BATCH_STARTED",
+                    documentId,
+                    versionId,
+                    version.getEmbeddingModel(),
+                    batchIndex,
+                    batchCount,
+                    batch.size(),
+                    started);
             try {
-                EmbeddingResponse response = model.call(new EmbeddingRequest(texts, options));
-                ModelResponseChecks.embeddings(response, batch.size(), version.getEmbeddingDimension());
-                for (Embedding result : response.getResults())
-                    vectors.set(result.getIndex(), Arrays.toString(result.getOutput()));
+                List<String> texts =
+                        batch.stream().map(DocumentChunk::getContent).toList();
+                for (String text : texts)
+                    if (text == null || text.isBlank() || text.codePointCount(0, text.length()) > 800)
+                        throw new IllegalStateException("Embedding input limit exceeded");
+                List<String> vectors = new ArrayList<>(Collections.nCopies(batch.size(), null));
+                try {
+                    EmbeddingResponse response = model.call(new EmbeddingRequest(texts, options));
+                    ModelResponseChecks.embeddings(response, batch.size(), version.getEmbeddingDimension());
+                    for (Embedding result : response.getResults())
+                        vectors.set(result.getIndex(), Arrays.toString(result.getOutput()));
+                } catch (RuntimeException failure) {
+                    throw ModelFailures.safe("EMBEDDING_BATCH", failure);
+                }
+                checkDeadline.run();
+                repository.write(documentId, versionId, batch, vectors);
+                checkDeadline.run();
+                batchEvent(
+                        "EMBEDDING_BATCH_COMPLETED",
+                        documentId,
+                        versionId,
+                        version.getEmbeddingModel(),
+                        batchIndex,
+                        batchCount,
+                        batch.size(),
+                        started);
             } catch (RuntimeException failure) {
-                throw ModelFailures.safe("EMBEDDING_BATCH", failure);
+                // 批次只记录身份和耗时；原异常继续传播，完整堆栈由 Worker 统一记录一次。
+                batchEvent(
+                        "EMBEDDING_BATCH_FAILED",
+                        documentId,
+                        versionId,
+                        version.getEmbeddingModel(),
+                        batchIndex,
+                        batchCount,
+                        batch.size(),
+                        started);
+                throw failure;
             }
-            checkDeadline.run();
-            repository.write(documentId, versionId, batch, vectors);
-            checkDeadline.run();
         }
         List<DocumentChunk> completed = repository.read(documentId, versionId);
         for (int i = 0; i < initial.size(); i++) {
@@ -88,5 +125,27 @@ public class EmbeddingService {
                     || !Objects.equals(a.getSourceEnd(), b.getSourceEnd())
                     || b.getEmbedding() == null) throw new IllegalStateException("Embedding completion invalid");
         }
+    }
+
+    private static void batchEvent(
+            String event,
+            Long documentId,
+            Long versionId,
+            String model,
+            int batchIndex,
+            int batchCount,
+            int size,
+            long started) {
+        com.lnjecit.knowledge.assistant.ingestion.task.ImportEvents.info(
+                LOG,
+                "event={} documentId={} indexVersionId={} model={} batchIndex={} batchCount={} batchSize={} elapsedMs={}",
+                event,
+                documentId,
+                versionId,
+                model,
+                batchIndex,
+                batchCount,
+                size,
+                com.lnjecit.knowledge.assistant.ingestion.task.ImportEvents.elapsed(started));
     }
 }

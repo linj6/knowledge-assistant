@@ -204,10 +204,10 @@ class EmbeddingPersistenceIT {
             assertThat(jdbc.queryForObject(
                             "SELECT count(*) FROM document_chunk WHERE index_version_id=5 AND embedding IS NOT NULL",
                             Integer.class))
-                    .isEqualTo(16);
+                    .isEqualTo(10);
             embeddingService.embed(2L, 5L);
             embeddingService.embed(2L, 5L);
-            assertThat(sizes).containsExactly(16, 1, 1);
+            assertThat(sizes).containsExactly(10, 7, 7);
             assertThat(embeddings.read(2L, 5L)).allMatch(c -> c.getEmbedding() != null);
             float[] different = new float[1024];
             different[0] = 1;

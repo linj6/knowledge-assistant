@@ -93,7 +93,7 @@ class EmbeddingServiceTests {
         version.setEmbeddingDimension(1024);
         when(repository.version(3L)).thenReturn(version);
         List<DocumentChunk> chunks = new ArrayList<>();
-        for (int i = 0; i < 17; i++) {
+        for (int i = 0; i < 27; i++) {
             DocumentChunk c = new DocumentChunk();
             c.setId((long) i);
             c.setContent("text");
@@ -111,10 +111,12 @@ class EmbeddingServiceTests {
                 })
                 .when(repository)
                 .write(eq(2L), eq(3L), anyList(), anyList());
+        List<Integer> sizes = new ArrayList<>();
         AtomicInteger calls = new AtomicInteger();
         when(model.call(any(EmbeddingRequest.class))).thenAnswer(call -> {
-            if (calls.incrementAndGet() == 2) throw new IllegalStateException("secret body");
             EmbeddingRequest request = call.getArgument(0);
+            sizes.add(request.getInstructions().size());
+            if (calls.incrementAndGet() == 2) throw new IllegalStateException("secret body");
             List<Embedding> results = new ArrayList<>();
             for (int i = request.getInstructions().size() - 1; i >= 0; i--) {
                 float[] vector = new float[1024];
@@ -125,11 +127,12 @@ class EmbeddingServiceTests {
         });
         EmbeddingService service = new EmbeddingService(model, repository, new EmbeddingProperties());
         assertThatThrownBy(() -> service.embed(2L, 3L)).hasMessageNotContaining("secret body");
-        assertThat(chunks.subList(0, 16)).allMatch(c -> c.getEmbedding() != null);
+        assertThat(chunks.subList(0, 10)).allMatch(c -> c.getEmbedding() != null);
         service.embed(2L, 3L);
-        assertThat(calls.get()).isEqualTo(3);
+        assertThat(calls.get()).isEqualTo(4);
+        assertThat(sizes).containsExactly(10, 10, 10, 7);
         service.embed(2L, 3L);
-        assertThat(calls.get()).isEqualTo(3);
+        assertThat(calls.get()).isEqualTo(4);
     }
 
     @Test
