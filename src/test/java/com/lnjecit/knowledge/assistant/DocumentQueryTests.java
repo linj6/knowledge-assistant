@@ -9,6 +9,7 @@ import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.document.DocumentQueryRepository;
 import com.lnjecit.knowledge.assistant.document.DocumentQueryService;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.Document;
+import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersionStatus;
 import com.lnjecit.knowledge.assistant.knowledge.KnowledgeBaseService;
@@ -70,8 +71,7 @@ class DocumentQueryTests {
         v.setId(20L);
         v.setDocumentId(10L);
         v.setStatus(IndexVersionStatus.VERIFIED);
-        com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk c =
-                new com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk();
+        DocumentChunk c = new DocumentChunk();
         c.setId(30L);
         c.setKnowledgeBaseId(1L);
         c.setDocumentId(10L);

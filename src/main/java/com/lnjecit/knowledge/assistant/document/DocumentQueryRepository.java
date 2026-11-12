@@ -1,6 +1,7 @@
 package com.lnjecit.knowledge.assistant.document;
 
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.Document;
+import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion;
 import java.util.List;
@@ -14,11 +15,11 @@ public class DocumentQueryRepository {
         this.mapper = mapper;
     }
 
-    public com.lnjecit.knowledge.assistant.infrastructure.persistence.Document document(Long id) {
+    public Document document(Long id) {
         return mapper.document(id);
     }
 
-    public com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk chunk(Long id) {
+    public DocumentChunk chunk(Long id) {
         return mapper.chunk(id);
     }
 

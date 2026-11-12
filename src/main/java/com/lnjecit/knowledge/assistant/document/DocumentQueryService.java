@@ -3,6 +3,7 @@ package com.lnjecit.knowledge.assistant.document;
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.Document;
+import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersionStatus;
@@ -99,7 +100,7 @@ public class DocumentQueryService {
             LOG.warn("PUBLICATION_METADATA_INCONSISTENT");
         // 只允许当前活动版本，发布元数据不额外限制 M2 可见性。
         if (!Objects.equals(versionId, active.getId())) throw new BusinessException(CommonErrorCode.NOT_FOUND);
-        com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk c = repository.chunk(chunkId);
+        DocumentChunk c = repository.chunk(chunkId);
         // 必须校验 Chunk 的知识库、文档、版本全部归属，防止仅凭 ID 读取正文。
         if (c == null
                 || !Objects.equals(kbId, c.getKnowledgeBaseId())
