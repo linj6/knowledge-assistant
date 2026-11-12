@@ -36,12 +36,12 @@ export async function request(path, {
             signal,
             headers: {
                 Accept: 'application/json',
-                ...(body === undefined ? {} : {
+                ...(body === undefined || (typeof FormData !== 'undefined' && body instanceof FormData) ? {} : {
                     'Content-Type': 'application/json'
                 })
             },
             ...(body === undefined ? {} : {
-                body: JSON.stringify(body)
+                body: typeof FormData !== 'undefined' && body instanceof FormData ? body : JSON.stringify(body)
             })
         });
     } catch (error) {

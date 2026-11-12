@@ -1,3 +1,4 @@
+import { initializeImport } from './import.js';
 import { request, ApiError } from './api.js';
 import { AppState, subscribe } from './state.js';
 
@@ -38,8 +39,7 @@ export function initializeKnowledge(refreshKnowledgeBases, getSelectionRevision 
     const notice = node('p');
     notice.setAttribute('role', 'status');
     root.append(notice);
-    const upload = button('上传文件 · WEB-03-02 接入', () => {});
-    upload.disabled = true;
+    initializeImport(root, () => load(1));
     const status = node('p');
     status.setAttribute('role', 'status');
     const documents = node('div');
@@ -86,7 +86,7 @@ export function initializeKnowledge(refreshKnowledgeBases, getSelectionRevision 
             }
             page = data.page;
             status.textContent = `第 ${page} 页 / ${last} 页 · 共 ${data.total} 个文档${BigInt(page) > last ? ' · 当前页超出范围，请返回首页' : ''}${last > BigInt(maxPage) ? ' · 总页数超过接口页码上限，末页按钮仅到达最大可查询页' : ''}`;
-            if (!data.items.length) documents.append(node('p', '暂无文档。上传入口将在 WEB-03-02 接入。'));
+            if (!data.items.length) documents.append(node('p', '暂无文档，可选择文件上传。'));
             for (const item of data.items) {
                 const row = node('article');
                 row.append(node('h3', item.filename), node('p', `创建时间：${item.createdAt} · 发布状态：${publication[item.publicationStatus]}`));
