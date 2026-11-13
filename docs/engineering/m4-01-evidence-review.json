@@ -1,0 +1,383 @@
+[
+  {
+    "questionId": "Q01",
+    "reviewer": "Codex 审计者原文复核；待人工评审",
+    "baseline": {
+      "status": "COMPLETE",
+      "chunks": [
+        {
+          "index": 1,
+          "span": {
+            "start": 680,
+            "end": 1480
+          }
+        }
+      ],
+      "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
+    },
+    "structureAware": {
+      "status": "COMPLETE",
+      "chunks": [
+        {
+          "index": 2,
+          "span": {
+            "start": 741,
+            "end": 840
+          }
+        }
+      ],
+      "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
+    }
+  },
+  {
+    "questionId": "Q02",
+    "reviewer": "Codex 审计者原文复核；待人工评审",
+    "baseline": {
+      "status": "COMPLETE",
+      "chunks": [
+        {
+          "index": 1,
+          "span": {
+            "start": 680,
+            "end": 1480
+          }
+        }
+      ],
+      "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
+    },
+    "structureAware": {
+      "status": "COMPLETE",
+      "chunks": [
+        {
+          "index": 3,
+          "span": {
+            "start": 840,
+            "end": 1521
+          }
+        }
+      ],
+      "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
+    }
+  },
+  {
+    "questionId": "Q03",
+    "reviewer": "Codex 审计者原文复核；待人工评审",
+    "baseline": {
+      "status": "COMPLETE",
+      "chunks": [
+        {
+          "index": 1,
+          "span": {
+            "start": 680,
+            "end": 1480
+          }
+        }
+      ],
+      "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
+    },
+    "structureAware": {
+      "status": "COMPLETE",
+      "chunks": [
+        {
+          "index": 2,
+          "span": {
+            "start": 679,
+            "end": 1453
+          }
+        }
+      ],
+      "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
+    }
+  },
+  {
+    "questionId": "Q04",
+    "reviewer": "Codex 审计者原文复核；待人工评审",
+    "baseline": {
+      "status": "DISTRIBUTED",
+      "chunks": [
+        {
+          "index": 0,
+          "span": {
+            "start": 0,
+            "end": 800
+          }
+        },
+        {
+          "index": 1,
+          "span": {
+            "start": 680,
+            "end": 1305
+          }
+        }
+      ],
+      "reviewNote": "实验参数/观察和未做性能对照的限制不在同块，需联合阅读；不把小样本耗时作为性能结论。"
+    },
+    "structureAware": {
+      "status": "DISTRIBUTED",
+      "chunks": [
+        {
+          "index": 0,
+          "span": {
+            "start": 0,
+            "end": 736
+          }
+        },
+        {
+          "index": 2,
+          "span": {
+            "start": 1039,
+            "end": 1305
+          }
+        }
+      ],
+      "reviewNote": "实验参数/观察和未做性能对照的限制不在同块，需联合阅读；不把小样本耗时作为性能结论。"
+    }
+  },
+  {
+    "questionId": "Q05",
+    "reviewer": "Codex 审计者原文复核；待人工评审",
+    "baseline": {
+      "status": "COMPLETE",
+      "chunks": [
+        {
+          "index": 0,
+          "span": {
+            "start": 0,
+            "end": 800
+          }
+        }
+      ],
+      "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
+    },
+    "structureAware": {
+      "status": "COMPLETE",
+      "chunks": [
+        {
+          "index": 1,
+          "span": {
+            "start": 33,
+            "end": 304
+          }
+        }
+      ],
+      "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
+    }
+  },
+  {
+    "questionId": "Q06",
+    "reviewer": "Codex 审计者原文复核；待人工评审",
+    "baseline": {
+      "status": "COMPLETE",
+      "chunks": [
+        {
+          "index": 1,
+          "span": {
+            "start": 680,
+            "end": 1480
+          }
+        }
+      ],
+      "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
+    },
+    "structureAware": {
+      "status": "COMPLETE",
+      "chunks": [
+        {
+          "index": 2,
+          "span": {
+            "start": 1016,
+            "end": 1644
+          }
+        }
+      ],
+      "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
+    }
+  },
+  {
+    "questionId": "Q07",
+    "reviewer": "Codex 审计者原文复核；待人工评审",
+    "baseline": {
+      "status": "COMPLETE",
+      "chunks": [
+        {
+          "index": 2,
+          "span": {
+            "start": 1360,
+            "end": 2160
+          }
+        }
+      ],
+      "reviewNote": "区间候选为多块，但 Chunk2 仅缺段落开头“模拟命中S3时，用户”，仍完整包含 S2 缺 S1、补定义及邻居不保证完整的必要证据，不能按整段包含关系机械判失败。"
+    },
+    "structureAware": {
+      "status": "COMPLETE",
+      "chunks": [
+        {
+          "index": 2,
+          "span": {
+            "start": 1016,
+            "end": 1644
+          }
+        }
+      ],
+      "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
+    }
+  },
+  {
+    "questionId": "Q08",
+    "reviewer": "Codex 审计者原文复核；待人工评审",
+    "baseline": {
+      "status": "COMPLETE",
+      "chunks": [
+        {
+          "index": 8,
+          "span": {
+            "start": 5440,
+            "end": 6240
+          }
+        }
+      ],
+      "reviewNote": "区间候选为多块，但 Chunk8 含公式、constant、单路重复首次使用与双路累加。尾部截断的是JSON记录辅助说明，不影响本问题预期答案点。"
+    },
+    "structureAware": {
+      "status": "COMPLETE",
+      "chunks": [
+        {
+          "index": 10,
+          "span": {
+            "start": 5579,
+            "end": 6266
+          }
+        }
+      ],
+      "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
+    }
+  },
+  {
+    "questionId": "Q09",
+    "reviewer": "Codex 审计者原文复核；待人工评审",
+    "baseline": {
+      "status": "DISTRIBUTED",
+      "chunks": [
+        {
+          "index": 1,
+          "span": {
+            "start": 680,
+            "end": 1480
+          }
+        },
+        {
+          "index": 2,
+          "span": {
+            "start": 1360,
+            "end": 2160
+          }
+        }
+      ],
+      "reviewNote": "配置和失败不得放行依赖事件的限制分开，任何单块不足以回答全部答案点。"
+    },
+    "structureAware": {
+      "status": "COMPLETE",
+      "chunks": [
+        {
+          "index": 4,
+          "span": {
+            "start": 1211,
+            "end": 1759
+          }
+        }
+      ],
+      "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
+    }
+  },
+  {
+    "questionId": "Q10",
+    "reviewer": "Codex 审计者原文复核；待人工评审",
+    "baseline": {
+      "status": "COMPLETE",
+      "chunks": [
+        {
+          "index": 3,
+          "span": {
+            "start": 2040,
+            "end": 2840
+          }
+        }
+      ],
+      "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
+    },
+    "structureAware": {
+      "status": "COMPLETE",
+      "chunks": [
+        {
+          "index": 6,
+          "span": {
+            "start": 2155,
+            "end": 2475
+          }
+        }
+      ],
+      "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
+    }
+  },
+  {
+    "questionId": "Q11",
+    "reviewer": "Codex 审计者原文复核；待人工评审",
+    "baseline": {
+      "status": "COMPLETE",
+      "chunks": [
+        {
+          "index": 0,
+          "span": {
+            "start": 0,
+            "end": 800
+          }
+        }
+      ],
+      "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
+    },
+    "structureAware": {
+      "status": "COMPLETE",
+      "chunks": [
+        {
+          "index": 1,
+          "span": {
+            "start": 39,
+            "end": 646
+          }
+        }
+      ],
+      "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
+    }
+  },
+  {
+    "questionId": "Q12",
+    "reviewer": "Codex 审计者原文复核；待人工评审",
+    "baseline": {
+      "status": "COMPLETE",
+      "chunks": [
+        {
+          "index": 6,
+          "span": {
+            "start": 4080,
+            "end": 4880
+          }
+        }
+      ],
+      "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
+    },
+    "structureAware": {
+      "status": "COMPLETE",
+      "chunks": [
+        {
+          "index": 9,
+          "span": {
+            "start": 4456,
+            "end": 5010
+          }
+        }
+      ],
+      "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
+    }
+  }
+]
