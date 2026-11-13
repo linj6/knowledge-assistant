@@ -170,3 +170,37 @@ Evidence Review 新增独立的 structuralValidation、semanticReview、coverage
 - 未运行全量 Maven 回归、PG/ES/MinIO 或在线模型验证。
 
 最终状态：Gold 已完成本轮人工确认与最小修订冻结；在线执行仍为 READY WITH CONDITIONS，等待预算依据与明确在线授权。
+
+# M4-02C-2：固定清单与显式费用风险授权
+
+本节取代历史章节中强制逐输入 Token 计数和 Main 永久拒绝 EXECUTE 的执行条件；历史记录保留。
+
+修改文件：EmbeddingSnapshotGenerator.java、EmbeddingSnapshotGeneratorTests.java、本报告。生产代码、Gold、模型配置未改动。
+
+预算采用方案 B：每次运行必须显式 authorized=true、costRiskAccepted=true；默认均为 false。API Key 从 DASHSCOPE_API_KEY 环境变量读取。程序化入口同样执行核心检查，不能靠 API Key 或前次授权放行。每次恢复也必须重新传入授权和风险接受。
+
+EXECUTE 固定完整 Manifest、输入映射 SHA 和模型配置指纹；仅允许项目 target/m4-02c1/embedding，规范化与 canonical 路径均校验。最多 153 个新增输入、16 次计划请求、单批 1—10，调用前检查；默认批量 10。maxRetries=0 和响应校验、原子保存、完整加载保持不变。没有 Tokenizer，也没有使用虚构 Token 数。
+
+请求数量限制不等于费用限制。没有硬 Token/金额上限；失败、超时请求可能已计费，恢复运行需要重新审查累计费用，不能把本地缺失等同未计费。在线授权须包含这些风险。
+
+Fake EXECUTE：使用冻结的 153 条输入；首批成功后第二批失败立即停止，保留 10 条有效向量；正式全量加载拒绝部分快照。未重新授权时恢复拒绝；重新授权后仅生成缺失 143 条，15 次请求，最终完整加载 153 条。Fake 文件测试后清除，不能用于正式评估。测试若发现已有目标目录则拒绝执行，不覆盖已有实验结果。
+
+DRY_RUN：8 篇文档，58 固定 Chunk、83 结构感知 Chunk、12 Query；logical=153、unique=153、existing=0、pending=153、batchSize=10、requests=16。
+
+inputFingerprint=d8080d19731b571a32985c3889c398138fb1c661bfef780bc8994c54398492d8
+
+configFingerprint=46126af9b308e9c300da290642ef34e8822575b3652a1028cdedf9fc5fe641f9
+
+正式命令模板（本轮未执行；仅人工审查并另行授权后使用，在项目根目录运行；API Key 由执行者安全设置环境变量，不写入命令或仓库）：
+
+```powershell
+mvn -q dependency:build-classpath '-Dmdep.includeScope=test' '-Dmdep.outputFile=target/m4-02c1-classpath.txt'
+$embeddingClasspath = (Get-Content target/m4-02c1-classpath.txt -Raw).Trim()
+java '-Dsnapshot.mode=EXECUTE' '-Dsnapshot.authorized=true' '-Dsnapshot.costRiskAccepted=true' '-Dsnapshot.batchSize=10' -cp "target/test-classes;target/classes;$embeddingClasspath" com.lnjecit.knowledge.assistant.EmbeddingSnapshotGenerator
+```
+
+编译后的默认 Main 不带上述授权参数时为 DRY_RUN。快照仍是 target 下本地运行产物，本轮不新增 Git 提交约定或提交向量。
+
+验证：spotless:apply、spotless:check、test-compile；定向测试 EmbeddingSnapshotGeneratorTests、EmbeddingSnapshotTests、GoldPreparationTests。未执行完整回归、真实模型、基础设施或正式检索。本轮无 Commit，基线 HEAD 43213066cf7271ad8350a8812980796bd536d558。
+
+最终验证结果：上述 Spotless、test-compile 和定向测试全部成功；共 4 tests，0 failures/errors/skipped（生成器 2、快照 1、Gold 1）。git diff --check 通过。Fake 清理后再次运行不带参数的 Main，得到 existing=0、pending=153、requests=16，两个冻结指纹不变。结论：READY FOR ONLINE AUTHORIZATION。仍需人工审查、单独在线授权以及执行者提供 API Key 和显式费用风险接受；本轮未验证真实供应商响应。

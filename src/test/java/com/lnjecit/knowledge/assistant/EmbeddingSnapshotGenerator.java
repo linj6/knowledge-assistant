@@ -33,8 +33,12 @@ public final class EmbeddingSnapshotGenerator {
             String apiKey,
             int maxInputs,
             int maxRequests,
-            long maxTokens,
-            Map<String, Long> verifiedTokenCounts) {}
+            boolean costRiskAccepted) {}
+
+    static final Path TARGET =
+            Path.of("target/m4-02c1/embedding").toAbsolutePath().normalize();
+    static final String INPUT_FINGERPRINT = "d8080d19731b571a32985c3889c398138fb1c661bfef780bc8994c54398492d8";
+    static final String CONFIG_FINGERPRINT = "46126af9b308e9c300da290642ef34e8822575b3652a1028cdedf9fc5fe641f9";
 
     record Dataset(EmbeddingSnapshot.Manifest manifest, Map<EmbeddingSnapshot.Input, String> inputs) {}
 
@@ -180,17 +184,22 @@ public final class EmbeddingSnapshotGenerator {
         if (!"text-embedding-v4".equals(budget.model())) throw new IllegalArgumentException("MODEL_MISMATCH");
         if (budget.apiKey() == null || budget.apiKey().isBlank())
             throw new IllegalArgumentException("API_KEY_REQUIRED");
-        if (budget.maxInputs() < missing.size() || budget.maxRequests() < requests || budget.maxTokens() <= 0)
-            throw new IllegalArgumentException("BUDGET_EXCEEDED");
-        long tokens = 0;
-        for (String hash : missing) {
-            Long count = budget.verifiedTokenCounts() == null
-                    ? null
-                    : budget.verifiedTokenCounts().get(hash);
-            if (count == null || count <= 0) throw new IllegalArgumentException("VERIFIED_TOKEN_BUDGET_REQUIRED");
-            tokens = Math.addExact(tokens, count);
-        }
-        if (tokens > budget.maxTokens()) throw new IllegalArgumentException("TOKEN_BUDGET_EXCEEDED");
+        if (!budget.costRiskAccepted()) throw new IllegalArgumentException("COST_RISK_ACCEPTANCE_REQUIRED");
+        // 请求上限不是费用上限；每次恢复也必须重新授权并接受费用风险。
+        if (!data.manifest().equals(corpus().manifest())
+                || !INPUT_FINGERPRINT.equals(EmbeddingSnapshot.sha(
+                        JSON.writeValueAsString(data.inputs().keySet())))
+                || !CONFIG_FINGERPRINT.equals(data.manifest().configFingerprint()))
+            throw new IllegalArgumentException("FROZEN_DATASET_MISMATCH");
+        if (!target.equals(TARGET)
+                || !target.toFile().getCanonicalFile().toPath().equals(TARGET))
+            throw new IllegalArgumentException("FIXED_TARGET_REQUIRED");
+        if (unique.size() > 153
+                || requests > 16
+                || budget.maxInputs() > 153
+                || budget.maxRequests() > 16
+                || budget.maxInputs() < missing.size()
+                || budget.maxRequests() < requests) throw new IllegalArgumentException("BUDGET_EXCEEDED");
         EmbeddingModel model = factory.get();
         validateClient(model);
         Files.createDirectories(target);
@@ -226,7 +235,7 @@ public final class EmbeddingSnapshotGenerator {
         return plan;
     }
 
-    /** 供人工审查后的专用实验入口调用；不加载 Spring 上下文。Token 计数须由调用方提供已核验结果。 */
+    /** 供人工审查后的专用实验入口调用；不加载 Spring 上下文。费用风险须由本次执行者显式接受。 */
     static Plan executeOnline(
             Dataset data,
             Path target,
@@ -235,7 +244,8 @@ public final class EmbeddingSnapshotGenerator {
             com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties properties)
             throws Exception {
         if (!EmbeddingBaselineOnlineIT.ENDPOINT.equals(properties.getBaseUrl())
-                || !budget.apiKey().equals(properties.getApiKey())
+                || budget == null
+                || !java.util.Objects.equals(budget.apiKey(), properties.getApiKey())
                 || !"text-embedding-v4".equals(properties.getEmbeddingModel())
                 || !Integer.valueOf(1024).equals(properties.getDimensions()))
             throw new IllegalArgumentException("ONLINE_PROPERTIES_MISMATCH");
@@ -273,9 +283,23 @@ public final class EmbeddingSnapshotGenerator {
         Mode mode = Mode.valueOf(System.getProperty("snapshot.mode", "DRY_RUN"));
         Path target = Path.of(System.getProperty("snapshot.target", "target/m4-02c1/embedding"));
         Dataset data = corpus();
-        // 当前无已验证的 v4 本地 Token 计数器，命令行 EXECUTE 必须拒绝，不能虚构预算。
-        if (mode == Mode.EXECUTE)
-            throw new IllegalStateException("VERIFIED_TOKEN_COUNTER_REQUIRED; use reviewed programmatic Budget");
+        // 默认不授权；费用风险必须由本次执行者显式接受。
+        if (mode == Mode.EXECUTE) {
+            Budget budget = new Budget(
+                    Boolean.getBoolean("snapshot.authorized"),
+                    "text-embedding-v4",
+                    System.getenv("DASHSCOPE_API_KEY"),
+                    153,
+                    16,
+                    Boolean.getBoolean("snapshot.costRiskAccepted"));
+            com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties properties =
+                    new com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties();
+            properties.setApiKey(budget.apiKey());
+            properties.setEmbeddingModel("text-embedding-v4");
+            properties.setDimensions(1024);
+            executeOnline(data, target, Integer.getInteger("snapshot.batchSize", 10), budget, properties);
+            return;
+        }
         run(data, target, Integer.getInteger("snapshot.batchSize", 10), mode, null, () -> {
             throw new IllegalStateException("DRY_RUN_CLIENT_FORBIDDEN");
         });

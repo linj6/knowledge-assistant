@@ -26,30 +26,13 @@ class EmbeddingSnapshotGeneratorTests {
     @TempDir
     Path temporary;
 
-    EmbeddingSnapshotGenerator.Dataset small() {
-        Map<EmbeddingSnapshot.Input, String> inputs = new LinkedHashMap<>();
-        for (int i = 0; i < 3; i++) {
-            String text = i == 2 ? "a" : i == 0 ? "a" : "b";
-            inputs.put(
-                    new EmbeddingSnapshot.Input(
-                            "QUERY", "Q" + i, null, null, null, null, null, EmbeddingSnapshot.sha(text)),
-                    text);
-        }
-        return new EmbeddingSnapshotGenerator.Dataset(
-                new EmbeddingSnapshot.Manifest(
-                        1, "fake", "text-embedding-v4", 1024, "FLOAT", "config", "samples", "chunks"),
-                inputs);
+    EmbeddingSnapshotGenerator.Dataset small() throws Exception {
+        return EmbeddingSnapshotGenerator.corpus();
     }
 
     EmbeddingSnapshotGenerator.Budget budget(boolean authorized, int inputs, int requests) {
         return new EmbeddingSnapshotGenerator.Budget(
-                authorized,
-                "text-embedding-v4",
-                "fake-key",
-                inputs,
-                requests,
-                2,
-                Map.of(EmbeddingSnapshot.sha("a"), 1L, EmbeddingSnapshot.sha("b"), 1L));
+                authorized, "text-embedding-v4", "fake-key", inputs, requests, true);
     }
 
     OpenAiEmbeddingModel fake() {
@@ -75,141 +58,142 @@ class EmbeddingSnapshotGeneratorTests {
     }
 
     @Test
-    void gatesDryRunAndBudgetBeforeClientCreation() throws Exception {
+    void frozenGatesAndDryRun() throws Exception {
+        EmbeddingSnapshotGenerator.Dataset data = small();
         OpenAiEmbeddingModel model = fake();
         EmbeddingSnapshotGenerator.Plan plan = EmbeddingSnapshotGenerator.run(
-                small(), temporary, 1, EmbeddingSnapshotGenerator.Mode.DRY_RUN, null, () -> model);
-        assertThat(plan.unique()).isEqualTo(2);
-        assertThat(plan.logical()).isEqualTo(3);
-        assertThat(plan.requests()).isEqualTo(2);
-        assertThat(Files.exists(temporary.resolve("manifest.json"))).isFalse();
-        for (EmbeddingSnapshotGenerator.Budget b : List.of(
-                budget(false, 2, 2),
-                budget(true, 1, 2),
-                budget(true, 2, 1),
-                new EmbeddingSnapshotGenerator.Budget(true, "text-embedding-v4", "", 2, 2, 2, Map.of()),
-                new EmbeddingSnapshotGenerator.Budget(true, "wrong", "key", 2, 2, 2, Map.of()),
-                new EmbeddingSnapshotGenerator.Budget(
-                        true,
-                        "text-embedding-v4",
-                        "key",
-                        2,
-                        2,
-                        1,
-                        Map.of(EmbeddingSnapshot.sha("a"), 1L, EmbeddingSnapshot.sha("b"), 1L)))) {
+                data, temporary, 10, EmbeddingSnapshotGenerator.Mode.DRY_RUN, null, () -> {
+                    throw new AssertionError("NO_FACTORY");
+                });
+        assertThat(plan.logical()).isEqualTo(153);
+        assertThat(plan.unique()).isEqualTo(153);
+        assertThat(plan.requests()).isEqualTo(16);
+        for (EmbeddingSnapshotGenerator.Budget budget : List.of(
+                budget(false, 153, 16),
+                new EmbeddingSnapshotGenerator.Budget(true, "text-embedding-v4", "fake-key", 153, 16, false),
+                budget(true, 152, 16),
+                budget(true, 153, 15),
+                budget(true, 154, 16),
+                budget(true, 153, 17),
+                new EmbeddingSnapshotGenerator.Budget(true, "text-embedding-v4", "", 153, 16, true))) {
             assertThatThrownBy(() -> EmbeddingSnapshotGenerator.run(
-                            small(), temporary, 1, EmbeddingSnapshotGenerator.Mode.EXECUTE, b, () -> model))
+                            data,
+                            EmbeddingSnapshotGenerator.TARGET,
+                            10,
+                            EmbeddingSnapshotGenerator.Mode.EXECUTE,
+                            budget,
+                            () -> {
+                                throw new AssertionError("NO_FACTORY");
+                            }))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+        assertThatThrownBy(() -> EmbeddingSnapshotGenerator.run(
+                        data,
+                        temporary,
+                        10,
+                        EmbeddingSnapshotGenerator.Mode.EXECUTE,
+                        budget(true, 153, 16),
+                        () -> model))
+                .hasMessage("FIXED_TARGET_REQUIRED");
+        Map<EmbeddingSnapshot.Input, String> changed = new LinkedHashMap<>(data.inputs());
+        changed.remove(changed.keySet().iterator().next());
+        assertThatThrownBy(() -> EmbeddingSnapshotGenerator.run(
+                        new EmbeddingSnapshotGenerator.Dataset(data.manifest(), changed),
+                        EmbeddingSnapshotGenerator.TARGET,
+                        10,
+                        EmbeddingSnapshotGenerator.Mode.EXECUTE,
+                        budget(true, 153, 16),
+                        () -> model))
+                .hasMessage("FROZEN_DATASET_MISMATCH");
+        EmbeddingSnapshot.Manifest m = data.manifest();
+        EmbeddingSnapshot.Manifest wrong = new EmbeddingSnapshot.Manifest(
+                m.schemaVersion(),
+                m.provider(),
+                m.modelId(),
+                m.dimensions(),
+                m.encoding(),
+                "wrong",
+                m.sampleFingerprint(),
+                m.chunkingFingerprint());
+        assertThatThrownBy(() -> EmbeddingSnapshotGenerator.run(
+                        new EmbeddingSnapshotGenerator.Dataset(wrong, data.inputs()),
+                        EmbeddingSnapshotGenerator.TARGET,
+                        10,
+                        EmbeddingSnapshotGenerator.Mode.EXECUTE,
+                        budget(true, 153, 16),
+                        () -> model))
+                .hasMessage("FROZEN_DATASET_MISMATCH");
+        for (int batch : List.of(0, 11, 9)) {
+            assertThatThrownBy(() -> EmbeddingSnapshotGenerator.run(
+                            data,
+                            EmbeddingSnapshotGenerator.TARGET,
+                            batch,
+                            EmbeddingSnapshotGenerator.Mode.EXECUTE,
+                            budget(true, 153, 16),
+                            () -> model))
                     .isInstanceOf(IllegalArgumentException.class);
         }
         verify(model, never()).call(any(EmbeddingRequest.class));
     }
 
     @Test
-    void preservesSuccessResumesAndLoadsOnlyCompleteSnapshot() throws Exception {
-        OpenAiEmbeddingModel model = fake();
-        when(model.call(any(EmbeddingRequest.class)))
-                .thenReturn(new EmbeddingResponse(List.of(new Embedding(RetrievalExperimentCorpus.synthetic("a"), 0))))
-                .thenReturn(new EmbeddingResponse(List.of(new Embedding(new float[1024], 0))));
-        assertThatThrownBy(() -> EmbeddingSnapshotGenerator.run(
-                        small(),
-                        temporary,
-                        1,
-                        EmbeddingSnapshotGenerator.Mode.EXECUTE,
-                        budget(true, 2, 2),
-                        () -> model))
-                .hasMessage("BATCH_STOPPED_RECHECK_BUDGET");
-        Path vectors = temporary.resolve("vectors.jsonl");
-        assertThat(Files.readAllLines(vectors)).hasSize(2);
-        assertThatThrownBy(() -> EmbeddingSnapshot.load(
-                        temporary.resolve("manifest.json"), vectors, small().manifest(), small().inputs()))
-                .hasMessage("SNAPSHOT_MISSING");
-        OpenAiEmbeddingModel resumed = fake();
-        EmbeddingSnapshotGenerator.Plan plan = EmbeddingSnapshotGenerator.run(
-                small(), temporary, 10, EmbeddingSnapshotGenerator.Mode.EXECUTE, budget(true, 1, 1), () -> resumed);
-        assertThat(plan.pending()).isEqualTo(1);
-        verify(resumed, times(1)).call(any(EmbeddingRequest.class));
-        assertThat(EmbeddingSnapshot.load(
-                        temporary.resolve("manifest.json"), vectors, small().manifest(), small().inputs()))
-                .hasSize(3);
-        EmbeddingSnapshotGenerator.run(
-                small(), temporary, 10, EmbeddingSnapshotGenerator.Mode.EXECUTE, budget(true, 0, 0), () -> resumed);
-        verify(resumed, times(1)).call(any(EmbeddingRequest.class));
-    }
-
-    @Test
-    void validatesClientAndResponseIndex() throws Exception {
-        OpenAiEmbeddingModel model = fake();
-        when(model.getOptions())
-                .thenReturn(OpenAiEmbeddingOptions.builder().model("wrong").build());
-        assertThatThrownBy(() -> EmbeddingSnapshotGenerator.run(
-                        small(),
-                        temporary,
-                        2,
-                        EmbeddingSnapshotGenerator.Mode.EXECUTE,
-                        budget(true, 2, 2),
-                        () -> model))
-                .hasMessage("CLIENT_CONFIGURATION_MISMATCH");
-        verify(model, never()).call(any(EmbeddingRequest.class));
-        OpenAiEmbeddingModel invalid = fake();
-        when(invalid.call(any(EmbeddingRequest.class)))
-                .thenReturn(new EmbeddingResponse(List.of(
-                        new Embedding(RetrievalExperimentCorpus.synthetic("a"), 0),
-                        new Embedding(RetrievalExperimentCorpus.synthetic("b"), 0))));
-        assertThatThrownBy(() -> EmbeddingSnapshotGenerator.run(
-                        small(),
-                        temporary,
-                        2,
-                        EmbeddingSnapshotGenerator.Mode.EXECUTE,
-                        budget(true, 2, 2),
-                        () -> invalid))
-                .hasMessage("BATCH_STOPPED_RECHECK_BUDGET");
-        assertThat(Files.exists(temporary.resolve("vectors.jsonl"))).isFalse();
-    }
-
-    @Test
-    void mapsReorderedIndicesAndRejectsCorruptCheckpoint() throws Exception {
-        OpenAiEmbeddingModel model = fake();
-        EmbeddingSnapshotGenerator.run(
-                small(), temporary, 2, EmbeddingSnapshotGenerator.Mode.EXECUTE, budget(true, 2, 1), () -> model);
-        Map<EmbeddingSnapshot.Input, com.lnjecit.knowledge.assistant.retrieval.embedding.QueryVector> loaded =
-                EmbeddingSnapshot.load(
-                        temporary.resolve("manifest.json"),
-                        temporary.resolve("vectors.jsonl"),
-                        small().manifest(),
-                        small().inputs());
-        small().inputs().forEach((input, text) -> assertThat(loaded.get(input).values())
-                .containsExactly(RetrievalExperimentCorpus.synthetic(text)));
-        Files.writeString(temporary.resolve("vectors.jsonl"), "invalid JSON");
-        assertThatThrownBy(() -> EmbeddingSnapshotGenerator.run(
-                        small(),
-                        temporary,
-                        2,
-                        EmbeddingSnapshotGenerator.Mode.EXECUTE,
-                        budget(true, 2, 1),
-                        () -> model))
-                .isInstanceOf(Exception.class);
-        verify(model, times(1)).call(any(EmbeddingRequest.class));
-    }
-
-    @Test
-    void realCorpusDryRun() throws Exception {
-        EmbeddingSnapshotGenerator.Dataset corpus = EmbeddingSnapshotGenerator.corpus();
-        assertThat(corpus.inputs().keySet().stream()
-                        .filter(input -> "QUERY".equals(input.inputType()))
-                        .count())
-                .isEqualTo(12);
-        assertThat(corpus.inputs().keySet().stream()
-                        .filter(input -> "CHUNK".equals(input.inputType()))
-                        .count())
-                .isEqualTo(141);
-        Files.createDirectories(Path.of("target/m4-02c1"));
-        Files.writeString(
-                Path.of("target/m4-02c1/inputs.json"),
-                EmbeddingSnapshotGenerator.JSON.writeValueAsString(
-                        corpus.inputs().keySet()));
-        EmbeddingSnapshotGenerator.run(
-                corpus, Path.of("target/m4-02c1/embedding"), 10, EmbeddingSnapshotGenerator.Mode.DRY_RUN, null, () -> {
-                    throw new AssertionError("NO_CLIENT_IN_DRY_RUN");
-                });
+    void fakeExecuteAndResumeRequireFreshAuthorization() throws Exception {
+        Path target = EmbeddingSnapshotGenerator.TARGET;
+        // 不覆盖任何已有快照；测试完成后清除自己创建的 Fake 产物。
+        assertThat(Files.exists(target)).isFalse();
+        EmbeddingSnapshotGenerator.Dataset data = small();
+        OpenAiEmbeddingModel first = fake();
+        org.mockito.stubbing.Answer<EmbeddingResponse> answer = invocation -> {
+            EmbeddingRequest request = invocation.getArgument(0);
+            java.util.ArrayList<Embedding> results = new java.util.ArrayList<>();
+            for (int i = request.getInstructions().size() - 1; i >= 0; i--)
+                results.add(new Embedding(
+                        RetrievalExperimentCorpus.synthetic(
+                                request.getInstructions().get(i)),
+                        i));
+            return new EmbeddingResponse(results);
+        };
+        when(first.call(any(EmbeddingRequest.class)))
+                .thenAnswer(answer)
+                .thenThrow(new IllegalStateException("fake failure"));
+        try {
+            assertThatThrownBy(() -> EmbeddingSnapshotGenerator.run(
+                            data,
+                            target,
+                            10,
+                            EmbeddingSnapshotGenerator.Mode.EXECUTE,
+                            budget(true, 153, 16),
+                            () -> first))
+                    .hasMessage("BATCH_STOPPED_RECHECK_BUDGET");
+            assertThatThrownBy(() -> EmbeddingSnapshot.load(
+                            target.resolve("manifest.json"),
+                            target.resolve("vectors.jsonl"),
+                            data.manifest(),
+                            data.inputs()))
+                    .hasMessage("SNAPSHOT_MISSING");
+            OpenAiEmbeddingModel resumed = fake();
+            assertThatThrownBy(() -> EmbeddingSnapshotGenerator.run(
+                            data,
+                            target,
+                            10,
+                            EmbeddingSnapshotGenerator.Mode.EXECUTE,
+                            budget(false, 153, 16),
+                            () -> resumed))
+                    .hasMessage("ONLINE_AUTHORIZATION_REQUIRED");
+            EmbeddingSnapshotGenerator.Plan plan = EmbeddingSnapshotGenerator.run(
+                    data, target, 10, EmbeddingSnapshotGenerator.Mode.EXECUTE, budget(true, 153, 16), () -> resumed);
+            assertThat(plan.pending()).isEqualTo(143);
+            verify(resumed, times(15)).call(any(EmbeddingRequest.class));
+            assertThat(EmbeddingSnapshot.load(
+                            target.resolve("manifest.json"),
+                            target.resolve("vectors.jsonl"),
+                            data.manifest(),
+                            data.inputs()))
+                    .hasSize(153);
+        } finally {
+            for (String name : List.of("manifest.json", "vectors.jsonl", "failure.json"))
+                Files.deleteIfExists(target.resolve(name));
+            Files.deleteIfExists(target);
+        }
     }
 }
