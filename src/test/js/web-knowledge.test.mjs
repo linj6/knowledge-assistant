@@ -56,8 +56,8 @@ for(const status of [202,200]) test('上传 FormData 与终态 '+status,async()=
 
 test('紧凑文档行保留长文件名、发布及任务状态和完整详情',async()=>{
  const {setup}=await import('./web-import-harness.mjs');const h=await setup();const filename='<img onerror=x>'+ '长文件名'.repeat(100);
- await h.respond(1,h.page(1,'1',[{documentId:'9007199254740993',filename,createdAt:'created',publicationStatus:'UNPUBLISHED',activeVersionId:null,publishedAt:null,importTask:{importTaskId:'7',indexVersionId:'8',status:'FAILED',failureCode:'IMPORT_FAILED',createdAt:'task-created',updatedAt:'task-updated'}}]));
+ await h.respond(1,h.page(1,'1',[{documentId:'9007199254740993',filename,createdAt:'created',publicationStatus:'UNPUBLISHED',activeVersionId:null,publishedAt:null,importTask:{importTaskId:'7',status:'FAILED',failureCode:'IMPORT_FAILED',createdAt:'task-created',updatedAt:'task-updated'}}]));
  const row=h.all().find(e=>e.className==='document-row');assert.ok(row);assert.equal(row.children.find(e=>e.tag==='h3').textContent,filename);
  for(const text of ['未发布','导入失败','IMPORT_FAILED','创建时间：created'])assert.ok(row.textContent.includes(text));
- const detail=row.children.find(e=>e.tag==='details');assert.ok(!detail.open);detail.open=true;await detail.fire('toggle');for(const text of ['9007199254740993','importTaskId：7','indexVersionId：8','task-updated'])assert.ok(detail.textContent.includes(text));assert.equal(h.all().some(e=>e.tag==='img'),false);
+ const detail=row.children.find(e=>e.tag==='details');assert.ok(!detail.open);detail.open=true;await detail.fire('toggle');for(const text of ['9007199254740993','importTaskId：7','task-updated'])assert.ok(detail.textContent.includes(text));assert.equal(h.all().some(e=>e.tag==='img'),false);
 });

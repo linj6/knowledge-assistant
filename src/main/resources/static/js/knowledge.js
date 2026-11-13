@@ -95,7 +95,7 @@ export function initializeKnowledge(refreshKnowledgeBases, getSelectionRevision 
                 const metadata = node('details'); metadata.append(node('summary', '文档详情'));
                 for (const key of ['documentId','activeVersionId','publishedAt']) metadata.append(node('p', key + '：' + (item[key] ?? '未提供')));
                 if (item.publishedAt) metadata.append(node('p', '发布时间：' + item.publishedAt));
-                if (item.importTask) for (const key of ['importTaskId','indexVersionId','createdAt','updatedAt']) metadata.append(node('p', key + '：' + (item.importTask[key] ?? '未提供')));
+                if (item.importTask) for (const key of ['importTaskId','createdAt','updatedAt']) metadata.append(node('p', key + '：' + (item.importTask[key] ?? '未提供')));
                 row.append(metadata);
                 documents.append(row);
             }
