@@ -2,7 +2,7 @@ package com.lnjecit.knowledge.assistant.knowledge.service;
 
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.KnowledgeBase;
+import com.lnjecit.knowledge.assistant.knowledge.entity.KnowledgeBase;
 import com.lnjecit.knowledge.assistant.knowledge.repository.KnowledgeBaseRepository;
 import java.util.List;
 import org.springframework.stereotype.Service;

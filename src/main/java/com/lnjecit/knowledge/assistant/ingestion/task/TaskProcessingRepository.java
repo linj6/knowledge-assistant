@@ -1,7 +1,7 @@
 package com.lnjecit.knowledge.assistant.ingestion.task;
 
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTaskMapper;
+import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTask;
+import com.lnjecit.knowledge.assistant.ingestion.task.mapper.ImportTaskMapper;
 import org.springframework.stereotype.Repository;
 
 @Repository

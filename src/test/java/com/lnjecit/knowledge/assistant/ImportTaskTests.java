@@ -9,7 +9,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTaskStatus;
 import com.lnjecit.knowledge.assistant.ingestion.task.ClaimedTask;
 import com.lnjecit.knowledge.assistant.ingestion.task.TaskFailure;
 import com.lnjecit.knowledge.assistant.ingestion.task.TaskProcessor;
@@ -17,6 +16,7 @@ import com.lnjecit.knowledge.assistant.ingestion.task.TaskScheduler;
 import com.lnjecit.knowledge.assistant.ingestion.task.TaskService;
 import com.lnjecit.knowledge.assistant.ingestion.task.TaskStateMachine;
 import com.lnjecit.knowledge.assistant.ingestion.task.TaskWorker;
+import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTaskStatus;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;

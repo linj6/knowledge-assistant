@@ -1,11 +1,11 @@
 package com.lnjecit.knowledge.assistant.ingestion.embedding;
 
+import com.lnjecit.knowledge.assistant.document.entity.Document;
+import com.lnjecit.knowledge.assistant.document.entity.DocumentChunk;
+import com.lnjecit.knowledge.assistant.document.entity.IndexVersion;
+import com.lnjecit.knowledge.assistant.document.entity.IndexVersionStatus;
+import com.lnjecit.knowledge.assistant.document.mapper.DocumentChunkMapper;
 import com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.Document;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunkMapper;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersionStatus;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.VectorSchema;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkRepository;
 import java.util.HashSet;

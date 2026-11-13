@@ -1,7 +1,7 @@
 package com.lnjecit.knowledge.assistant.ingestion.dto;
 
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTaskStatus;
+import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTask;
+import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTaskStatus;
 import java.time.Instant;
 
 public record ImportTaskResponse(

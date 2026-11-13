@@ -74,7 +74,7 @@ class EmbeddingPersistenceIT {
             ChunkService service = context.getBean(ChunkService.class);
             ParsedDocument parsed =
                     new TxtDocumentParser().parse("中😀".repeat(801).getBytes(StandardCharsets.UTF_8));
-            java.util.List<com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk> first =
+            java.util.List<com.lnjecit.knowledge.assistant.document.entity.DocumentChunk> first =
                     service.initialize(2L, 3L, parsed);
             com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingRepository embeddings =
                     context.getBean(com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingRepository.class);
@@ -169,11 +169,8 @@ class EmbeddingPersistenceIT {
                     config,
                     config,
                     config);
-            java.util.List<com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk> recovery =
-                    service.initialize(
-                            2L,
-                            5L,
-                            new TxtDocumentParser().parse("a".repeat(11680).getBytes(StandardCharsets.UTF_8)));
+            java.util.List<com.lnjecit.knowledge.assistant.document.entity.DocumentChunk> recovery = service.initialize(
+                    2L, 5L, new TxtDocumentParser().parse("a".repeat(11680).getBytes(StandardCharsets.UTF_8)));
             assertThat(recovery).hasSize(17);
             org.springframework.ai.openai.OpenAiEmbeddingModel model =
                     org.mockito.Mockito.mock(org.springframework.ai.openai.OpenAiEmbeddingModel.class);
@@ -230,7 +227,7 @@ class EmbeddingPersistenceIT {
                             "SELECT count(*) FROM document_chunk WHERE index_version_id=6 AND embedding IS NOT NULL",
                             Integer.class))
                     .isZero();
-            java.util.List<com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk> whitespace =
+            java.util.List<com.lnjecit.knowledge.assistant.document.entity.DocumentChunk> whitespace =
                     service.initialize(
                             2L,
                             7L,
@@ -242,7 +239,7 @@ class EmbeddingPersistenceIT {
             org.mockito.Mockito.verify(model, org.mockito.Mockito.never())
                     .call(org.mockito.ArgumentMatchers.any(org.springframework.ai.embedding.EmbeddingRequest.class));
             jdbc.update("INSERT INTO document_index_version(id,document_id,chunking_config) VALUES(8,2,?)", config);
-            java.util.List<com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk> locked =
+            java.util.List<com.lnjecit.knowledge.assistant.document.entity.DocumentChunk> locked =
                     service.initialize(2L, 8L, new TxtDocumentParser().parse("lock".getBytes(StandardCharsets.UTF_8)));
             for (String state : new String[] {"VERIFIED", "PUBLISHED", "FAILED"}) {
                 jdbc.update("UPDATE document_index_version SET status=? WHERE id=8", state);
@@ -269,13 +266,13 @@ class EmbeddingPersistenceIT {
             properties.setDimensions(1024);
             assertThatThrownBy(() -> embeddings.write(2L, 5L, locked, java.util.List.of(vector)))
                     .hasMessageContaining("ownership");
-            com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk candidate = locked.getFirst();
+            com.lnjecit.knowledge.assistant.document.entity.DocumentChunk candidate = locked.getFirst();
             jdbc.update("UPDATE document_chunk SET version=version+1 WHERE id=?", candidate.getId());
             assertThatThrownBy(() -> embeddings.write(2L, 8L, locked, java.util.List.of(vector)))
                     .hasMessageContaining("optimistic lock");
-            java.util.List<com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk> contenderA =
+            java.util.List<com.lnjecit.knowledge.assistant.document.entity.DocumentChunk> contenderA =
                     embeddings.read(2L, 8L);
-            java.util.List<com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk> contenderB =
+            java.util.List<com.lnjecit.knowledge.assistant.document.entity.DocumentChunk> contenderB =
                     embeddings.read(2L, 8L);
             java.util.concurrent.CompletableFuture<Void> updateA = java.util.concurrent.CompletableFuture.runAsync(
                     () -> embeddings.write(2L, 8L, contenderA, java.util.List.of(vector)));

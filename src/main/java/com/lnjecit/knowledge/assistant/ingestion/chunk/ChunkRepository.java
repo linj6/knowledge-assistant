@@ -2,12 +2,12 @@ package com.lnjecit.knowledge.assistant.ingestion.chunk;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.Document;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunkMapper;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentMapper;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersionMapper;
+import com.lnjecit.knowledge.assistant.document.entity.Document;
+import com.lnjecit.knowledge.assistant.document.entity.DocumentChunk;
+import com.lnjecit.knowledge.assistant.document.entity.IndexVersion;
+import com.lnjecit.knowledge.assistant.document.mapper.DocumentChunkMapper;
+import com.lnjecit.knowledge.assistant.document.mapper.DocumentMapper;
+import com.lnjecit.knowledge.assistant.document.mapper.IndexVersionMapper;
 import java.util.List;
 import org.springframework.stereotype.Repository;
 

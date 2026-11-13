@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.infrastructure.persistence;
+package com.lnjecit.knowledge.assistant.ingestion.task.entity;
 /** 导入任务编排状态；对外状态由 API 映射，合法转换由业务事务控制。 */
 public enum ImportTaskStatus {
     /** 等待领取，尚未开始执行。 */

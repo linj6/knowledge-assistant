@@ -1,9 +1,9 @@
 package com.lnjecit.knowledge.assistant.ingestion.chunk;
 
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.Document;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersionStatus;
+import com.lnjecit.knowledge.assistant.document.entity.Document;
+import com.lnjecit.knowledge.assistant.document.entity.DocumentChunk;
+import com.lnjecit.knowledge.assistant.document.entity.IndexVersion;
+import com.lnjecit.knowledge.assistant.document.entity.IndexVersionStatus;
 import com.lnjecit.knowledge.assistant.ingestion.parser.ParsedDocument;
 import java.util.ArrayList;
 import java.util.List;

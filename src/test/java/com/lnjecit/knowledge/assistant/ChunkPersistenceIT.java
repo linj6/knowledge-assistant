@@ -49,7 +49,7 @@ class ChunkPersistenceIT {
             ChunkService service = context.getBean(ChunkService.class);
             ParsedDocument parsed =
                     new TxtDocumentParser().parse("中😀".repeat(801).getBytes(StandardCharsets.UTF_8));
-            java.util.List<com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk> first =
+            java.util.List<com.lnjecit.knowledge.assistant.document.entity.DocumentChunk> first =
                     service.initialize(2L, 3L, parsed);
             assertThat(service.initialize(2L, 3L, parsed))
                     .extracting(c -> c.getId())

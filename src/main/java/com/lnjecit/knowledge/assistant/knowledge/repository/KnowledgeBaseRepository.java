@@ -1,8 +1,8 @@
 package com.lnjecit.knowledge.assistant.knowledge.repository;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.KnowledgeBase;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.KnowledgeBaseMapper;
+import com.lnjecit.knowledge.assistant.knowledge.entity.KnowledgeBase;
+import com.lnjecit.knowledge.assistant.knowledge.mapper.KnowledgeBaseMapper;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.stereotype.Repository;

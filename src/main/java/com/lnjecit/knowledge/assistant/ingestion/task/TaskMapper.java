@@ -1,6 +1,6 @@
 package com.lnjecit.knowledge.assistant.ingestion.task;
 
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask;
+import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTask;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

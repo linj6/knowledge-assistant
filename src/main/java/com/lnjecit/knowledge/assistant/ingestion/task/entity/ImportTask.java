@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.infrastructure.persistence;
+package com.lnjecit.knowledge.assistant.ingestion.task.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;

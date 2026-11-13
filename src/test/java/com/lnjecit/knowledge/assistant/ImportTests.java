@@ -10,11 +10,11 @@ import static org.mockito.Mockito.when;
 
 import com.lnjecit.knowledge.assistant.infrastructure.config.ChunkingProperties;
 import com.lnjecit.knowledge.assistant.infrastructure.config.UploadProperties;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTaskStatus;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingConfig;
 import com.lnjecit.knowledge.assistant.ingestion.dto.ImportTaskResponse;
+import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTask;
+import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTaskStatus;
 import com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportRepository;
 import com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportService;
 import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingMapper">
-    <select id="lockDocument" resultType="com.lnjecit.knowledge.assistant.infrastructure.persistence.Document">
+    <select id="lockDocument" resultType="com.lnjecit.knowledge.assistant.document.entity.Document">
         SELECT * FROM document WHERE id=#{id} FOR UPDATE
     </select>
-    <select id="lockVersion" resultType="com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion">
+    <select id="lockVersion" resultType="com.lnjecit.knowledge.assistant.document.entity.IndexVersion">
         SELECT * FROM document_index_version WHERE id=#{id} FOR UPDATE
     </select>
     <update id="write">

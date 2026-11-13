@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.KnowledgeBase;
+import com.lnjecit.knowledge.assistant.knowledge.entity.KnowledgeBase;
 import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;

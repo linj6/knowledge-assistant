@@ -1,8 +1,8 @@
 package com.lnjecit.knowledge.assistant.ingestion.embedding;
 
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.Document;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion;
+import com.lnjecit.knowledge.assistant.document.entity.Document;
+import com.lnjecit.knowledge.assistant.document.entity.DocumentChunk;
+import com.lnjecit.knowledge.assistant.document.entity.IndexVersion;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

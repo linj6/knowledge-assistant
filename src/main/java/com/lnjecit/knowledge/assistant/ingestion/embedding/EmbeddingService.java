@@ -1,9 +1,9 @@
 package com.lnjecit.knowledge.assistant.ingestion.embedding;
 
+import com.lnjecit.knowledge.assistant.document.entity.DocumentChunk;
+import com.lnjecit.knowledge.assistant.document.entity.IndexVersion;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelResponseChecks;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.VectorSchema;
 import java.util.ArrayList;
 import java.util.Arrays;

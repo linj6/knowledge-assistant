@@ -1,6 +1,6 @@
 package com.lnjecit.knowledge.assistant.ingestion.indexing;
 
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk;
+import com.lnjecit.knowledge.assistant.document.entity.DocumentChunk;
 
 public record EsChunkDocument(
         String chunk_id,

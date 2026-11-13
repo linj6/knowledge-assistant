@@ -7,10 +7,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.lnjecit.knowledge.assistant.document.entity.DocumentChunk;
+import com.lnjecit.knowledge.assistant.document.entity.IndexVersion;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelConfiguration;
 import com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion;
 import com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingProperties;
 import com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingRepository;
 import com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingService;

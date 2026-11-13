@@ -1,9 +1,10 @@
-package com.lnjecit.knowledge.assistant.infrastructure.persistence;
+package com.lnjecit.knowledge.assistant.document.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.lnjecit.knowledge.assistant.infrastructure.persistence.VectorTypeHandler;
 import lombok.Getter;
 import lombok.Setter;
 

@@ -1,11 +1,11 @@
 package com.lnjecit.knowledge.assistant.ingestion.publish;
 
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.Document;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion;
+import com.lnjecit.knowledge.assistant.document.entity.Document;
+import com.lnjecit.knowledge.assistant.document.entity.IndexVersion;
 import com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingMapper;
 import com.lnjecit.knowledge.assistant.ingestion.task.ClaimedTask;
 import com.lnjecit.knowledge.assistant.ingestion.task.TaskMapper;
+import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTask;
 import org.springframework.stereotype.Repository;
 
 @Repository

@@ -112,10 +112,10 @@ class MybatisCompatibilityTests {
                             "SELECT format_type(atttypid,atttypmod) FROM pg_attribute WHERE attrelid='document_chunk'::regclass AND attname='embedding'",
                             String.class))
                     .isEqualTo("vector(1024)");
-            com.lnjecit.knowledge.assistant.infrastructure.persistence.KnowledgeBaseMapper bases = context.getBean(
-                    com.lnjecit.knowledge.assistant.infrastructure.persistence.KnowledgeBaseMapper.class);
-            com.lnjecit.knowledge.assistant.infrastructure.persistence.KnowledgeBase base =
-                    new com.lnjecit.knowledge.assistant.infrastructure.persistence.KnowledgeBase();
+            com.lnjecit.knowledge.assistant.knowledge.mapper.KnowledgeBaseMapper bases =
+                    context.getBean(com.lnjecit.knowledge.assistant.knowledge.mapper.KnowledgeBaseMapper.class);
+            com.lnjecit.knowledge.assistant.knowledge.entity.KnowledgeBase base =
+                    new com.lnjecit.knowledge.assistant.knowledge.entity.KnowledgeBase();
             base.setName("模型持久化");
             base.setCreatedAt(java.time.Instant.parse("2026-11-08T00:00:00Z"));
             assertThat(bases.insert(base)).isEqualTo(1);
@@ -136,10 +136,10 @@ class MybatisCompatibilityTests {
                             "SELECT data_type='integer' AND is_nullable='NO' AND column_default='0' FROM information_schema.columns WHERE table_schema='public' AND table_name='document_chunk' AND column_name='version'",
                             Boolean.class))
                     .isTrue();
-            com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunkMapper chunks = context.getBean(
-                    com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunkMapper.class);
-            com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk chunk =
-                    new com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk();
+            com.lnjecit.knowledge.assistant.document.mapper.DocumentChunkMapper chunks =
+                    context.getBean(com.lnjecit.knowledge.assistant.document.mapper.DocumentChunkMapper.class);
+            com.lnjecit.knowledge.assistant.document.entity.DocumentChunk chunk =
+                    new com.lnjecit.knowledge.assistant.document.entity.DocumentChunk();
             chunk.setKnowledgeBaseId(1L);
             chunk.setDocumentId(1L);
             chunk.setIndexVersionId(1L);

@@ -1,6 +1,6 @@
 package com.lnjecit.knowledge.assistant.ingestion.task;
 
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTaskStatus;
+import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTaskStatus;
 
 public final class TaskStateMachine {
     private TaskStateMachine() {}

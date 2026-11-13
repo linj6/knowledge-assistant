@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.infrastructure.persistence;
+package com.lnjecit.knowledge.assistant.document.entity;
 /** 索引版本构建状态；状态转换由业务事务控制，检索可见性仅以文档发布指针为准。 */
 public enum IndexVersionStatus {
     /** 正在构建；未发布版本重试时可重新进入此状态。 */

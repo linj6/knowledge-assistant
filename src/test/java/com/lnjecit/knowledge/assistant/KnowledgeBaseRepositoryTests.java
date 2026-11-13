@@ -8,8 +8,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.KnowledgeBase;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.KnowledgeBaseMapper;
+import com.lnjecit.knowledge.assistant.knowledge.entity.KnowledgeBase;
+import com.lnjecit.knowledge.assistant.knowledge.mapper.KnowledgeBaseMapper;
 import com.lnjecit.knowledge.assistant.knowledge.repository.KnowledgeBaseRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataAccessResourceFailureException;

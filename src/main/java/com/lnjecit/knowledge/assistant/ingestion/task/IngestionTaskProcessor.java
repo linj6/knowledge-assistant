@@ -1,11 +1,9 @@
 package com.lnjecit.knowledge.assistant.ingestion.task;
 
+import com.lnjecit.knowledge.assistant.document.entity.Document;
+import com.lnjecit.knowledge.assistant.document.entity.IndexVersion;
+import com.lnjecit.knowledge.assistant.document.entity.IndexVersionStatus;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.Document;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTaskStatus;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersionStatus;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.ObjectKeyPrefixes;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkRepository;
@@ -16,6 +14,8 @@ import com.lnjecit.knowledge.assistant.ingestion.parser.DocumentParserFactory;
 import com.lnjecit.knowledge.assistant.ingestion.parser.ParseException;
 import com.lnjecit.knowledge.assistant.ingestion.parser.ParsedDocument;
 import com.lnjecit.knowledge.assistant.ingestion.publish.IndexPublishService;
+import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTask;
+import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTaskStatus;
 import com.lnjecit.knowledge.assistant.ingestion.verification.IndexVerificationService;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

@@ -1,6 +1,6 @@
 package com.lnjecit.knowledge.assistant.knowledge.dto;
 
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.KnowledgeBase;
+import com.lnjecit.knowledge.assistant.knowledge.entity.KnowledgeBase;
 import java.time.Instant;
 
 /** 业务 ID 保持 Long，由统一 Jackson 配置输出十进制字符串。 */

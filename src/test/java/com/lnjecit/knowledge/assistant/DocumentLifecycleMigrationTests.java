@@ -2,10 +2,10 @@ package com.lnjecit.knowledge.assistant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTaskMapper;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion;
-import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersionMapper;
+import com.lnjecit.knowledge.assistant.document.entity.IndexVersion;
+import com.lnjecit.knowledge.assistant.document.mapper.IndexVersionMapper;
+import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTask;
+import com.lnjecit.knowledge.assistant.ingestion.task.mapper.ImportTaskMapper;
 import java.util.List;
 import java.util.Map;
 import org.flywaydb.core.Flyway;
