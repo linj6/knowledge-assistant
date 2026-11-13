@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.document;
+package com.lnjecit.knowledge.assistant.document.dto;
 
 import java.util.List;
 

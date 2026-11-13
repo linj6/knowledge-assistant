@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.retrieval.api;
+package com.lnjecit.knowledge.assistant.retrieval.dto;
 
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;

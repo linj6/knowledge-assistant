@@ -1,7 +1,9 @@
-package com.lnjecit.knowledge.assistant.retrieval.api;
+package com.lnjecit.knowledge.assistant.retrieval.controller;
 
 import com.lnjecit.knowledge.assistant.common.api.Result;
 import com.lnjecit.knowledge.assistant.retrieval.RetrievalService;
+import com.lnjecit.knowledge.assistant.retrieval.dto.RetrievalSearchRequest;
+import com.lnjecit.knowledge.assistant.retrieval.dto.RetrievalSearchResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;

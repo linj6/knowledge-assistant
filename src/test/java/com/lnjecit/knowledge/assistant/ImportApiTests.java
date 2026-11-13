@@ -9,9 +9,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.lnjecit.knowledge.assistant.infrastructure.web.ApiExceptionHandler;
 import com.lnjecit.knowledge.assistant.infrastructure.web.ApiJacksonConfiguration;
-import com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportController;
+import com.lnjecit.knowledge.assistant.ingestion.controller.DocumentImportController;
+import com.lnjecit.knowledge.assistant.ingestion.dto.ImportTaskResponse;
 import com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportService;
-import com.lnjecit.knowledge.assistant.ingestion.upload.ImportTaskResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;

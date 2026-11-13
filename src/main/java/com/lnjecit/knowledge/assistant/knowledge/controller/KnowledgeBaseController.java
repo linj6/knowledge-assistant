@@ -1,6 +1,9 @@
-package com.lnjecit.knowledge.assistant.knowledge;
+package com.lnjecit.knowledge.assistant.knowledge.controller;
 
 import com.lnjecit.knowledge.assistant.common.api.Result;
+import com.lnjecit.knowledge.assistant.knowledge.dto.CreateKnowledgeBaseRequest;
+import com.lnjecit.knowledge.assistant.knowledge.dto.KnowledgeBaseResponse;
+import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;

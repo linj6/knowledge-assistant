@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.ingestion.upload;
+package com.lnjecit.knowledge.assistant.ingestion.dto;
 
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTaskStatus;

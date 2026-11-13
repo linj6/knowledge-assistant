@@ -5,12 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.lnjecit.knowledge.assistant.document.DocumentListResponse;
-import com.lnjecit.knowledge.assistant.document.DocumentQueryController;
-import com.lnjecit.knowledge.assistant.document.DocumentQueryService;
+import com.lnjecit.knowledge.assistant.document.controller.DocumentQueryController;
+import com.lnjecit.knowledge.assistant.document.dto.DocumentListResponse;
+import com.lnjecit.knowledge.assistant.document.service.DocumentQueryService;
 import com.lnjecit.knowledge.assistant.infrastructure.web.ApiJacksonConfiguration;
-import com.lnjecit.knowledge.assistant.knowledge.KnowledgeBaseController;
-import com.lnjecit.knowledge.assistant.knowledge.KnowledgeBaseService;
+import com.lnjecit.knowledge.assistant.knowledge.controller.KnowledgeBaseController;
+import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;

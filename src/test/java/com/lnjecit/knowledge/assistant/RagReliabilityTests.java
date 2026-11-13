@@ -163,7 +163,7 @@ class RagReliabilityTests {
         }
         try {
             org.springframework.test.web.servlet.MockMvc mvc = MockMvcBuilders.standaloneSetup(
-                            new com.lnjecit.knowledge.assistant.rag.api.RagController(service))
+                            new com.lnjecit.knowledge.assistant.rag.controller.RagController(service))
                     .setControllerAdvice(new ApiExceptionHandler())
                     .addFilters(new RequestIdFilter())
                     .build();

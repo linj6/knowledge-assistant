@@ -10,7 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.KnowledgeBase;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.KnowledgeBaseMapper;
-import com.lnjecit.knowledge.assistant.knowledge.KnowledgeBaseRepository;
+import com.lnjecit.knowledge.assistant.knowledge.repository.KnowledgeBaseRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataAccessResourceFailureException;
 

@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.knowledge;
+package com.lnjecit.knowledge.assistant.knowledge.repository;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.KnowledgeBase;

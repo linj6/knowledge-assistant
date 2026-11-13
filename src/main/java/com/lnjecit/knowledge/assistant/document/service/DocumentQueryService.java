@@ -1,14 +1,18 @@
-package com.lnjecit.knowledge.assistant.document;
+package com.lnjecit.knowledge.assistant.document.service;
 
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
+import com.lnjecit.knowledge.assistant.document.dto.CitationEvidenceResponse;
+import com.lnjecit.knowledge.assistant.document.dto.DocumentListResponse;
+import com.lnjecit.knowledge.assistant.document.dto.DocumentSummaryResponse;
+import com.lnjecit.knowledge.assistant.document.repository.DocumentQueryRepository;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.Document;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersionStatus;
-import com.lnjecit.knowledge.assistant.ingestion.upload.ImportTaskResponse;
-import com.lnjecit.knowledge.assistant.knowledge.KnowledgeBaseService;
+import com.lnjecit.knowledge.assistant.ingestion.dto.ImportTaskResponse;
+import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;

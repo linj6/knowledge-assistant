@@ -1,5 +1,6 @@
-package com.lnjecit.knowledge.assistant.document;
+package com.lnjecit.knowledge.assistant.document.repository;
 
+import com.lnjecit.knowledge.assistant.document.mapper.DocumentQueryMapper;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.Document;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.ImportTask;

@@ -6,13 +6,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
-import com.lnjecit.knowledge.assistant.document.DocumentQueryRepository;
-import com.lnjecit.knowledge.assistant.document.DocumentQueryService;
+import com.lnjecit.knowledge.assistant.document.repository.DocumentQueryRepository;
+import com.lnjecit.knowledge.assistant.document.service.DocumentQueryService;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.Document;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersion;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.IndexVersionStatus;
-import com.lnjecit.knowledge.assistant.knowledge.KnowledgeBaseService;
+import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.lnjecit.knowledge.assistant.document.DocumentQueryMapper">
+<mapper namespace="com.lnjecit.knowledge.assistant.document.mapper.DocumentQueryMapper">
 <select id="count" resultType="long">SELECT count(*) FROM document WHERE knowledge_base_id=#{kbId}</select>
 <select id="page" resultType="com.lnjecit.knowledge.assistant.infrastructure.persistence.Document">
 SELECT id,knowledge_base_id,filename,active_version_id,created_at FROM document WHERE knowledge_base_id=#{kbId} ORDER BY created_at DESC,id DESC LIMIT #{size} OFFSET #{offset}

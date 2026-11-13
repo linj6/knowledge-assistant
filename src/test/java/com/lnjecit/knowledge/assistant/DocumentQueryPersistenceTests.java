@@ -2,8 +2,8 @@ package com.lnjecit.knowledge.assistant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.lnjecit.knowledge.assistant.document.DocumentQueryMapper;
-import com.lnjecit.knowledge.assistant.document.DocumentQueryRepository;
+import com.lnjecit.knowledge.assistant.document.mapper.DocumentQueryMapper;
+import com.lnjecit.knowledge.assistant.document.repository.DocumentQueryRepository;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.DocumentChunk;
 import java.net.URI;
 import java.net.http.HttpClient;

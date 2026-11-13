@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.document;
+package com.lnjecit.knowledge.assistant.document.dto;
 
 public record CitationEvidenceResponse(
         Long chunkId,

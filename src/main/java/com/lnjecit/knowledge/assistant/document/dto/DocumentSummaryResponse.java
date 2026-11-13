@@ -1,6 +1,6 @@
-package com.lnjecit.knowledge.assistant.document;
+package com.lnjecit.knowledge.assistant.document.dto;
 
-import com.lnjecit.knowledge.assistant.ingestion.upload.ImportTaskResponse;
+import com.lnjecit.knowledge.assistant.ingestion.dto.ImportTaskResponse;
 import java.time.Instant;
 
 public record DocumentSummaryResponse(

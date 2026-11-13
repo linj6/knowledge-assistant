@@ -14,7 +14,7 @@ import com.lnjecit.knowledge.assistant.infrastructure.web.ApiExceptionHandler;
 import com.lnjecit.knowledge.assistant.infrastructure.web.ApiJacksonConfiguration;
 import com.lnjecit.knowledge.assistant.infrastructure.web.RequestIdFilter;
 import com.lnjecit.knowledge.assistant.rag.RagService;
-import com.lnjecit.knowledge.assistant.rag.api.RagController;
+import com.lnjecit.knowledge.assistant.rag.controller.RagController;
 import com.lnjecit.knowledge.assistant.rag.model.RagCitation;
 import com.lnjecit.knowledge.assistant.retrieval.RetrievalService;
 import com.lnjecit.knowledge.assistant.retrieval.model.RankedChunk;

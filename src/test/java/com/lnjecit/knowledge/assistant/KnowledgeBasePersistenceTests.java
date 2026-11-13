@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.KnowledgeBase;
-import com.lnjecit.knowledge.assistant.knowledge.KnowledgeBaseService;
+import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringApplication;

@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.knowledge;
+package com.lnjecit.knowledge.assistant.knowledge.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

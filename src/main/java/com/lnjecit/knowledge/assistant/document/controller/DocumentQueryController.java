@@ -1,6 +1,9 @@
-package com.lnjecit.knowledge.assistant.document;
+package com.lnjecit.knowledge.assistant.document.controller;
 
 import com.lnjecit.knowledge.assistant.common.api.Result;
+import com.lnjecit.knowledge.assistant.document.dto.CitationEvidenceResponse;
+import com.lnjecit.knowledge.assistant.document.dto.DocumentListResponse;
+import com.lnjecit.knowledge.assistant.document.service.DocumentQueryService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Positive;
 import org.springframework.web.bind.annotation.GetMapping;

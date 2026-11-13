@@ -1,8 +1,10 @@
-package com.lnjecit.knowledge.assistant.ingestion.upload;
+package com.lnjecit.knowledge.assistant.ingestion.controller;
 
 import com.lnjecit.knowledge.assistant.common.api.Result;
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
+import com.lnjecit.knowledge.assistant.ingestion.dto.ImportTaskResponse;
+import com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportService;
 import jakarta.validation.constraints.Positive;
 import java.util.List;
 import org.springframework.http.ResponseEntity;

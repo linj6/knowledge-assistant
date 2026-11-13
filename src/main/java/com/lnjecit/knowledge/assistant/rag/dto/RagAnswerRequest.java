@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.rag.api;
+package com.lnjecit.knowledge.assistant.rag.dto;
 
 import com.lnjecit.knowledge.assistant.rag.RagService;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalParameters;
