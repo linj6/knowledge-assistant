@@ -1,0 +1,6 @@
+../backend-interview-lab/spring/notes/04-transaction-boundaries-and-propagation.md
+../backend-interview-lab/mysql/notes/01-index-and-sql.md
+../backend-interview-lab/rabbitmq/labs/06-prefetch-throughput/evidence/results.md
+../ai-application-lab/03-llm-api-function-calling-spring-ai/notes/05-spring-ai-model-client-and-tools.md
+../ai-application-lab/04-embedding-vector-search-rag/notes/04-chunking-and-context.md
+../ai-application-lab/04-embedding-vector-search-rag/labs/04-hybrid-retrieval/README.md
