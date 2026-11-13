@@ -285,18 +285,16 @@ public final class EmbeddingSnapshotGenerator {
         Dataset data = corpus();
         // 默认不授权；费用风险必须由本次执行者显式接受。
         if (mode == Mode.EXECUTE) {
+            // 仅加载 Boot 配置并绑定模型参数，不启动应用上下文。
+            com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties properties =
+                    OnlineConfiguration.model(OnlineConfiguration.load());
             Budget budget = new Budget(
                     Boolean.getBoolean("snapshot.authorized"),
                     "text-embedding-v4",
-                    System.getenv("DASHSCOPE_API_KEY"),
+                    properties.getApiKey(),
                     153,
                     16,
                     Boolean.getBoolean("snapshot.costRiskAccepted"));
-            com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties properties =
-                    new com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties();
-            properties.setApiKey(budget.apiKey());
-            properties.setEmbeddingModel("text-embedding-v4");
-            properties.setDimensions(1024);
             executeOnline(data, target, Integer.getInteger("snapshot.batchSize", 10), budget, properties);
             return;
         }

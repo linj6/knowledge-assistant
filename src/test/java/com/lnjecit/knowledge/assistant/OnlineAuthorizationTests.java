@@ -125,4 +125,25 @@ class OnlineAuthorizationTests {
                 .isEqualTo(1024);
         assertThat(output.getAll()).doesNotContain("FAKE_LOCAL_SECRET");
     }
+
+    @Test
+    void additionalLocationBindsLocalModelWithoutEnvironmentKey(CapturedOutput output) throws Exception {
+        Files.writeString(
+                directory.resolve("application-local.yml"),
+                "assistant.model.enabled: true\nassistant.model.online-authorized: true\nassistant.model.api-key: FAKE_LOCAL_SECRET\nassistant.model.embedding-model: text-embedding-v4\nassistant.model.dimensions: 1024\n");
+        StandardEnvironment environment = OnlineConfiguration.load(environment(Map.of(
+                "spring.config.location", "classpath:/application.yml",
+                "spring.config.additional-location", directory.toUri().toString(),
+                "spring.profiles.active", "local")));
+        ModelProperties properties = OnlineConfiguration.model(environment);
+        assertThat(properties.getApiKey() != null && !properties.getApiKey().isBlank())
+                .isTrue();
+        assertThat(properties.getEmbeddingModel()).isEqualTo("text-embedding-v4");
+        assertThat(properties.getDimensions()).isEqualTo(1024);
+        assertThat(environment.getPropertySources().stream()
+                        .anyMatch(source -> source.getName().contains("application-local.yml")
+                                && source.containsProperty("assistant.model.api-key")))
+                .isTrue();
+        assertThat(output.getAll()).doesNotContain("FAKE_LOCAL_SECRET");
+    }
 }
