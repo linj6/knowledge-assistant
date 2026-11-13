@@ -5,7 +5,7 @@
     "sha256": "5441d647f5eee2e17870e9be1ff5bca8add8322ed7a2ba7dbe88219caafe85f9",
     "question": "提交异常一定证明已回滚吗？",
     "expectedAnswerPoints": [
-      "正常返回不保证提交；连接故障需核实最终状态"
+      "提交异常不一定证明已回滚；目标方法正常返回不保证事务成功提交；提交期间连接故障需核实数据库最终状态"
     ],
     "goldEvidence": [
       {
@@ -24,7 +24,7 @@
     "sha256": "5441d647f5eee2e17870e9be1ff5bca8add8322ed7a2ba7dbe88219caafe85f9",
     "question": "默认回滚规则与吞异常的影响？",
     "expectedAnswerPoints": [
-      "运行时异常和 Error 默认回滚；吞异常后 rollbackFor 无法让代理感知"
+      "RuntimeException 和 Error 默认回滚，受检异常默认不触发回滚；目标方法内部捕获异常并正常返回、异常未到达对应事务代理时，仅增加 rollbackFor 无法让该代理感知此异常"
     ],
     "goldEvidence": [
       {
@@ -87,9 +87,9 @@
     "questionId": "Q05",
     "documentPath": "../ai-application-lab/03-llm-api-function-calling-spring-ai/notes/05-spring-ai-model-client-and-tools.md",
     "sha256": "e6c8a44e338836c0dd30f544890d3528cbe7ebda795c3ac3ce9d3b298d2f1010",
-    "question": "专题版本与模型供应商是什么？",
+    "question": "专题使用哪些 Spring Boot、Spring AI 版本？通过什么接口调用哪一系列模型？",
     "expectedAnswerPoints": [
-      "Boot 3.5.15、AI 1.1.8；Qwen，OpenAi 类名不代表模型供应商"
+      "Spring Boot 3.5.15、Spring AI 1.1.8；通过百炼兼容接口调用 Qwen 系列模型；OpenAiChatModel 类名不代表使用 OpenAI 模型供应商"
     ],
     "goldEvidence": [
       {
@@ -153,7 +153,7 @@
     "sha256": "6b8efd01cc0056f786efffd604d547a1a35f5bea27d0a24bf6b8b5ea514869f8",
     "question": "RRF 如何计算和处理重复 ID？",
     "expectedAnswerPoints": [
-      "倒数排名求和，constant=60；单路去重，双路累加"
+      "RRF 对各路倒数排名贡献 1/(k+rank) 求和，rank 从 1 开始，实验默认 k=60；单路重复 ID 只取首次命中，去重后赋连续排名；跨路同 ID 累加贡献，不相加不同尺度的原始分数"
     ],
     "goldEvidence": [
       {
@@ -170,9 +170,9 @@
     "questionId": "Q09",
     "documentPath": "../backend-interview-lab/rabbitmq/notes/05-ordered-messages.md",
     "sha256": "f89e2640255d383daa734939d5113f06dc39827f1073d32f1eb70afa995d865e",
-    "question": "单队列保序的配置与失败处理条件？",
+    "question": "单队列消费端保序需要哪些配置？前序消息失败时如何处理？",
     "expectedAnswerPoints": [
-      "SAC、prefetch=1、manual ACK、同步事务提交后ACK；失败阻止依赖事件"
+      "单队列消费端使用 SAC、prefetch=1、manual ACK，同步调用独立事务 Service，事务成功提交后 ACK；前序消息失败时阻止依赖它的后续事件先完成业务，不能移走失败消息后直接放行依赖事件"
     ],
     "goldEvidence": [
       {
@@ -217,7 +217,7 @@
     "sha256": "a1809b5bc01ca6831d8e41f2c35c502cad49b4f854e7b8968216ef37ba35da53",
     "question": "supplyAsync 与 join 何时提交和等待？",
     "expectedAnswerPoints": [
-      "supplyAsync时提交，join占用调用线程等待"
+      "supplyAsync 调用时提交任务，提交不代表立即执行或一定并行；join 在 Future 尚未完成时使调用线程等待"
     ],
     "goldEvidence": [
       {

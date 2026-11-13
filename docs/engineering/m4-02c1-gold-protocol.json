@@ -1,0 +1,235 @@
+{
+  "schemaVersion": 1,
+  "reviewStatuses": [
+    "PENDING",
+    "CONFIRMED",
+    "REJECTED"
+  ],
+  "questions": [
+    {
+      "questionId": "Q01",
+      "documentPath": "../backend-interview-lab/spring/notes/04-transaction-boundaries-and-propagation.md",
+      "sourceSha256": "5441d647f5eee2e17870e9be1ff5bca8add8322ed7a2ba7dbe88219caafe85f9",
+      "relation": "ALL",
+      "reviewStatus": "CONFIRMED",
+      "evidence": [
+        {
+          "evidenceId": "Q01-E01",
+          "sourceSpan": {
+            "start": 741,
+            "end": 836
+          }
+        }
+      ],
+      "querySha256": "949482312e8bf49294037aebae72458231637a26cf48b6aef11c215b4809045e"
+    },
+    {
+      "questionId": "Q02",
+      "documentPath": "../backend-interview-lab/spring/notes/04-transaction-boundaries-and-propagation.md",
+      "sourceSha256": "5441d647f5eee2e17870e9be1ff5bca8add8322ed7a2ba7dbe88219caafe85f9",
+      "relation": "ALL",
+      "reviewStatus": "CONFIRMED",
+      "evidence": [
+        {
+          "evidenceId": "Q02-E01",
+          "sourceSpan": {
+            "start": 992,
+            "end": 1188
+          }
+        }
+      ],
+      "querySha256": "94bb8fb1e98d9345b830b511e06f4d69a5caee876c443975edfe0641e170a424"
+    },
+    {
+      "questionId": "Q03",
+      "documentPath": "../backend-interview-lab/mysql/notes/01-index-and-sql.md",
+      "sourceSha256": "4fc99c7f82c01fa0c24503815e0353771ad736ef3e4979b2fbe530e8fd2407eb",
+      "relation": "ALL",
+      "reviewStatus": "CONFIRMED",
+      "evidence": [
+        {
+          "evidenceId": "Q03-E01",
+          "sourceSpan": {
+            "start": 770,
+            "end": 1089
+          }
+        }
+      ],
+      "querySha256": "06be26f009d0832cdd543c6c131db49024664363e3d26051c1d2ec6e2f7b6484"
+    },
+    {
+      "questionId": "Q04",
+      "documentPath": "../backend-interview-lab/rabbitmq/labs/06-prefetch-throughput/evidence/results.md",
+      "sourceSha256": "3024ef3ff721d3b8083cbca62299d57067ca08b001200c574b85a59a54dfbe94",
+      "relation": "ALL",
+      "reviewStatus": "CONFIRMED",
+      "evidence": [
+        {
+          "evidenceId": "Q04-E01",
+          "sourceSpan": {
+            "start": 255,
+            "end": 732
+          }
+        },
+        {
+          "evidenceId": "Q04-E02",
+          "sourceSpan": {
+            "start": 1052,
+            "end": 1305
+          }
+        }
+      ],
+      "querySha256": "57204dd7ab31df5ebaa3faff0f50b48b105b003c9e3fa0802d75fca57a56c69d"
+    },
+    {
+      "questionId": "Q05",
+      "documentPath": "../ai-application-lab/03-llm-api-function-calling-spring-ai/notes/05-spring-ai-model-client-and-tools.md",
+      "sourceSha256": "e6c8a44e338836c0dd30f544890d3528cbe7ebda795c3ac3ce9d3b298d2f1010",
+      "relation": "ALL",
+      "reviewStatus": "CONFIRMED",
+      "evidence": [
+        {
+          "evidenceId": "Q05-E01",
+          "sourceSpan": {
+            "start": 47,
+            "end": 204
+          }
+        }
+      ],
+      "querySha256": "4b45b00377685e73088c947fbb4f23c9e1b4b374f0a929f5e73ac343225516da"
+    },
+    {
+      "questionId": "Q06",
+      "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/notes/04-chunking-and-context.md",
+      "sourceSha256": "92dbbea63d4a8ecc88b7dab563198ab02cc76b912a1e7a2f56ea582b235d3bf7",
+      "relation": "ALL",
+      "reviewStatus": "CONFIRMED",
+      "evidence": [
+        {
+          "evidenceId": "Q06-E01",
+          "sourceSpan": {
+            "start": 1042,
+            "end": 1209
+          }
+        },
+        {
+          "evidenceId": "Q06-E02",
+          "sourceSpan": {
+            "start": 1213,
+            "end": 1344
+          }
+        }
+      ],
+      "querySha256": "fa99ea75a5380ddb92f4b9f8fcc2bf65e9dd6154a83fd80cc4158a24d3578630"
+    },
+    {
+      "questionId": "Q07",
+      "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/notes/04-chunking-and-context.md",
+      "sourceSha256": "92dbbea63d4a8ecc88b7dab563198ab02cc76b912a1e7a2f56ea582b235d3bf7",
+      "relation": "ALL",
+      "reviewStatus": "CONFIRMED",
+      "evidence": [
+        {
+          "evidenceId": "Q07-E01",
+          "sourceSpan": {
+            "start": 1348,
+            "end": 1568
+          }
+        }
+      ],
+      "querySha256": "0119ae9caeb9b4322a5ea2f4f30ae97a86e983322f9636efb1a830951c9c2b90"
+    },
+    {
+      "questionId": "Q08",
+      "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/labs/04-hybrid-retrieval/README.md",
+      "sourceSha256": "6b8efd01cc0056f786efffd604d547a1a35f5bea27d0a24bf6b8b5ea514869f8",
+      "relation": "ALL",
+      "reviewStatus": "CONFIRMED",
+      "evidence": [
+        {
+          "evidenceId": "Q08-E01",
+          "sourceSpan": {
+            "start": 6094,
+            "end": 6262
+          }
+        }
+      ],
+      "querySha256": "670a2806e85c8af40001cf1b8fe024b5d95636e72299a74a7aeaa268df880b81"
+    },
+    {
+      "questionId": "Q09",
+      "documentPath": "../backend-interview-lab/rabbitmq/notes/05-ordered-messages.md",
+      "sourceSha256": "f89e2640255d383daa734939d5113f06dc39827f1073d32f1eb70afa995d865e",
+      "relation": "ALL",
+      "reviewStatus": "CONFIRMED",
+      "evidence": [
+        {
+          "evidenceId": "Q09-E01",
+          "sourceSpan": {
+            "start": 1225,
+            "end": 1311
+          }
+        },
+        {
+          "evidenceId": "Q09-E02",
+          "sourceSpan": {
+            "start": 1686,
+            "end": 1755
+          }
+        }
+      ],
+      "querySha256": "7052634c199e8f0dae43dbcee6d68957673b4efd80dce0534c18b2a20cb60ff2"
+    },
+    {
+      "questionId": "Q10",
+      "documentPath": "../backend-interview-lab/rabbitmq/notes/05-ordered-messages.md",
+      "sourceSha256": "f89e2640255d383daa734939d5113f06dc39827f1073d32f1eb70afa995d865e",
+      "relation": "ALL",
+      "reviewStatus": "CONFIRMED",
+      "evidence": [
+        {
+          "evidenceId": "Q10-E01",
+          "sourceSpan": {
+            "start": 2321,
+            "end": 2471
+          }
+        }
+      ],
+      "querySha256": "8c2ee46e9b5286955890e542877573a49a4226790f7c997ff10a79824345e6a9"
+    },
+    {
+      "questionId": "Q11",
+      "documentPath": "../backend-interview-lab/juc/notes/06-completable-future.md",
+      "sourceSha256": "a1809b5bc01ca6831d8e41f2c35c502cad49b4f854e7b8968216ef37ba35da53",
+      "relation": "ALL",
+      "reviewStatus": "CONFIRMED",
+      "evidence": [
+        {
+          "evidenceId": "Q11-E01",
+          "sourceSpan": {
+            "start": 470,
+            "end": 642
+          }
+        }
+      ],
+      "querySha256": "3d008ebe390c89becfd51ccc13f9524b7ca2d1e4b23a7d7833478c3ef2c1dc9e"
+    },
+    {
+      "questionId": "Q12",
+      "documentPath": "../backend-interview-lab/juc/notes/06-completable-future.md",
+      "sourceSha256": "a1809b5bc01ca6831d8e41f2c35c502cad49b4f854e7b8968216ef37ba35da53",
+      "relation": "ALL",
+      "reviewStatus": "CONFIRMED",
+      "evidence": [
+        {
+          "evidenceId": "Q12-E01",
+          "sourceSpan": {
+            "start": 4640,
+            "end": 4800
+          }
+        }
+      ],
+      "querySha256": "cd42e3e500c31154397bdf9a55ec9e6f1f56a5680feff0e736aec18dcf4755d8"
+    }
+  ]
+}

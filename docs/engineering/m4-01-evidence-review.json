@@ -27,7 +27,18 @@
         }
       ],
       "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
-    }
+    },
+    "structuralValidation": {
+      "scope": "SOURCE_SHA_AND_CODE_POINT_SPAN",
+      "note": "仅证明原文位置和内容一致；不代替语义确认。"
+    },
+    "semanticReview": {
+      "previousStatus": "PENDING",
+      "status": "CONFIRMED",
+      "basis": "用户逐题语义审查及本次最终修订授权；结合现有证据判断，非由结构校验自动确认。",
+      "reason": "明确否定提交异常必然证明回滚，并限定为目标方法正常返回。"
+    },
+    "coverageAuditNote": "baseline/structureAware 为既有证据覆盖审计，保持不变；不等同于人工复核状态或完整区间覆盖。"
   },
   {
     "questionId": "Q02",
@@ -57,7 +68,18 @@
         }
       ],
       "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
-    }
+    },
+    "structuralValidation": {
+      "scope": "SOURCE_SHA_AND_CODE_POINT_SPAN",
+      "note": "仅证明原文位置和内容一致；不代替语义确认。"
+    },
+    "semanticReview": {
+      "previousStatus": "PENDING",
+      "status": "CONFIRMED",
+      "basis": "用户逐题语义审查及本次最终修订授权；结合现有证据判断，非由结构校验自动确认。",
+      "reason": "补充受检异常默认规则，限定内部捕获且异常未到达对应事务代理。"
+    },
+    "coverageAuditNote": "baseline/structureAware 为既有证据覆盖审计，保持不变；不等同于人工复核状态或完整区间覆盖。"
   },
   {
     "questionId": "Q03",
@@ -87,7 +109,18 @@
         }
       ],
       "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
-    }
+    },
+    "structuralValidation": {
+      "scope": "SOURCE_SHA_AND_CODE_POINT_SPAN",
+      "note": "仅证明原文位置和内容一致；不代替语义确认。"
+    },
+    "semanticReview": {
+      "previousStatus": "PENDING",
+      "status": "CONFIRMED",
+      "basis": "用户逐题语义审查及本次最终修订授权；结合现有证据判断，非由结构校验自动确认。",
+      "reason": "保留原问题、答案和证据；逐题审查后确认现有证据充分支持。"
+    },
+    "coverageAuditNote": "baseline/structureAware 为既有证据覆盖审计，保持不变；不等同于人工复核状态或完整区间覆盖。"
   },
   {
     "questionId": "Q04",
@@ -131,7 +164,18 @@
         }
       ],
       "reviewNote": "实验参数/观察和未做性能对照的限制不在同块，需联合阅读；不把小样本耗时作为性能结论。"
-    }
+    },
+    "structuralValidation": {
+      "scope": "SOURCE_SHA_AND_CODE_POINT_SPAN",
+      "note": "仅证明原文位置和内容一致；不代替语义确认。"
+    },
+    "semanticReview": {
+      "previousStatus": "PENDING",
+      "status": "CONFIRMED",
+      "basis": "用户逐题语义审查及本次最终修订授权；结合现有证据判断，非由结构校验自动确认。",
+      "reason": "保留原问题、答案和证据；逐题审查后确认现有证据充分支持。"
+    },
+    "coverageAuditNote": "baseline/structureAware 为既有证据覆盖审计，保持不变；不等同于人工复核状态或完整区间覆盖。"
   },
   {
     "questionId": "Q05",
@@ -161,7 +205,18 @@
         }
       ],
       "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
-    }
+    },
+    "structuralValidation": {
+      "scope": "SOURCE_SHA_AND_CODE_POINT_SPAN",
+      "note": "仅证明原文位置和内容一致；不代替语义确认。"
+    },
+    "semanticReview": {
+      "previousStatus": "PENDING",
+      "status": "CONFIRMED",
+      "basis": "用户逐题语义审查及本次最终修订授权；结合现有证据判断，非由结构校验自动确认。",
+      "reason": "区分专题版本、百炼服务接口、Qwen 模型系列和适配器类名。"
+    },
+    "coverageAuditNote": "baseline/structureAware 为既有证据覆盖审计，保持不变；不等同于人工复核状态或完整区间覆盖。"
   },
   {
     "questionId": "Q06",
@@ -191,7 +246,18 @@
         }
       ],
       "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
-    }
+    },
+    "structuralValidation": {
+      "scope": "SOURCE_SHA_AND_CODE_POINT_SPAN",
+      "note": "仅证明原文位置和内容一致；不代替语义确认。"
+    },
+    "semanticReview": {
+      "previousStatus": "PENDING",
+      "status": "CONFIRMED",
+      "basis": "用户逐题语义审查及本次最终修订授权；结合现有证据判断，非由结构校验自动确认。",
+      "reason": "保留原问题、答案和证据；逐题审查后确认现有证据充分支持。"
+    },
+    "coverageAuditNote": "baseline/structureAware 为既有证据覆盖审计，保持不变；不等同于人工复核状态或完整区间覆盖。"
   },
   {
     "questionId": "Q07",
@@ -221,7 +287,18 @@
         }
       ],
       "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
-    }
+    },
+    "structuralValidation": {
+      "scope": "SOURCE_SHA_AND_CODE_POINT_SPAN",
+      "note": "仅证明原文位置和内容一致；不代替语义确认。"
+    },
+    "semanticReview": {
+      "previousStatus": "PENDING",
+      "status": "CONFIRMED",
+      "basis": "用户逐题语义审查及本次最终修订授权；结合现有证据判断，非由结构校验自动确认。",
+      "reason": "保留原问题、答案和证据；逐题审查后确认现有证据充分支持。"
+    },
+    "coverageAuditNote": "baseline/structureAware 为既有证据覆盖审计，保持不变；不等同于人工复核状态或完整区间覆盖。"
   },
   {
     "questionId": "Q08",
@@ -251,7 +328,18 @@
         }
       ],
       "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
-    }
+    },
+    "structuralValidation": {
+      "scope": "SOURCE_SHA_AND_CODE_POINT_SPAN",
+      "note": "仅证明原文位置和内容一致；不代替语义确认。"
+    },
+    "semanticReview": {
+      "previousStatus": "PENDING",
+      "status": "CONFIRMED",
+      "basis": "用户逐题语义审查及本次最终修订授权；结合现有证据判断，非由结构校验自动确认。",
+      "reason": "明确默认参数、各路排名贡献、去重后连续排名和跨路累加。"
+    },
+    "coverageAuditNote": "baseline/structureAware 为既有证据覆盖审计，保持不变；不等同于人工复核状态或完整区间覆盖。"
   },
   {
     "questionId": "Q09",
@@ -288,7 +376,18 @@
         }
       ],
       "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
-    }
+    },
+    "structuralValidation": {
+      "scope": "SOURCE_SHA_AND_CODE_POINT_SPAN",
+      "note": "仅证明原文位置和内容一致；不代替语义确认。"
+    },
+    "semanticReview": {
+      "previousStatus": "PENDING",
+      "status": "CONFIRMED",
+      "basis": "用户逐题语义审查及本次最终修订授权；结合现有证据判断，非由结构校验自动确认。",
+      "reason": "问题与答案明确限定消费端，保留配置与失败阻断两项必要证据。"
+    },
+    "coverageAuditNote": "baseline/structureAware 为既有证据覆盖审计，保持不变；不等同于人工复核状态或完整区间覆盖。"
   },
   {
     "questionId": "Q10",
@@ -318,7 +417,18 @@
         }
       ],
       "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
-    }
+    },
+    "structuralValidation": {
+      "scope": "SOURCE_SHA_AND_CODE_POINT_SPAN",
+      "note": "仅证明原文位置和内容一致；不代替语义确认。"
+    },
+    "semanticReview": {
+      "previousStatus": "PENDING",
+      "status": "CONFIRMED",
+      "basis": "用户逐题语义审查及本次最终修订授权；结合现有证据判断，非由结构校验自动确认。",
+      "reason": "保留原问题、答案和证据；逐题审查后确认现有证据充分支持。"
+    },
+    "coverageAuditNote": "baseline/structureAware 为既有证据覆盖审计，保持不变；不等同于人工复核状态或完整区间覆盖。"
   },
   {
     "questionId": "Q11",
@@ -348,7 +458,18 @@
         }
       ],
       "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
-    }
+    },
+    "structuralValidation": {
+      "scope": "SOURCE_SHA_AND_CODE_POINT_SPAN",
+      "note": "仅证明原文位置和内容一致；不代替语义确认。"
+    },
+    "semanticReview": {
+      "previousStatus": "PENDING",
+      "status": "CONFIRMED",
+      "basis": "用户逐题语义审查及本次最终修订授权；结合现有证据判断，非由结构校验自动确认。",
+      "reason": "区分提交与执行，明确未完成 Future 的等待条件，避免必然并行或必然等待的误读。"
+    },
+    "coverageAuditNote": "baseline/structureAware 为既有证据覆盖审计，保持不变；不等同于人工复核状态或完整区间覆盖。"
   },
   {
     "questionId": "Q12",
@@ -378,6 +499,17 @@
         }
       ],
       "reviewNote": "已复核该 Chunk 内完整段落/代码与标题路径可独立支持所有预期答案点。"
-    }
+    },
+    "structuralValidation": {
+      "scope": "SOURCE_SHA_AND_CODE_POINT_SPAN",
+      "note": "仅证明原文位置和内容一致；不代替语义确认。"
+    },
+    "semanticReview": {
+      "previousStatus": "PENDING",
+      "status": "CONFIRMED",
+      "basis": "用户逐题语义审查及本次最终修订授权；结合现有证据判断，非由结构校验自动确认。",
+      "reason": "保留原问题、答案和证据；逐题审查后确认现有证据充分支持。"
+    },
+    "coverageAuditNote": "baseline/structureAware 为既有证据覆盖审计，保持不变；不等同于人工复核状态或完整区间覆盖。"
   }
 ]
