@@ -5,6 +5,8 @@ import com.lnjecit.knowledge.assistant.document.entity.DocumentChunk;
 import com.lnjecit.knowledge.assistant.document.entity.IndexVersion;
 import com.lnjecit.knowledge.assistant.document.entity.IndexVersionStatus;
 import com.lnjecit.knowledge.assistant.document.mapper.DocumentChunkMapper;
+import com.lnjecit.knowledge.assistant.document.mapper.DocumentMapper;
+import com.lnjecit.knowledge.assistant.document.mapper.IndexVersionMapper;
 import com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.VectorSchema;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkRepository;
@@ -17,13 +19,22 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 public class EmbeddingRepository {
+    private final DocumentMapper documents;
+    private final IndexVersionMapper versions;
     private final ChunkRepository chunks;
     private final EmbeddingMapper mapper;
     private final DocumentChunkMapper records;
     private final ModelProperties models;
 
     public EmbeddingRepository(
-            ChunkRepository chunks, EmbeddingMapper mapper, DocumentChunkMapper records, ModelProperties models) {
+            DocumentMapper documents,
+            IndexVersionMapper versions,
+            ChunkRepository chunks,
+            EmbeddingMapper mapper,
+            DocumentChunkMapper records,
+            ModelProperties models) {
+        this.documents = documents;
+        this.versions = versions;
         this.chunks = chunks;
         this.mapper = mapper;
         this.records = records;
@@ -95,8 +106,8 @@ public class EmbeddingRepository {
     public void write(Long documentId, Long versionId, List<DocumentChunk> batch, List<String> vectors) {
         // 仅批次写入使用事务，外部模型调用不持有数据库事务。
         // 所有相关状态转换须沿用 Document → IndexVersion 的锁顺序。
-        Document document = mapper.lockDocument(documentId);
-        IndexVersion snapshot = mapper.lockVersion(versionId);
+        Document document = documents.selectForUpdate(documentId);
+        IndexVersion snapshot = versions.selectForUpdate(versionId);
         if (document == null
                 || snapshot == null
                 || !documentId.equals(snapshot.getDocumentId())

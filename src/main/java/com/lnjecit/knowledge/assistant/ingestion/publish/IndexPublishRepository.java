@@ -2,7 +2,8 @@ package com.lnjecit.knowledge.assistant.ingestion.publish;
 
 import com.lnjecit.knowledge.assistant.document.entity.Document;
 import com.lnjecit.knowledge.assistant.document.entity.IndexVersion;
-import com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingMapper;
+import com.lnjecit.knowledge.assistant.document.mapper.DocumentMapper;
+import com.lnjecit.knowledge.assistant.document.mapper.IndexVersionMapper;
 import com.lnjecit.knowledge.assistant.ingestion.task.ClaimedTask;
 import com.lnjecit.knowledge.assistant.ingestion.task.TaskMapper;
 import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTask;
@@ -10,12 +11,17 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public class IndexPublishRepository {
-    private final EmbeddingMapper locks;
+
+    private final DocumentMapper documents;
+    private final IndexVersionMapper versions;
     private final TaskMapper tasks;
     private final IndexPublishMapper mapper;
 
-    public IndexPublishRepository(EmbeddingMapper locks, TaskMapper tasks, IndexPublishMapper mapper) {
-        this.locks = locks;
+    public IndexPublishRepository(
+            DocumentMapper documents, IndexVersionMapper versions, TaskMapper tasks, IndexPublishMapper mapper) {
+
+        this.documents = documents;
+        this.versions = versions;
         this.tasks = tasks;
         this.mapper = mapper;
     }
@@ -24,8 +30,8 @@ public class IndexPublishRepository {
 
     public Locked lock(ClaimedTask claim) {
         // 所有发布者统一先锁文档，再锁版本，最后锁任务，避免反向获取锁。
-        Document document = locks.lockDocument(claim.documentId());
-        IndexVersion version = locks.lockVersion(claim.indexVersionId());
+        Document document = documents.selectForUpdate(claim.documentId());
+        IndexVersion version = versions.selectForUpdate(claim.indexVersionId());
         ImportTask task = tasks.lockTask(claim.taskId());
         return new Locked(document, version, task);
     }

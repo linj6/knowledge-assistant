@@ -291,11 +291,10 @@ class EmbeddingPersistenceIT {
                 transition.set(java.util.concurrent.CompletableFuture.runAsync(() -> new TransactionTemplate(
                                 context.getBean(PlatformTransactionManager.class))
                         .executeWithoutResult(other -> {
-                            com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingMapper locking =
-                                    context.getBean(
-                                            com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingMapper.class);
-                            locking.lockDocument(2L);
-                            locking.lockVersion(8L);
+                            context.getBean(com.lnjecit.knowledge.assistant.document.mapper.DocumentMapper.class)
+                                    .selectForUpdate(2L);
+                            context.getBean(com.lnjecit.knowledge.assistant.document.mapper.IndexVersionMapper.class)
+                                    .selectForUpdate(8L);
                             jdbc.update("UPDATE document_index_version SET status='VERIFIED' WHERE id=8");
                         })));
                 long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);

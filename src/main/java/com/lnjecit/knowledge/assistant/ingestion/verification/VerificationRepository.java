@@ -1,22 +1,27 @@
 package com.lnjecit.knowledge.assistant.ingestion.verification;
 
-import com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingMapper;
+import com.lnjecit.knowledge.assistant.document.mapper.DocumentMapper;
+import com.lnjecit.knowledge.assistant.document.mapper.IndexVersionMapper;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public class VerificationRepository {
-    private final EmbeddingMapper locks;
+
+    private final DocumentMapper documents;
+    private final IndexVersionMapper versions;
     private final VerificationMapper mapper;
 
-    public VerificationRepository(EmbeddingMapper locks, VerificationMapper mapper) {
-        this.locks = locks;
+    public VerificationRepository(DocumentMapper documents, IndexVersionMapper versions, VerificationMapper mapper) {
+
+        this.documents = documents;
+        this.versions = versions;
         this.mapper = mapper;
     }
 
     public void lockSnapshot(Long documentId, Long indexVersionId) {
         // 与所有合规构建写入者遵守同一锁顺序。
-        locks.lockDocument(documentId);
-        locks.lockVersion(indexVersionId);
+        documents.selectForUpdate(documentId);
+        versions.selectForUpdate(indexVersionId);
     }
 
     public void markVerified(Long indexVersionId) {
