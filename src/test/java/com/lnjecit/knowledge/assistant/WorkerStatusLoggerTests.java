@@ -2,8 +2,8 @@ package com.lnjecit.knowledge.assistant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.lnjecit.knowledge.assistant.infrastructure.config.WorkerProperties;
 import com.lnjecit.knowledge.assistant.ingestion.task.TaskProcessor;
+import com.lnjecit.knowledge.assistant.ingestion.task.WorkerProperties;
 import com.lnjecit.knowledge.assistant.ingestion.task.WorkerStatusLogger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

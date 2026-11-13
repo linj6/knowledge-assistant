@@ -7,10 +7,10 @@ import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import co.elastic.clients.elasticsearch.indices.analyze.AnalyzeToken;
 import co.elastic.clients.json.JsonData;
-import com.lnjecit.knowledge.assistant.ingestion.indexing.EsChunkDocument;
-import com.lnjecit.knowledge.assistant.ingestion.indexing.EsChunkFields;
-import com.lnjecit.knowledge.assistant.ingestion.indexing.EsIndexRepository;
-import com.lnjecit.knowledge.assistant.ingestion.indexing.EsIndexService;
+import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsChunkDocument;
+import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsChunkFields;
+import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsIndexNames;
+import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsIndexRepository;
 import jakarta.json.JsonNumber;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonValue;
@@ -43,7 +43,7 @@ public class EsIntegrityService {
 
     public Result verify(
             Long knowledgeBaseId, Long documentId, Long indexVersionId, List<EsChunkDocument> expectedChunks) {
-        return verifyIndex(EsIndexService.INDEX, knowledgeBaseId, documentId, indexVersionId, expectedChunks);
+        return verifyIndex(EsIndexNames.CHUNKS, knowledgeBaseId, documentId, indexVersionId, expectedChunks);
     }
 
     // 显式索引入口供随机隔离索引测试使用；业务默认索引复用 M1-07 常量。

@@ -1,6 +1,5 @@
 package com.lnjecit.knowledge.assistant.ingestion.task;
 
-import com.lnjecit.knowledge.assistant.infrastructure.config.WorkerProperties;
 import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTask;
 import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTaskStatus;
 import java.util.Optional;

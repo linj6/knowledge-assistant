@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.infrastructure.config;
+package com.lnjecit.knowledge.assistant.ingestion.task;
 
 import java.time.Duration;
 import java.util.List;

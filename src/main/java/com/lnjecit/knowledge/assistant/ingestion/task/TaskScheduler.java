@@ -1,6 +1,5 @@
 package com.lnjecit.knowledge.assistant.ingestion.task;
 
-import com.lnjecit.knowledge.assistant.infrastructure.config.WorkerProperties;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;

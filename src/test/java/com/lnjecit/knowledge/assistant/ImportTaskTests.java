@@ -56,7 +56,7 @@ class ImportTaskTests {
         TaskService service = mock(TaskService.class);
         ObjectProvider<TaskProcessor> provider = mock(ObjectProvider.class);
         TaskScheduler scheduler = new TaskScheduler(
-                service, provider, new com.lnjecit.knowledge.assistant.infrastructure.config.WorkerProperties());
+                service, provider, new com.lnjecit.knowledge.assistant.ingestion.task.WorkerProperties());
         scheduler.scan();
         verifyNoInteractions(service);
         when(provider.getIfAvailable()).thenReturn((t, context) -> {

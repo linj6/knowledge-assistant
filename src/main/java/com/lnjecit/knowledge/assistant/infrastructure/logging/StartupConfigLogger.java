@@ -1,16 +1,16 @@
 package com.lnjecit.knowledge.assistant.infrastructure.logging;
 
-import com.lnjecit.knowledge.assistant.infrastructure.config.ChunkingProperties;
 import com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties;
-import com.lnjecit.knowledge.assistant.infrastructure.config.RerankProperties;
-import com.lnjecit.knowledge.assistant.infrastructure.config.UploadProperties;
+import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsIndexNames;
+import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingProperties;
 import com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingProperties;
-import com.lnjecit.knowledge.assistant.ingestion.indexing.EsIndexService;
 import com.lnjecit.knowledge.assistant.ingestion.task.ImportEvents;
 import com.lnjecit.knowledge.assistant.ingestion.task.WorkerStatusLogger;
+import com.lnjecit.knowledge.assistant.ingestion.upload.UploadProperties;
 import com.lnjecit.knowledge.assistant.rag.context.ContextProperties;
 import com.lnjecit.knowledge.assistant.rag.generation.AnswerGenerator;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalParameters;
+import com.lnjecit.knowledge.assistant.retrieval.rerank.RerankProperties;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
@@ -152,7 +152,7 @@ public class StartupConfigLogger {
                         "endpoint",
                         safeUrl(environment.getProperty("assistant.elasticsearch.endpoint", "http://localhost:9200")),
                         "indexName",
-                        EsIndexService.INDEX));
+                        EsIndexNames.CHUNKS));
         section(
                 "MINIO",
                 () -> emit(

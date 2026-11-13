@@ -297,8 +297,8 @@ class IngestionTaskProcessorTests {
     @Test
     void workerAllowsDeadlineToExpireAfterSuccessfulProcessorReturn() {
         TaskService service = mock(TaskService.class);
-        com.lnjecit.knowledge.assistant.infrastructure.config.WorkerProperties properties =
-                new com.lnjecit.knowledge.assistant.infrastructure.config.WorkerProperties();
+        com.lnjecit.knowledge.assistant.ingestion.task.WorkerProperties properties =
+                new com.lnjecit.knowledge.assistant.ingestion.task.WorkerProperties();
         properties.setMaxTaskDuration(Duration.ofMillis(100));
         new TaskWorker(
                         service,

@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.infrastructure.config;
+package com.lnjecit.knowledge.assistant.ingestion.upload;
 
 import lombok.Getter;
 import lombok.Setter;

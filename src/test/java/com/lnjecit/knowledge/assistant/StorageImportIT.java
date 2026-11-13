@@ -3,14 +3,14 @@ package com.lnjecit.knowledge.assistant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.lnjecit.knowledge.assistant.infrastructure.config.ChunkingProperties;
 import com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties;
-import com.lnjecit.knowledge.assistant.infrastructure.config.UploadProperties;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.MinioOriginalFileStore;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.ObjectKeyPrefixes;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
+import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingProperties;
 import com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportRepository;
 import com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportService;
+import com.lnjecit.knowledge.assistant.ingestion.upload.UploadProperties;
 import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;
 import java.util.ArrayList;
 import java.util.List;

@@ -1,7 +1,7 @@
 package com.lnjecit.knowledge.assistant;
 
 import com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties;
-import com.lnjecit.knowledge.assistant.infrastructure.config.RerankProperties;
+import com.lnjecit.knowledge.assistant.retrieval.rerank.RerankProperties;
 import org.springframework.boot.context.config.ConfigDataEnvironmentPostProcessor;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.core.env.StandardEnvironment;

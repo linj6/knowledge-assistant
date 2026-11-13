@@ -5,7 +5,7 @@ import com.lnjecit.knowledge.assistant.infrastructure.ai.RerankCandidate;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.RerankConfiguration;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.RerankResult;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.Reranker;
-import com.lnjecit.knowledge.assistant.infrastructure.config.RerankProperties;
+import com.lnjecit.knowledge.assistant.retrieval.rerank.RerankProperties;
 import java.util.HashSet;
 import java.util.List;
 import org.junit.jupiter.api.Test;

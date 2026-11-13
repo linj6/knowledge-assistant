@@ -6,7 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.lnjecit.knowledge.assistant.ingestion.indexing.EsChunkDocument;
+import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsChunkDocument;
 import com.lnjecit.knowledge.assistant.retrieval.keyword.KeywordChunkMapper;
 import com.lnjecit.knowledge.assistant.retrieval.keyword.KeywordChunkRepository;
 import com.lnjecit.knowledge.assistant.retrieval.keyword.KeywordRetriever;

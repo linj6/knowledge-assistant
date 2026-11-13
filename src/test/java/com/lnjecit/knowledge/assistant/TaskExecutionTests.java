@@ -3,9 +3,9 @@ package com.lnjecit.knowledge.assistant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.lnjecit.knowledge.assistant.infrastructure.config.WorkerProperties;
 import com.lnjecit.knowledge.assistant.ingestion.task.TaskExecutionContext;
 import com.lnjecit.knowledge.assistant.ingestion.task.TaskExecutionException;
+import com.lnjecit.knowledge.assistant.ingestion.task.WorkerProperties;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;

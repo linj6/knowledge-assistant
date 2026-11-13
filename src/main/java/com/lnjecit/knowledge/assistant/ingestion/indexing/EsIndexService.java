@@ -4,6 +4,9 @@ import com.lnjecit.knowledge.assistant.document.entity.Document;
 import com.lnjecit.knowledge.assistant.document.entity.DocumentChunk;
 import com.lnjecit.knowledge.assistant.document.entity.IndexVersion;
 import com.lnjecit.knowledge.assistant.document.entity.IndexVersionStatus;
+import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsChunkDocument;
+import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsIndexNames;
+import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsIndexRepository;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkRepository;
 import java.util.HashSet;
 import java.util.List;
@@ -17,7 +20,6 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @Service
 @ConditionalOnProperty(name = "assistant.elasticsearch.enabled", havingValue = "true")
 public class EsIndexService {
-    public static final String INDEX = "ka-chunks-v1";
     public static final int DEFAULT_BATCH_SIZE = 100;
     public static final int MAX_BATCH_SIZE = 100;
     private final ChunkRepository chunks;
@@ -40,13 +42,13 @@ public class EsIndexService {
         if (TransactionSynchronizationManager.isActualTransactionActive())
             throw new IllegalStateException("ES cannot run inside a transaction");
         List<ChunkSnapshot> documents = read(documentId, versionId);
-        es.ensureIndex(INDEX);
+        es.ensureIndex(EsIndexNames.CHUNKS);
         for (int offset = 0; offset < documents.size(); offset += batchSize) {
             // 同时比较 PG 记录版本，识别正文改动后恢复原值；检查后到请求间仍有竞态，M1-09 须提供 fencing。
             if (!documents.equals(read(documentId, versionId)))
                 throw new IllegalStateException("ES chunk snapshot changed");
             es.create(
-                    INDEX,
+                    EsIndexNames.CHUNKS,
                     documents.subList(offset, Math.min(documents.size(), offset + batchSize)).stream()
                             .map(ChunkSnapshot::document)
                             .toList());

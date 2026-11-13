@@ -6,8 +6,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
-import com.lnjecit.knowledge.assistant.ingestion.indexing.EsChunkDocument;
-import com.lnjecit.knowledge.assistant.ingestion.indexing.EsIndexRepository;
+import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsChunkDocument;
+import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsIndexRepository;
 import com.lnjecit.knowledge.assistant.ingestion.verification.EsIntegrityService;
 import java.util.List;
 import org.junit.jupiter.api.Test;

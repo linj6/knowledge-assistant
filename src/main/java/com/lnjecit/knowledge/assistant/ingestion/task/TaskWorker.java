@@ -1,6 +1,5 @@
 package com.lnjecit.knowledge.assistant.ingestion.task;
 
-import com.lnjecit.knowledge.assistant.infrastructure.config.WorkerProperties;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 public class TaskWorker {

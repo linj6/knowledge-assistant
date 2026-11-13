@@ -97,7 +97,7 @@ class ImportPersistenceTests {
             String url = "http://localhost:" + port + "/api/v1/knowledge-bases/" + kb + "/documents:import";
             assertThat(upload(url, "limit.md", 2097152, 'a').statusCode()).isEqualTo(202);
             assertThat(upload(url, "large.txt", 2097153, 'a').statusCode()).isEqualTo(413);
-            context.getBean(com.lnjecit.knowledge.assistant.infrastructure.config.UploadProperties.class)
+            context.getBean(com.lnjecit.knowledge.assistant.ingestion.upload.UploadProperties.class)
                     .setMaxFileBytes(16);
             assertThat(upload(url, "small.txt", 17, 'b').statusCode()).isEqualTo(400);
             java.net.http.HttpResponse<String> txt = upload(url, "small.txt", 16, 'b');
@@ -150,8 +150,8 @@ class ImportPersistenceTests {
                     "SELECT chunking_config FROM document_index_version WHERE document_id=?",
                     String.class,
                     first.task().documentId());
-            com.lnjecit.knowledge.assistant.infrastructure.config.ChunkingProperties properties =
-                    context.getBean(com.lnjecit.knowledge.assistant.infrastructure.config.ChunkingProperties.class);
+            com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingProperties properties =
+                    context.getBean(com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingProperties.class);
             properties.setChunkSize(900);
             assertThat(context.getBean(tools.jackson.databind.json.JsonMapper.class)
                             .readValue(snapshot, ChunkingConfig.class))

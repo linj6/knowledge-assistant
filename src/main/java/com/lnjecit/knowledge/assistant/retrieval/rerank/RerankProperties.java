@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.infrastructure.config;
+package com.lnjecit.knowledge.assistant.retrieval.rerank;
 
 import java.net.URI;
 import org.springframework.beans.factory.InitializingBean;

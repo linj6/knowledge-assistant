@@ -3,12 +3,12 @@ package com.lnjecit.knowledge.assistant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.lnjecit.knowledge.assistant.infrastructure.config.WorkerProperties;
 import com.lnjecit.knowledge.assistant.ingestion.task.ClaimedTask;
 import com.lnjecit.knowledge.assistant.ingestion.task.TaskExecutionException;
 import com.lnjecit.knowledge.assistant.ingestion.task.TaskFailure;
 import com.lnjecit.knowledge.assistant.ingestion.task.TaskService;
 import com.lnjecit.knowledge.assistant.ingestion.task.TaskWorker;
+import com.lnjecit.knowledge.assistant.ingestion.task.WorkerProperties;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringApplication;

@@ -21,7 +21,7 @@ public class MinioOriginalFileStore implements OriginalFileStore {
                 accessKey,
                 secretKey,
                 bucket,
-                new com.lnjecit.knowledge.assistant.infrastructure.config.UploadProperties());
+                new com.lnjecit.knowledge.assistant.ingestion.upload.UploadProperties());
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -30,7 +30,7 @@ public class MinioOriginalFileStore implements OriginalFileStore {
             @Value("${assistant.minio.access-key}") String accessKey,
             @Value("${assistant.minio.secret-key}") String secretKey,
             @Value("${assistant.minio.bucket}") String bucket,
-            com.lnjecit.knowledge.assistant.infrastructure.config.UploadProperties uploads) {
+            com.lnjecit.knowledge.assistant.ingestion.upload.UploadProperties uploads) {
         uploads.afterPropertiesSet();
         this.maxFileBytes = uploads.getMaxFileBytes();
         this.bucket = bucket;

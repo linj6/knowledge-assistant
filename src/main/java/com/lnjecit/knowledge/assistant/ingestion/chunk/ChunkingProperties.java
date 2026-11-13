@@ -1,6 +1,5 @@
-package com.lnjecit.knowledge.assistant.infrastructure.config;
+package com.lnjecit.knowledge.assistant.ingestion.chunk;
 
-import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingConfig;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.beans.factory.InitializingBean;

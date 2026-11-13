@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.ingestion.indexing;
+package com.lnjecit.knowledge.assistant.infrastructure.elasticsearch;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.ElasticsearchException;

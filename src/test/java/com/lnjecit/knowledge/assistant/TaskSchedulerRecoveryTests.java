@@ -5,11 +5,11 @@ import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.lnjecit.knowledge.assistant.infrastructure.config.WorkerProperties;
 import com.lnjecit.knowledge.assistant.ingestion.task.ClaimedTask;
 import com.lnjecit.knowledge.assistant.ingestion.task.TaskProcessor;
 import com.lnjecit.knowledge.assistant.ingestion.task.TaskScheduler;
 import com.lnjecit.knowledge.assistant.ingestion.task.TaskService;
+import com.lnjecit.knowledge.assistant.ingestion.task.WorkerProperties;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;

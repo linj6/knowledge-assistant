@@ -3,8 +3,8 @@ package com.lnjecit.knowledge.assistant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.lnjecit.knowledge.assistant.infrastructure.config.ChunkingProperties;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingConfig;
+import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingProperties;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;

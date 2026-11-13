@@ -177,7 +177,9 @@ class IngestionPipelineIT extends ElasticsearchIT {
                                 || bean instanceof com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkService
                                 || bean instanceof com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingService
                                 || bean instanceof com.lnjecit.knowledge.assistant.ingestion.indexing.EsIndexService
-                                || bean instanceof com.lnjecit.knowledge.assistant.ingestion.indexing.EsIndexRepository
+                                || bean
+                                        instanceof
+                                        com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsIndexRepository
                                 || bean
                                         instanceof
                                         com.lnjecit.knowledge.assistant.ingestion.verification

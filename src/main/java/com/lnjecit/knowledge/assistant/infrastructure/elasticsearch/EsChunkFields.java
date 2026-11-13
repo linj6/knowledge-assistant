@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.ingestion.indexing;
+package com.lnjecit.knowledge.assistant.infrastructure.elasticsearch;
 
 import java.util.Set;
 

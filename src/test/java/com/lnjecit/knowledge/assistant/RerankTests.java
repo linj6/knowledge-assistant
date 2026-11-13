@@ -8,7 +8,7 @@ import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.RerankCandidate;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.RerankResult;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.TokenEstimator;
-import com.lnjecit.knowledge.assistant.infrastructure.config.RerankProperties;
+import com.lnjecit.knowledge.assistant.retrieval.rerank.RerankProperties;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
 import java.net.URI;

@@ -6,9 +6,9 @@ import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import co.elastic.clients.json.JsonData;
-import com.lnjecit.knowledge.assistant.ingestion.indexing.EsChunkDocument;
-import com.lnjecit.knowledge.assistant.ingestion.indexing.EsIndexRepository;
-import com.lnjecit.knowledge.assistant.ingestion.indexing.EsIndexService;
+import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsChunkDocument;
+import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsIndexNames;
+import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsIndexRepository;
 import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedDocument;
 import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshot;
 import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionTerms;
@@ -27,7 +27,7 @@ public class KeywordSearchRepository {
 
     @org.springframework.beans.factory.annotation.Autowired
     public KeywordSearchRepository(ElasticsearchClient client) {
-        this(client, EsIndexService.INDEX);
+        this(client, EsIndexNames.CHUNKS);
     }
 
     public KeywordSearchRepository(ElasticsearchClient client, String index) {

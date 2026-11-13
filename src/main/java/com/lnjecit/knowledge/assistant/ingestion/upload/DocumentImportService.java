@@ -2,11 +2,10 @@ package com.lnjecit.knowledge.assistant.ingestion.upload;
 
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
-import com.lnjecit.knowledge.assistant.infrastructure.config.ChunkingProperties;
 import com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties;
-import com.lnjecit.knowledge.assistant.infrastructure.config.UploadProperties;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.ObjectKeyPrefixes;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
+import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingProperties;
 import com.lnjecit.knowledge.assistant.ingestion.dto.ImportTaskResponse;
 import com.lnjecit.knowledge.assistant.ingestion.task.ImportEvents;
 import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTask;
