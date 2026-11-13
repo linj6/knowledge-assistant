@@ -4,4 +4,8 @@
     <select id="selectForUpdate" resultType="com.lnjecit.knowledge.assistant.document.entity.IndexVersion">
         SELECT * FROM document_index_version WHERE id=#{id} FOR UPDATE
     </select>
+    <update id="markVerified">
+        UPDATE document_index_version SET status='VERIFIED'
+        WHERE id=#{indexVersionId} AND status='BUILDING' AND published_at IS NULL
+    </update>
 </mapper>

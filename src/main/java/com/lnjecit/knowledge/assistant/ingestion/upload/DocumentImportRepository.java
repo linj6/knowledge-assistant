@@ -12,16 +12,17 @@ import com.lnjecit.knowledge.assistant.infrastructure.storage.ObjectKeyPrefixes;
 import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTask;
 import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTaskStatus;
 import com.lnjecit.knowledge.assistant.ingestion.task.mapper.ImportTaskMapper;
+import com.lnjecit.knowledge.assistant.knowledge.mapper.KnowledgeBaseMapper;
 import java.time.Instant;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public class DocumentImportRepository {
     public static final int MAX_DOCUMENTS_PER_KNOWLEDGE_BASE = 1000;
-    private final ImportCapacityMapper capacity;
+    private final KnowledgeBaseMapper capacity;
 
     public void lockCapacity(Long kbId) {
-        if (capacity.lockKnowledgeBase(kbId) == null)
+        if (capacity.lockForImportCapacity(kbId) == null)
             throw new BusinessException(CommonErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
     }
 
@@ -38,7 +39,7 @@ public class DocumentImportRepository {
             DocumentMapper documents,
             IndexVersionMapper versions,
             ImportTaskMapper tasks,
-            ImportCapacityMapper capacity) {
+            KnowledgeBaseMapper capacity) {
         this.capacity = capacity;
         this.documents = documents;
         this.versions = versions;

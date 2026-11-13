@@ -9,13 +9,11 @@ public class VerificationRepository {
 
     private final DocumentMapper documents;
     private final IndexVersionMapper versions;
-    private final VerificationMapper mapper;
 
-    public VerificationRepository(DocumentMapper documents, IndexVersionMapper versions, VerificationMapper mapper) {
+    public VerificationRepository(DocumentMapper documents, IndexVersionMapper versions) {
 
         this.documents = documents;
         this.versions = versions;
-        this.mapper = mapper;
     }
 
     public void lockSnapshot(Long documentId, Long indexVersionId) {
@@ -25,6 +23,6 @@ public class VerificationRepository {
     }
 
     public void markVerified(Long indexVersionId) {
-        if (mapper.markVerified(indexVersionId) != 1) throw new IllegalStateException("VERIFICATION_STATE_CONFLICT");
+        if (versions.markVerified(indexVersionId) != 1) throw new IllegalStateException("VERIFICATION_STATE_CONFLICT");
     }
 }
