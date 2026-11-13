@@ -1,6 +1,6 @@
-# 包结构规范（R0-01 评审稿）
+# 包结构规范
 
-基于 refactor/package-structure 当前源码；本稿是后续建议，不授权实施。遵循已确认的业务模块、单表 SQL 优先及按需 Repository 决策。Architecture Spec 的 Boot 3.x 与当前 pom.xml 4.1.2 存在已知差异，本次不改冻结文档或依赖。
+基于 refactor/package-structure 当前源码；本规范记录 R1～R4 已完成后的实际结构。遵循已确认的业务模块、单表 SQL 优先及按需 Repository 决策。Architecture Spec 的 Boot 3.x 与当前 pom.xml 4.1.2 存在已知差异，本次不改冻结文档或依赖。
 
 ## 模块职责
 
@@ -17,11 +17,11 @@ knowledge 管理知识库元数据；document 管理文档、索引版本和 Chu
 
 ## Infrastructure 边界
 
-ai 保留供应商适配、模型 Bean、故障转换、TokenEstimator、Reranker 及供应商调用协议 RerankCandidate/RerankResult；不新增业务抽象。ModelProperties 是模型连接与能力配置，留 infrastructure.config。Chunking/Upload/Worker/RerankProperties 属业务参数绑定，建议移到对应功能包；EmbeddingProperties、ContextProperties、ChunkingConfig、RetrievalParameters 已在业务包，保留。
+ai 保留供应商适配、模型 Bean、故障转换、TokenEstimator、Reranker 及供应商调用协议 RerankCandidate/RerankResult；不新增业务抽象。ModelProperties 是模型连接与能力配置，留 infrastructure.config。Chunking/Upload/Worker/RerankProperties 属业务参数绑定，已归对应功能包；EmbeddingProperties、ContextProperties、ChunkingConfig、RetrievalParameters 已在业务包，保留。
 
-elasticsearch 保留客户端配置，并承接共享 EsChunkDocument、EsChunkFields 和 EsIndexRepository；EsIndexService 仍是导入构建编排。其索引名常量被检索引用的问题单独评审，不能仅移动 DTO 就宣称完成解耦。
+elasticsearch 保留客户端配置，保留共享 EsChunkDocument、EsChunkFields 和 EsIndexRepository；EsIndexService 仍是导入构建编排。共享默认索引名使用 EsIndexNames；检索不再引用导入编排类。
 
-persistence 只留 VectorTypeHandler、VectorSchema 等数据库技术能力，业务实体及基础 Mapper 迁业务。storage 保留 MinIO 适配、OriginalFileStore、ObjectKeyPrefixes，原对象路径及读取限制不变。logging 的全部脱敏转换器、环境后处理器、FailureLog、StartupConfigLogger 保留；后者引用业务默认常量是装配/观测依赖，暂不增加配置抽象。web 保留统一异常、Jackson 和 RequestIdFilter；common 的 Result、错误协议、RequestIdContext 保留。
+persistence 只留 VectorTypeHandler、VectorSchema 等数据库技术能力，业务实体及基础 Mapper 已归业务。storage 保留 MinIO 适配、OriginalFileStore、ObjectKeyPrefixes，原对象路径及读取限制不变。logging 的全部脱敏转换器、环境后处理器、FailureLog、StartupConfigLogger 保留；后者引用业务默认常量是装配/观测依赖，暂不增加配置抽象。web 保留统一异常、Jackson 和 RequestIdFilter；common 的 Result、错误协议、RequestIdContext 保留。
 
 ## 新类归属示例
 
