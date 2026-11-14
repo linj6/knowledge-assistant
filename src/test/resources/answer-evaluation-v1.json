@@ -1,0 +1,968 @@
+{
+  "protocol": "answer-evaluation-v1",
+  "schemaVersion": 1,
+  "freezeStatus": "PROPOSED",
+  "baseline": "b2c126faf3d345bc715e2ae66fd0971538864e26",
+  "sourceScope": "仅限既有 M4-01 Gold 对应的 8 篇原文字节；不是当前停车业务 LIVE KB。U 标签是此快照内待确认的材料不足判断，不是全库不存在性证明。",
+  "sourceEvidenceIndexConvention": "零基索引，指向 docs/engineering/m4-01-gold-evidence.json 同题 goldEvidence；U basis 为核验完整原文后的依据。",
+  "cases": [
+    {
+      "caseId": "Q01",
+      "question": "提交异常一定证明已回滚吗？",
+      "knowledgeAnswerable": true,
+      "reviewStatus": "PENDING_REVIEW",
+      "sources": [
+        {
+          "documentPath": "../backend-interview-lab/spring/notes/04-transaction-boundaries-and-propagation.md",
+          "sourceSha256": "5441d647f5eee2e17870e9be1ff5bca8add8322ed7a2ba7dbe88219caafe85f9"
+        }
+      ],
+      "requiredFacts": [
+        {
+          "factId": "Q01-F01",
+          "description": "提交异常不一定证明已回滚",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/spring/notes/04-transaction-boundaries-and-propagation.md",
+              "sourceSha256": "5441d647f5eee2e17870e9be1ff5bca8add8322ed7a2ba7dbe88219caafe85f9",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q01-F02",
+          "description": "目标方法正常返回不保证事务成功提交",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/spring/notes/04-transaction-boundaries-and-propagation.md",
+              "sourceSha256": "5441d647f5eee2e17870e9be1ff5bca8add8322ed7a2ba7dbe88219caafe85f9",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q01-F03",
+          "description": "提交期间连接故障可能需要核实数据库最终状态",
+          "qualifications": "保留“提交期间连接故障”和“可能需要核实”，不能绝对断言已回滚或将核实要求泛化到所有情形。",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/spring/notes/04-transaction-boundaries-and-propagation.md",
+              "sourceSha256": "5441d647f5eee2e17870e9be1ff5bca8add8322ed7a2ba7dbe88219caafe85f9",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        }
+      ]
+    },
+    {
+      "caseId": "Q02",
+      "question": "默认回滚规则与吞异常的影响？",
+      "knowledgeAnswerable": true,
+      "reviewStatus": "PENDING_REVIEW",
+      "sources": [
+        {
+          "documentPath": "../backend-interview-lab/spring/notes/04-transaction-boundaries-and-propagation.md",
+          "sourceSha256": "5441d647f5eee2e17870e9be1ff5bca8add8322ed7a2ba7dbe88219caafe85f9"
+        }
+      ],
+      "requiredFacts": [
+        {
+          "factId": "Q02-F01",
+          "description": "RuntimeException 和 Error 默认回滚",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/spring/notes/04-transaction-boundaries-and-propagation.md",
+              "sourceSha256": "5441d647f5eee2e17870e9be1ff5bca8add8322ed7a2ba7dbe88219caafe85f9",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q02-F02",
+          "description": "受检异常默认不触发回滚",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/spring/notes/04-transaction-boundaries-and-propagation.md",
+              "sourceSha256": "5441d647f5eee2e17870e9be1ff5bca8add8322ed7a2ba7dbe88219caafe85f9",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q02-F03",
+          "description": "目标内部吞异常并正常返回、异常未到达代理时，仅增加 rollbackFor 无法让代理感知",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/spring/notes/04-transaction-boundaries-and-propagation.md",
+              "sourceSha256": "5441d647f5eee2e17870e9be1ff5bca8add8322ed7a2ba7dbe88219caafe85f9",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        }
+      ]
+    },
+    {
+      "caseId": "Q03",
+      "question": "建表实验的列与索引是什么？",
+      "knowledgeAnswerable": true,
+      "reviewStatus": "PENDING_REVIEW",
+      "sources": [
+        {
+          "documentPath": "../backend-interview-lab/mysql/notes/01-index-and-sql.md",
+          "sourceSha256": "4fc99c7f82c01fa0c24503815e0353771ad736ef3e4979b2fbe530e8fd2407eb"
+        }
+      ],
+      "requiredFacts": [
+        {
+          "factId": "Q03-F01",
+          "description": "id 为 BIGINT 主键",
+          "qualifications": "复述 order_lab 列结构时保留字段类型、非空及主键；联合索引必须保留字段顺序。允许等义表达，不要求 SQL 格式或索引名称。",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/mysql/notes/01-index-and-sql.md",
+              "sourceSha256": "4fc99c7f82c01fa0c24503815e0353771ad736ef3e4979b2fbe530e8fd2407eb",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW",
+          "role": "REQUIRED"
+        },
+        {
+          "factId": "Q03-F02",
+          "description": "user_id BIGINT 非空",
+          "qualifications": "复述 order_lab 列结构时保留字段类型、非空及主键；联合索引必须保留字段顺序。允许等义表达，不要求 SQL 格式或索引名称。",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/mysql/notes/01-index-and-sql.md",
+              "sourceSha256": "4fc99c7f82c01fa0c24503815e0353771ad736ef3e4979b2fbe530e8fd2407eb",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW",
+          "role": "REQUIRED"
+        },
+        {
+          "factId": "Q03-F03",
+          "description": "status TINYINT 非空",
+          "qualifications": "复述 order_lab 列结构时保留字段类型、非空及主键；联合索引必须保留字段顺序。允许等义表达，不要求 SQL 格式或索引名称。",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/mysql/notes/01-index-and-sql.md",
+              "sourceSha256": "4fc99c7f82c01fa0c24503815e0353771ad736ef3e4979b2fbe530e8fd2407eb",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW",
+          "role": "REQUIRED"
+        },
+        {
+          "factId": "Q03-F04",
+          "description": "created_at DATETIME 非空",
+          "qualifications": "复述 order_lab 列结构时保留字段类型、非空及主键；联合索引必须保留字段顺序。允许等义表达，不要求 SQL 格式或索引名称。",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/mysql/notes/01-index-and-sql.md",
+              "sourceSha256": "4fc99c7f82c01fa0c24503815e0353771ad736ef3e4979b2fbe530e8fd2407eb",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW",
+          "role": "REQUIRED"
+        },
+        {
+          "factId": "Q03-F05",
+          "description": "amount DECIMAL(10,2) 非空",
+          "qualifications": "复述 order_lab 列结构时保留字段类型、非空及主键；联合索引必须保留字段顺序。允许等义表达，不要求 SQL 格式或索引名称。",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/mysql/notes/01-index-and-sql.md",
+              "sourceSha256": "4fc99c7f82c01fa0c24503815e0353771ad736ef3e4979b2fbe530e8fd2407eb",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW",
+          "role": "REQUIRED"
+        },
+        {
+          "factId": "Q03-F06",
+          "description": "索引顺序为 (user_id,created_at,status)",
+          "qualifications": "复述 order_lab 列结构时保留字段类型、非空及主键；联合索引必须保留字段顺序。允许等义表达，不要求 SQL 格式或索引名称。",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/mysql/notes/01-index-and-sql.md",
+              "sourceSha256": "4fc99c7f82c01fa0c24503815e0353771ad736ef3e4979b2fbe530e8fd2407eb",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW",
+          "role": "REQUIRED"
+        },
+        {
+          "factId": "Q03-F07",
+          "description": "另一索引顺序为 (user_id,status,created_at)",
+          "qualifications": "复述 order_lab 列结构时保留字段类型、非空及主键；联合索引必须保留字段顺序。允许等义表达，不要求 SQL 格式或索引名称。",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/mysql/notes/01-index-and-sql.md",
+              "sourceSha256": "4fc99c7f82c01fa0c24503815e0353771ad736ef3e4979b2fbe530e8fd2407eb",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW",
+          "role": "REQUIRED"
+        }
+      ],
+      "optionalFacts": [
+        {
+          "factId": "Q03-F08",
+          "description": "引擎为 InnoDB",
+          "qualifications": "引擎有明确 SQL 依据，但不属于“列与索引”的必要回答；遗漏不影响完整性，主动陈述仍需准确。",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/mysql/notes/01-index-and-sql.md",
+              "sourceSha256": "4fc99c7f82c01fa0c24503815e0353771ad736ef3e4979b2fbe530e8fd2407eb",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW",
+          "role": "OPTIONAL"
+        }
+      ]
+    },
+    {
+      "caseId": "Q04",
+      "question": "预取实验观察是否足以证明性能提升？",
+      "knowledgeAnswerable": true,
+      "reviewStatus": "PENDING_REVIEW",
+      "sources": [
+        {
+          "documentPath": "../backend-interview-lab/rabbitmq/labs/06-prefetch-throughput/evidence/results.md",
+          "sourceSha256": "3024ef3ff721d3b8083cbca62299d57067ca08b001200c574b85a59a54dfbe94"
+        }
+      ],
+      "requiredFacts": [
+        {
+          "factId": "Q04-F01",
+          "description": "参数 (1,1) 暂停时 Unacked=1、活跃处理数=1",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/rabbitmq/labs/06-prefetch-throughput/evidence/results.md",
+              "sourceSha256": "3024ef3ff721d3b8083cbca62299d57067ca08b001200c574b85a59a54dfbe94",
+              "evidenceIndexes": [
+                0,
+                1
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q04-F02",
+          "description": "参数 (4,2) 暂停时 Unacked=8、活跃处理数=2",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/rabbitmq/labs/06-prefetch-throughput/evidence/results.md",
+              "sourceSha256": "3024ef3ff721d3b8083cbca62299d57067ca08b001200c574b85a59a54dfbe94",
+              "evidenceIndexes": [
+                0,
+                1
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q04-F03",
+          "description": "尚无人工性能对照采样，不能证明性能提升",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/rabbitmq/labs/06-prefetch-throughput/evidence/results.md",
+              "sourceSha256": "3024ef3ff721d3b8083cbca62299d57067ca08b001200c574b85a59a54dfbe94",
+              "evidenceIndexes": [
+                0,
+                1
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q04-F04",
+          "description": "IT 小样本耗时不能作为性能结果",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/rabbitmq/labs/06-prefetch-throughput/evidence/results.md",
+              "sourceSha256": "3024ef3ff721d3b8083cbca62299d57067ca08b001200c574b85a59a54dfbe94",
+              "evidenceIndexes": [
+                0,
+                1
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        }
+      ]
+    },
+    {
+      "caseId": "Q05",
+      "question": "专题使用哪些 Spring Boot、Spring AI 版本？通过什么接口调用哪一系列模型？",
+      "knowledgeAnswerable": true,
+      "reviewStatus": "PENDING_REVIEW",
+      "sources": [
+        {
+          "documentPath": "../ai-application-lab/03-llm-api-function-calling-spring-ai/notes/05-spring-ai-model-client-and-tools.md",
+          "sourceSha256": "e6c8a44e338836c0dd30f544890d3528cbe7ebda795c3ac3ce9d3b298d2f1010"
+        }
+      ],
+      "requiredFacts": [
+        {
+          "factId": "Q05-F01",
+          "description": "专题 Spring Boot 3.5.15",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../ai-application-lab/03-llm-api-function-calling-spring-ai/notes/05-spring-ai-model-client-and-tools.md",
+              "sourceSha256": "e6c8a44e338836c0dd30f544890d3528cbe7ebda795c3ac3ce9d3b298d2f1010",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q05-F02",
+          "description": "专题 Spring AI 1.1.8",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../ai-application-lab/03-llm-api-function-calling-spring-ai/notes/05-spring-ai-model-client-and-tools.md",
+              "sourceSha256": "e6c8a44e338836c0dd30f544890d3528cbe7ebda795c3ac3ce9d3b298d2f1010",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q05-F03",
+          "description": "通过百炼兼容接口调用 Qwen 系列",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../ai-application-lab/03-llm-api-function-calling-spring-ai/notes/05-spring-ai-model-client-and-tools.md",
+              "sourceSha256": "e6c8a44e338836c0dd30f544890d3528cbe7ebda795c3ac3ce9d3b298d2f1010",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q05-F04",
+          "description": "OpenAiChatModel 类名不代表 OpenAI 模型供应商",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../ai-application-lab/03-llm-api-function-calling-spring-ai/notes/05-spring-ai-model-client-and-tools.md",
+              "sourceSha256": "e6c8a44e338836c0dd30f544890d3528cbe7ebda795c3ac3ce9d3b298d2f1010",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        }
+      ]
+    },
+    {
+      "caseId": "Q06",
+      "question": "两种切分块数相同是否说明质量相同？",
+      "knowledgeAnswerable": true,
+      "reviewStatus": "PENDING_REVIEW",
+      "sources": [
+        {
+          "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/notes/04-chunking-and-context.md",
+          "sourceSha256": "92dbbea63d4a8ecc88b7dab563198ab02cc76b912a1e7a2f56ea582b235d3bf7"
+        }
+      ],
+      "requiredFacts": [
+        {
+          "factId": "Q06-F01",
+          "description": "两种策略都得到四块",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/notes/04-chunking-and-context.md",
+              "sourceSha256": "92dbbea63d4a8ecc88b7dab563198ab02cc76b912a1e7a2f56ea582b235d3bf7",
+              "evidenceIndexes": [
+                0,
+                1
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q06-F02",
+          "description": "固定切分切断词和定义边界",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/notes/04-chunking-and-context.md",
+              "sourceSha256": "92dbbea63d4a8ecc88b7dab563198ab02cc76b912a1e7a2f56ea582b235d3bf7",
+              "evidenceIndexes": [
+                0,
+                1
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q06-F03",
+          "description": "块数相同不代表检索质量相同",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/notes/04-chunking-and-context.md",
+              "sourceSha256": "92dbbea63d4a8ecc88b7dab563198ab02cc76b912a1e7a2f56ea582b235d3bf7",
+              "evidenceIndexes": [
+                0,
+                1
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        }
+      ]
+    },
+    {
+      "caseId": "Q07",
+      "question": "补相邻块能保证 Confirm/ACK 证据完整吗？",
+      "knowledgeAnswerable": true,
+      "reviewStatus": "PENDING_REVIEW",
+      "sources": [
+        {
+          "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/notes/04-chunking-and-context.md",
+          "sourceSha256": "92dbbea63d4a8ecc88b7dab563198ab02cc76b912a1e7a2f56ea582b235d3bf7"
+        }
+      ],
+      "requiredFacts": [
+        {
+          "factId": "Q07-F01",
+          "description": "S3 加 S2 仍缺 S1 的 Confirm 定义",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/notes/04-chunking-and-context.md",
+              "sourceSha256": "92dbbea63d4a8ecc88b7dab563198ab02cc76b912a1e7a2f56ea582b235d3bf7",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q07-F02",
+          "description": "补相邻块不能保证证据完整",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/notes/04-chunking-and-context.md",
+              "sourceSha256": "92dbbea63d4a8ecc88b7dab563198ab02cc76b912a1e7a2f56ea582b235d3bf7",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        }
+      ]
+    },
+    {
+      "caseId": "Q08",
+      "question": "RRF 如何计算和处理重复 ID？",
+      "knowledgeAnswerable": true,
+      "reviewStatus": "PENDING_REVIEW",
+      "sources": [
+        {
+          "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/labs/04-hybrid-retrieval/README.md",
+          "sourceSha256": "6b8efd01cc0056f786efffd604d547a1a35f5bea27d0a24bf6b8b5ea514869f8"
+        }
+      ],
+      "requiredFacts": [
+        {
+          "factId": "Q08-F01",
+          "description": "RRF 对各路 1/(k+rank) 求和",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/labs/04-hybrid-retrieval/README.md",
+              "sourceSha256": "6b8efd01cc0056f786efffd604d547a1a35f5bea27d0a24bf6b8b5ea514869f8",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q08-F02",
+          "description": "rank 从 1 开始，实验默认 k=60",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/labs/04-hybrid-retrieval/README.md",
+              "sourceSha256": "6b8efd01cc0056f786efffd604d547a1a35f5bea27d0a24bf6b8b5ea514869f8",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q08-F03",
+          "description": "单路重复 ID 仅取首次命中",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/labs/04-hybrid-retrieval/README.md",
+              "sourceSha256": "6b8efd01cc0056f786efffd604d547a1a35f5bea27d0a24bf6b8b5ea514869f8",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q08-F04",
+          "description": "单路去重后赋连续排名",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/labs/04-hybrid-retrieval/README.md",
+              "sourceSha256": "6b8efd01cc0056f786efffd604d547a1a35f5bea27d0a24bf6b8b5ea514869f8",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q08-F05",
+          "description": "跨路同 ID 累加贡献",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/labs/04-hybrid-retrieval/README.md",
+              "sourceSha256": "6b8efd01cc0056f786efffd604d547a1a35f5bea27d0a24bf6b8b5ea514869f8",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q08-F06",
+          "description": "不相加不同尺度原始分数",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/labs/04-hybrid-retrieval/README.md",
+              "sourceSha256": "6b8efd01cc0056f786efffd604d547a1a35f5bea27d0a24bf6b8b5ea514869f8",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        }
+      ]
+    },
+    {
+      "caseId": "Q09",
+      "question": "单队列消费端保序需要哪些配置？前序消息失败时如何处理？",
+      "knowledgeAnswerable": true,
+      "reviewStatus": "PENDING_REVIEW",
+      "sources": [
+        {
+          "documentPath": "../backend-interview-lab/rabbitmq/notes/05-ordered-messages.md",
+          "sourceSha256": "f89e2640255d383daa734939d5113f06dc39827f1073d32f1eb70afa995d865e"
+        }
+      ],
+      "requiredFacts": [
+        {
+          "factId": "Q09-F01",
+          "description": "单队列使用 SAC",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/rabbitmq/notes/05-ordered-messages.md",
+              "sourceSha256": "f89e2640255d383daa734939d5113f06dc39827f1073d32f1eb70afa995d865e",
+              "evidenceIndexes": [
+                0,
+                1
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q09-F02",
+          "description": "prefetch=1",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/rabbitmq/notes/05-ordered-messages.md",
+              "sourceSha256": "f89e2640255d383daa734939d5113f06dc39827f1073d32f1eb70afa995d865e",
+              "evidenceIndexes": [
+                0,
+                1
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q09-F03",
+          "description": "manual ACK",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/rabbitmq/notes/05-ordered-messages.md",
+              "sourceSha256": "f89e2640255d383daa734939d5113f06dc39827f1073d32f1eb70afa995d865e",
+              "evidenceIndexes": [
+                0,
+                1
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q09-F04",
+          "description": "同步调用独立事务 Service",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/rabbitmq/notes/05-ordered-messages.md",
+              "sourceSha256": "f89e2640255d383daa734939d5113f06dc39827f1073d32f1eb70afa995d865e",
+              "evidenceIndexes": [
+                0,
+                1
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q09-F05",
+          "description": "事务成功提交后 ACK",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/rabbitmq/notes/05-ordered-messages.md",
+              "sourceSha256": "f89e2640255d383daa734939d5113f06dc39827f1073d32f1eb70afa995d865e",
+              "evidenceIndexes": [
+                0,
+                1
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q09-F06",
+          "description": "前序失败时阻止依赖事件先完成业务，不能移走失败消息后直接放行",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/rabbitmq/notes/05-ordered-messages.md",
+              "sourceSha256": "f89e2640255d383daa734939d5113f06dc39827f1073d32f1eb70afa995d865e",
+              "evidenceIndexes": [
+                0,
+                1
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        }
+      ]
+    },
+    {
+      "caseId": "Q10",
+      "question": "分区扩容为何不能直接改变取模参数？",
+      "knowledgeAnswerable": true,
+      "reviewStatus": "PENDING_REVIEW",
+      "sources": [
+        {
+          "documentPath": "../backend-interview-lab/rabbitmq/notes/05-ordered-messages.md",
+          "sourceSha256": "f89e2640255d383daa734939d5113f06dc39827f1073d32f1eb70afa995d865e"
+        }
+      ],
+      "requiredFacts": [
+        {
+          "factId": "Q10-F01",
+          "description": "直接改取模使旧新事件进入不同队列，可能并行且后事件先提交",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/rabbitmq/notes/05-ordered-messages.md",
+              "sourceSha256": "f89e2640255d383daa734939d5113f06dc39827f1073d32f1eb70afa995d865e",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q10-F02",
+          "description": "需要稳定映射或排空/有序迁移屏障/带版本路由等受控方案之一",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/rabbitmq/notes/05-ordered-messages.md",
+              "sourceSha256": "f89e2640255d383daa734939d5113f06dc39827f1073d32f1eb70afa995d865e",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        }
+      ]
+    },
+    {
+      "caseId": "Q11",
+      "question": "supplyAsync 与 join 何时提交和等待？",
+      "knowledgeAnswerable": true,
+      "reviewStatus": "PENDING_REVIEW",
+      "sources": [
+        {
+          "documentPath": "../backend-interview-lab/juc/notes/06-completable-future.md",
+          "sourceSha256": "a1809b5bc01ca6831d8e41f2c35c502cad49b4f854e7b8968216ef37ba35da53"
+        }
+      ],
+      "requiredFacts": [
+        {
+          "factId": "Q11-F01",
+          "description": "supplyAsync 调用时提交任务，不是 join 启动",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/juc/notes/06-completable-future.md",
+              "sourceSha256": "a1809b5bc01ca6831d8e41f2c35c502cad49b4f854e7b8968216ef37ba35da53",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q11-F02",
+          "description": "提交不代表立即执行或一定并行",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/juc/notes/06-completable-future.md",
+              "sourceSha256": "a1809b5bc01ca6831d8e41f2c35c502cad49b4f854e7b8968216ef37ba35da53",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q11-F03",
+          "description": "示例中调用者最后 join 会占用调用线程等待组合结果",
+          "qualifications": "限定原文先提交两个任务、最后 join 的示例；不追加“已完成无需等待”，不泛称所有 join 调用必然阻塞。",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/juc/notes/06-completable-future.md",
+              "sourceSha256": "a1809b5bc01ca6831d8e41f2c35c502cad49b4f854e7b8968216ef37ba35da53",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        }
+      ]
+    },
+    {
+      "caseId": "Q12",
+      "question": "orTimeout 会终止底层查询吗？",
+      "knowledgeAnswerable": true,
+      "reviewStatus": "PENDING_REVIEW",
+      "sources": [
+        {
+          "documentPath": "../backend-interview-lab/juc/notes/06-completable-future.md",
+          "sourceSha256": "a1809b5bc01ca6831d8e41f2c35c502cad49b4f854e7b8968216ef37ba35da53"
+        }
+      ],
+      "requiredFacts": [
+        {
+          "factId": "Q12-F01",
+          "description": "orTimeout 使 Future 超时异常完成",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/juc/notes/06-completable-future.md",
+              "sourceSha256": "a1809b5bc01ca6831d8e41f2c35c502cad49b4f854e7b8968216ef37ba35da53",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        },
+        {
+          "factId": "Q12-F02",
+          "description": "不会自动中断底层查询或保证停止实际计算",
+          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "sourceRefs": [
+            {
+              "documentPath": "../backend-interview-lab/juc/notes/06-completable-future.md",
+              "sourceSha256": "a1809b5bc01ca6831d8e41f2c35c502cad49b4f854e7b8968216ef37ba35da53",
+              "evidenceIndexes": [
+                0
+              ]
+            }
+          ],
+          "reviewStatus": "PENDING_REVIEW"
+        }
+      ]
+    },
+    {
+      "caseId": "U01",
+      "question": "给出预取实验两组参数实测吞吐率及端到端 P99 延迟的精确数值。",
+      "knowledgeAnswerable": false,
+      "unanswerableReason": "未执行人工性能对照，未报告吞吐率/延迟分位数",
+      "allowedAnswerBoundary": "可说明未测量及已有 Unacked/活跃数；不能把处理到 ACK 均值当端到端延迟",
+      "forbiddenFabrications": [
+        "两组吞吐率、P99 数值或提升百分比"
+      ],
+      "sources": [
+        {
+          "documentPath": "../backend-interview-lab/rabbitmq/labs/06-prefetch-throughput/evidence/results.md",
+          "sourceSha256": "3024ef3ff721d3b8083cbca62299d57067ca08b001200c574b85a59a54dfbe94",
+          "basis": "未执行人工性能对照，未报告吞吐率/延迟分位数"
+        }
+      ],
+      "reviewStatus": "PENDING_REVIEW"
+    },
+    {
+      "caseId": "U02",
+      "question": "给出预取实验真实 OS kill 后恢复的实测耗时。",
+      "knowledgeAnswerable": false,
+      "unanswerableReason": "原文明示没有 OS kill，真实进程崩溃待执行",
+      "allowedAnswerBoundary": "可说明逻辑停止监听容器和关闭通道的恢复边界",
+      "forbiddenFabrications": [
+        "OS kill 恢复耗时及成功率"
+      ],
+      "sources": [
+        {
+          "documentPath": "../backend-interview-lab/rabbitmq/labs/06-prefetch-throughput/evidence/results.md",
+          "sourceSha256": "3024ef3ff721d3b8083cbca62299d57067ca08b001200c574b85a59a54dfbe94",
+          "basis": "原文明示没有 OS kill，真实进程崩溃待执行"
+        }
+      ],
+      "reviewStatus": "PENDING_REVIEW"
+    },
+    {
+      "caseId": "U03",
+      "question": "仅知道实验 B 的两种切分都得到四块，能否给出可直接用于任意问题和上下文预算的通用最优 Chunk 字符/token 数精确值？",
+      "knowledgeAnswerable": false,
+      "unanswerableReason": "缺少真实问题、上下文预算及调试条件；来源明确不能单独指定通用最优字符/token 数。四块的数量不能确定该精确值。",
+      "allowedAnswerBoundary": "明确不能给出通用最优精确值，说明需要真实问题与预算调试；可以解释块数相同不代表质量相同，不要求给出不存在的统一数值。",
+      "forbiddenFabrications": [
+        "宣称存在可直接用于任意问题和预算的通用最优字符/token 数",
+        "把教学样本的固定100字符当成通用最优值"
+      ],
+      "sources": [
+        {
+          "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/notes/04-chunking-and-context.md",
+          "sourceSha256": "92dbbea63d4a8ecc88b7dab563198ab02cc76b912a1e7a2f56ea582b235d3bf7",
+          "basis": "“合适的字符/token 数”只能通过真实问题与预算调试，不能单独指定为通用最优。",
+          "sourceSpan": {
+            "start": 2008,
+            "end": 2049
+          }
+        }
+      ],
+      "reviewStatus": "PENDING_REVIEW"
+    },
+    {
+      "caseId": "U04",
+      "question": "给出切分实验 B 中 S3 的真实 Embedding 检索排名。",
+      "knowledgeAnswerable": false,
+      "unanswerableReason": "原文明示命中 S3 是人工模拟，尚未实测 Embedding 排名",
+      "allowedAnswerBoundary": "可解释模拟与真实排名差异",
+      "forbiddenFabrications": [
+        "S3 的真实向量排名或召回率"
+      ],
+      "sources": [
+        {
+          "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/notes/04-chunking-and-context.md",
+          "sourceSha256": "92dbbea63d4a8ecc88b7dab563198ab02cc76b912a1e7a2f56ea582b235d3bf7",
+          "basis": "原文明示命中 S3 是人工模拟，尚未实测 Embedding 排名"
+        }
+      ],
+      "reviewStatus": "PENDING_REVIEW"
+    }
+  ]
+}
