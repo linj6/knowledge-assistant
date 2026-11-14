@@ -136,6 +136,22 @@ class AnswerMetricsTests {
     }
 
     @Test
+    void missingContextAndDuplicateClaimsPreservePendingAndFailurePriority() throws Exception {
+        JsonNode d = dataset();
+        ObjectNode r = review(d, 0);
+        r.remove("contextAnswerable");
+        assertThat(score(d, 0, r).appropriateness()).isEqualTo(AnswerMetrics.State.PENDING);
+        r.put("appropriateness", "FAIL");
+        assertThat(score(d, 0, r).appropriateness()).isEqualTo(AnswerMetrics.State.FAIL);
+        assertThat(score(d, 0, r).wholeCase()).isEqualTo(AnswerMetrics.State.FAIL);
+        r.put("contextAnswerable", true);
+        r.put("appropriateness", "PASS");
+        r.withArray("claims").add(claim(r).deepCopy());
+        assertThat(score(d, 0, r).correctness()).isEqualTo(AnswerMetrics.State.PENDING);
+        assertThat(score(d, 0, r).support()).isEqualTo(AnswerMetrics.State.PENDING);
+    }
+
+    @Test
     void aggregateAndSerialization() throws Exception {
         JsonNode d = dataset();
         ObjectNode good = review(d, 0), failed = review(d, 1), invalid = review(d, 2);

@@ -1,5 +1,17 @@
 package com.lnjecit.knowledge.assistant.evaluation.metrics;
 
+import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProtocol.COMPLETE;
+import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProtocol.EXECUTION_NOT_SUCCESS;
+import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProtocol.IDENTITY_CONFLICT;
+import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProtocol.INVALID_POOL;
+import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProtocol.INVALID_RANKING;
+import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProtocol.NOT_READY;
+import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProtocol.OUTSIDE_POOL;
+import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProtocol.SCORED;
+import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProtocol.SNAPSHOT_MISMATCH;
+import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProtocol.SUCCESS;
+import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProtocol.UNDEFINED;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -12,6 +24,22 @@ import tools.jackson.databind.JsonNode;
 /** 冻结评审池上的离线排名计算，不推断人工标签。 */
 public final class RankingMetrics {
     private RankingMetrics() {}
+
+    private enum RelevanceGrade {
+        NONE,
+        MARGINAL,
+        RELEVANT,
+        HIGHLY_RELEVANT;
+
+        static RelevanceGrade of(int value) {
+            if (value < 0 || value > 3) throw new IllegalArgumentException("等级必须为 0 至 3");
+            return values()[value];
+        }
+
+        boolean relevant() {
+            return ordinal() >= RELEVANT.ordinal();
+        }
+    }
 
     public record Result(String status, Double precision, Double dcg, Double idcg, Double ndcg) {}
 
@@ -27,6 +55,7 @@ public final class RankingMetrics {
         for (int i = 0; i < grades.size(); i++) {
             int grade = grades.get(i);
             if (grade < 0 || grade > 3) throw new IllegalArgumentException("等级必须为 0 至 3");
+            // 指数增益除以以 2 为底的排名折扣；首位不折扣。
             if (i < k) value += (Math.pow(2, grade) - 1) / (Math.log(i + 2) / Math.log(2));
         }
         return value;
@@ -38,20 +67,20 @@ public final class RankingMetrics {
 
     public static Result calculate(JsonNode fixture, JsonNode run, int k) {
         if (k <= 0) throw new IllegalArgumentException("K 必须为正数");
-        if (!run.path("status").asString().equals("SUCCESS")) return unavailable("EXECUTION_NOT_SUCCESS");
+        if (!run.path("status").asString().equals(SUCCESS)) return unavailable(EXECUTION_NOT_SUCCESS);
         Map<String, JsonNode> candidates = new HashMap<>();
         // 先核对同问题、同切分、同快照的候选身份；策略只决定排名。
         for (JsonNode other : fixture.path("runs")) {
             if (!other.path("questionId").equals(run.path("questionId"))
                     || !other.path("chunking").equals(run.path("chunking"))) continue;
-            if (!other.path("snapshotHash").equals(run.path("snapshotHash"))) return unavailable("SNAPSHOT_MISMATCH");
+            if (!other.path("snapshotHash").equals(run.path("snapshotHash"))) return unavailable(SNAPSHOT_MISMATCH);
             for (JsonNode chunk : other.path("chunks")) {
                 String id = chunk.path("chunkId").asString();
                 JsonNode previous = candidates.putIfAbsent(id, chunk);
                 if (previous != null
                         && (!identity(previous).equals(identity(chunk))
                                 || !previous.path("content").equals(chunk.path("content"))))
-                    return unavailable("IDENTITY_CONFLICT");
+                    return unavailable(IDENTITY_CONFLICT);
             }
         }
         Map<String, Integer> grades = new HashMap<>();
@@ -62,30 +91,39 @@ public final class RankingMetrics {
             String label = judgment.path("relevance").asString();
             if (!label.matches("[0-3]")
                     || judgment.path("reviewer").isNull()
-                    || judgment.path("reviewer").asString().isBlank()) return unavailable("NOT_READY");
+                    || judgment.path("reviewer").asString().isBlank()) return unavailable(NOT_READY);
             if (!candidates.containsKey(id) || grades.putIfAbsent(id, Integer.parseInt(label)) != null)
-                return unavailable("INVALID_POOL");
+                return unavailable(INVALID_POOL);
         }
-        if (!fixture.path("pool").path("status").asString().equals("COMPLETE") || grades.isEmpty())
-            return unavailable("NOT_READY");
-        if (!grades.keySet().equals(candidates.keySet())) return unavailable("OUTSIDE_POOL");
+        if (!fixture.path("pool").path("status").asString().equals(COMPLETE) || grades.isEmpty())
+            return unavailable(NOT_READY);
+        if (!grades.keySet().equals(candidates.keySet())) return unavailable(OUTSIDE_POOL);
         List<Integer> ranked = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         for (JsonNode chunk : run.path("chunks")) {
             String id = chunk.path("chunkId").asString();
             if (!grades.containsKey(id) || !identity(chunk).equals(identity(candidates.get(id))))
-                return unavailable("OUTSIDE_POOL");
+                return unavailable(OUTSIDE_POOL);
             if (!seen.add(id) || chunk.path("finalRank").asInt() != ranked.size() + 1)
-                return unavailable("INVALID_RANKING");
+                return unavailable(INVALID_RANKING);
             ranked.add(grades.get(id));
         }
-        List<Integer> ideal = new ArrayList<>(grades.values());
+        return score(
+                ranked.stream().map(RelevanceGrade::of).toList(),
+                grades.values().stream().map(RelevanceGrade::of).toList(),
+                k);
+    }
+
+    // IDCG 始终取同问题、同 Chunking 的完整冻结候选池，不能只取本次返回结果。
+    private static Result score(List<RelevanceGrade> ranked, List<RelevanceGrade> pool, int k) {
+        List<Integer> ideal =
+                new ArrayList<>(pool.stream().map(RelevanceGrade::ordinal).toList());
         ideal.sort(Comparator.reverseOrder());
         double idcg = dcg(ideal, k);
-        double actual = dcg(ranked, k);
-        double precision = ranked.stream().limit(k).filter(grade -> grade >= 2).count() / (double) k;
+        double actual = dcg(ranked.stream().map(RelevanceGrade::ordinal).toList(), k);
+        double precision =
+                ranked.stream().limit(k).filter(RelevanceGrade::relevant).count() / (double) k;
         // 全零池的 Precision/DCG 仍有定义，nDCG 明确无定义。
-        return new Result(
-                idcg == 0 ? "UNDEFINED" : "SCORED", precision, actual, idcg, idcg == 0 ? null : actual / idcg);
+        return new Result(idcg == 0 ? UNDEFINED : SCORED, precision, actual, idcg, idcg == 0 ? null : actual / idcg);
     }
 }
