@@ -1,3 +1,4 @@
+import './evaluation.js';
 import { initializeRetrieval } from './retrieval.js';
 import { initializeChat } from './chat.js';
 import { initializeKnowledge } from './knowledge.js';
@@ -10,7 +11,7 @@ import {
     subscribe,
     updateState
 } from './state.js';
-const pages = ['chat', 'knowledge', 'retrieval'];
+const pages = ['chat', 'knowledge', 'retrieval', 'evaluation'];
 const selector = document.querySelector('#kb');
 const status = document.querySelector('#status');
 const reload = document.querySelector('#reload');

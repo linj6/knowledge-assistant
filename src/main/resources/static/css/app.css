@@ -295,3 +295,20 @@ details[open] > summary { margin-bottom: 8px; }
     .evidence-drawer { padding: 16px; }
     #knowledge .actions { gap: 8px; justify-content: flex-start; }
 }
+
+/* 评估工作台：表格允许横向滚动，证据正文保留换行。 */
+.eval-scroll { overflow-x: auto; margin: 24px 0; }
+#evaluation table { border-collapse: collapse; font-size: 13px; }
+#evaluation th, #evaluation td { padding: 10px; border: 1px solid #e5e7eb; min-width: 140px; vertical-align: top; }
+#evaluation dl { display: grid; grid-template-columns: 130px minmax(0,1fr); gap: 4px 12px; }
+#evaluation dd { margin: 0; overflow-wrap: anywhere; }
+#evaluation dt { color: #667085; }
+#evaluation pre, #evaluation blockquote { white-space: pre-wrap; overflow-wrap: anywhere; }
+.eval-chunk { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 18px; margin: 16px 0; }
+
+/* 指标解释默认收起，键盘可展开，保持在表格流中以避免裁切。 */
+.eval-help { font-weight: normal; font-size: 13px; margin-top: 6px; }
+.eval-help summary { cursor: pointer; color: #2563eb; width: fit-content; }
+.eval-help[open] { min-width: 260px; max-width: 420px; }
+.eval-help p { text-align: left; margin: 8px 0; }
+.eval-metric-guide { display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; }
