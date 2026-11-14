@@ -61,6 +61,28 @@ public class EvaluationController {
         try {
             Path directory = root.resolve(runId);
             if (!directory.toRealPath().getParent().equals(root.toRealPath())) throw new IllegalArgumentException();
+            JsonNode header = json.readTree(Files.readString(directory.resolve("manifest.json")));
+            if ("m4-d03-answer-v1".equals(header.path("runnerVersion").asString())) {
+                if (header.path("schemaVersion").asInt() != 1
+                        || !runId.equals(header.path("runId").asString())
+                        || !List.of("NOT_READY", "FAILED", "COMPLETED")
+                                .contains(header.path("status").asString())) throw new IllegalArgumentException();
+                for (String name : List.of("results.json", "report.md")) {
+                    Path artifact = directory.resolve(name);
+                    if (!artifact.toRealPath().getParent().equals(directory.toRealPath())
+                            || !hash(artifact)
+                                    .equals(header.path("artifactSha256")
+                                            .path(name)
+                                            .asString())) throw new IllegalArgumentException();
+                }
+                return Map.of(
+                        "runId",
+                        runId,
+                        "manifest",
+                        header,
+                        "results",
+                        json.readTree(Files.readString(directory.resolve("results.json"))));
+            }
             for (String name : List.of("manifest.json", "metrics.json", "retrieval-results.jsonl", "report.md")) {
                 Path file = directory.resolve(name);
                 if (!file.toRealPath().getParent().equals(directory.toRealPath()) || !Files.isRegularFile(file))

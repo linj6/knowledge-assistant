@@ -41,23 +41,8 @@ public final class FrozenRankingEvaluation {
         return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
     }
 
-    // 对象键递归排序，数组保留顺序；UTF-8 紧凑 JSON，无时间戳，作为指纹输入。
-    private static JsonNode canonical(JsonNode node) {
-        if (node.isObject()) {
-            ObjectNode sorted = JSON.createObjectNode();
-            node.propertyNames().stream().sorted().forEach(k -> sorted.set(k, canonical(node.path(k))));
-            return sorted;
-        }
-        if (node.isArray()) {
-            ArrayNode array = JSON.createArrayNode();
-            for (JsonNode item : node) array.add(canonical(item));
-            return array;
-        }
-        return node;
-    }
-
     static String fingerprint(JsonNode node) throws Exception {
-        return hash(canonical(node).toString().getBytes(StandardCharsets.UTF_8));
+        return com.lnjecit.knowledge.assistant.evaluation.FrozenFingerprint.fingerprint(node);
     }
 
     private static String poolKey(JsonNode p) {

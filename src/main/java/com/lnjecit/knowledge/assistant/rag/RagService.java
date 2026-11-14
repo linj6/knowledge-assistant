@@ -70,8 +70,42 @@ public class RagService {
         }
     }
 
+    /** 评估专用入口：复用同次执行，未到达的阶段保持 null，不补发检索或模型请求。 */
+    public RagExecutionResult executeWithTrace(
+            Long knowledgeBaseId, String question, RetrievalStrategy strategy, RetrievalParameters parameters) {
+        return executeWithTrace(knowledgeBaseId, question, strategy, parameters, result -> {});
+    }
+
+    /** 检索完成后、构建上下文及生成前执行局部校验；普通问答不安装校验。 */
+    public RagExecutionResult executeWithTrace(
+            Long knowledgeBaseId,
+            String question,
+            RetrievalStrategy strategy,
+            RetrievalParameters parameters,
+            java.util.function.Consumer<RetrievalResult> retrievalCheck) {
+        Observation observation = new Observation();
+        observation.retrievalCheck = retrievalCheck;
+        try {
+            RagAnswer answer = execute(knowledgeBaseId, question, strategy, parameters, observation);
+            return new RagExecutionResult(observation.retrieval, observation.context, answer, null);
+        } catch (RuntimeException failure) {
+            // 只记录异常类型，不把供应商异常中的凭据或敏感原文带入评估产物。
+            return new RagExecutionResult(
+                    observation.retrieval,
+                    observation.context,
+                    null,
+                    failure.getClass().getSimpleName());
+        }
+    }
+
+    public record RagExecutionResult(
+            RetrievalResult retrieval, AssembledContext context, RagAnswer answer, String failureType) {}
+
     private static final class Observation {
+        private java.util.function.Consumer<RetrievalResult> retrievalCheck = result -> {};
         private int selectedCount;
+        private RetrievalResult retrieval;
+        private AssembledContext context;
     }
 
     private RagAnswer execute(
@@ -97,6 +131,8 @@ public class RagService {
         RetrievalResult result = timed("RETRIEVAL", () -> retrieval
                 .search(knowledgeBaseId, question, List.of(requested), resolved)
                 .getFirst());
+        observation.retrieval = result;
+        observation.retrievalCheck.accept(result);
         RetrievalDiagnostics diagnostics = result.diagnostics();
         if (diagnostics.status() == RetrievalStatus.EMPTY_RESULT)
             return response(result, RagStatus.INSUFFICIENT_EVIDENCE, null, List.of(), null, null);
@@ -114,6 +150,7 @@ public class RagService {
             logContextFailure(RagError.CONTEXT_BUILD_FAILED, failure);
             return response(result, RagStatus.FAILED, null, List.of(), RagError.CONTEXT_BUILD_FAILED, null);
         }
+        observation.context = context;
         observation.selectedCount = context.selectedCount();
         if (context.selectedCount() == 0)
             return response(result, RagStatus.FAILED, null, List.of(), RagError.CONTEXT_BUDGET_EXCEEDED, null);
