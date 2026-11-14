@@ -31,7 +31,7 @@ class EvaluationServiceTests {
         assertEquals("KB_NOT_PUBLISHED", outcome.errorCode());
         verifyNoInteractions(rag, documents);
         EvaluationController reader = new EvaluationController(root);
-        assertEquals(outcome.runId(), reader.read(outcome.runId()).get("runId"));
+        assertEquals(outcome.runId(), ((AnswerEvaluationRun.Response) reader.read(outcome.runId())).runId());
         assertEquals(1, reader.list().size());
         Files.writeString(root.resolve(outcome.runId()).resolve("results.json"), "{}");
         assertTrue(reader.list().isEmpty());
@@ -123,6 +123,16 @@ class EvaluationServiceTests {
                         "/v1/evaluation/runs/" + outcome.path("runId").asString()))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status()
                         .isOk());
+        tools.jackson.databind.json.JsonMapper mapper =
+                tools.jackson.databind.json.JsonMapper.builder().build();
+        String id = outcome.path("runId").asString();
+        AnswerEvaluationRun.Response typed = (AnswerEvaluationRun.Response) new EvaluationController(root).read(id);
+        assertEquals(
+                mapper.readTree(Files.readString(root.resolve(id).resolve("manifest.json"))),
+                mapper.readTree(mapper.writeValueAsString(typed.manifest())));
+        assertEquals(
+                mapper.readTree(Files.readString(root.resolve(id).resolve("results.json"))),
+                mapper.readTree(mapper.writeValueAsString(typed.results())));
         verify(retrieval, times(1)).search(any(), any(), any(), any());
         org.mockito.ArgumentCaptor<com.lnjecit.knowledge.assistant.rag.context.AssembledContext> context =
                 org.mockito.ArgumentCaptor.forClass(com.lnjecit.knowledge.assistant.rag.context.AssembledContext.class);

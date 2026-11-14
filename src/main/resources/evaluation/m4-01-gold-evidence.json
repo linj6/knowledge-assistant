@@ -1,0 +1,252 @@
+[
+  {
+    "questionId": "Q01",
+    "documentPath": "../backend-interview-lab/spring/notes/04-transaction-boundaries-and-propagation.md",
+    "sha256": "5441d647f5eee2e17870e9be1ff5bca8add8322ed7a2ba7dbe88219caafe85f9",
+    "question": "提交异常一定证明已回滚吗？",
+    "expectedAnswerPoints": [
+      "提交异常不一定证明已回滚；目标方法正常返回不保证事务成功提交；提交期间连接故障需核实数据库最终状态"
+    ],
+    "goldEvidence": [
+      {
+        "span": {
+          "start": 741,
+          "end": 836
+        },
+        "text": "“目标正常返回”不代表“事务成功提交”。rollbackOnly、提交阶段错误等都可能使代理最终失败。若提交期间连接故障，数据库最终状态甚至可能需要核实，不能绝对说所有提交异常都证明已回滚。"
+      }
+    ],
+    "annotation": "审计者依据原文选择必要段落/完整代码；范围为零基码点左闭右开，不绑定Chunk；不连续区间分别标注。"
+  },
+  {
+    "questionId": "Q02",
+    "documentPath": "../backend-interview-lab/spring/notes/04-transaction-boundaries-and-propagation.md",
+    "sha256": "5441d647f5eee2e17870e9be1ff5bca8add8322ed7a2ba7dbe88219caafe85f9",
+    "question": "默认回滚规则与吞异常的影响？",
+    "expectedAnswerPoints": [
+      "RuntimeException 和 Error 默认回滚，受检异常默认不触发回滚；目标方法内部捕获异常并正常返回、异常未到达对应事务代理时，仅增加 rollbackFor 无法让该代理感知此异常"
+    ],
+    "goldEvidence": [
+      {
+        "span": {
+          "start": 992,
+          "end": 1188
+        },
+        "text": "默认规则对 RuntimeException 和 Error 回滚，检查异常默认不触发回滚。rollbackFor=IOException.class 明确改变规则。目标内部把异常吞掉、正常返回时，该异常没有到达代理；仅增加 rollbackFor 无法让代理感知它。Controller 的 catch 在 Service 代理外，代理已处理完相应事务后才捕获，不会撤销已完成的回滚或提交。"
+      }
+    ],
+    "annotation": "审计者依据原文选择必要段落/完整代码；范围为零基码点左闭右开，不绑定Chunk；不连续区间分别标注。"
+  },
+  {
+    "questionId": "Q03",
+    "documentPath": "../backend-interview-lab/mysql/notes/01-index-and-sql.md",
+    "sha256": "4fc99c7f82c01fa0c24503815e0353771ad736ef3e4979b2fbe530e8fd2407eb",
+    "question": "建表实验的列与索引是什么？",
+    "expectedAnswerPoints": [
+      "id 为 BIGINT 主键；user_id/status/created_at/amount 非空，amount 为 DECIMAL(10,2)",
+      "两个联合索引分别为 (user_id,created_at,status) 与 (user_id,status,created_at)，InnoDB"
+    ],
+    "goldEvidence": [
+      {
+        "span": {
+          "start": 770,
+          "end": 1089
+        },
+        "text": "```sql\r\nCREATE TABLE order_lab (\r\n  id BIGINT PRIMARY KEY,\r\n  user_id BIGINT NOT NULL,\r\n  status TINYINT NOT NULL,\r\n  created_at DATETIME NOT NULL,\r\n  amount DECIMAL(10,2) NOT NULL,\r\n  KEY idx_user_time_status(user_id, created_at, status),\r\n  KEY idx_user_status_time(user_id, status, created_at)\r\n) ENGINE=InnoDB;\r\n```"
+      }
+    ],
+    "annotation": "审计者依据原文选择必要段落/完整代码；范围为零基码点左闭右开，不绑定Chunk；不连续区间分别标注。"
+  },
+  {
+    "questionId": "Q04",
+    "documentPath": "../backend-interview-lab/rabbitmq/labs/06-prefetch-throughput/evidence/results.md",
+    "sha256": "3024ef3ff721d3b8083cbca62299d57067ca08b001200c574b85a59a54dfbe94",
+    "question": "预取实验观察是否足以证明性能提升？",
+    "expectedAnswerPoints": [
+      "两组参数的 Unacked 和活跃数；没有性能对照，耗时不当性能结果"
+    ],
+    "goldEvidence": [
+      {
+        "span": {
+          "start": 255,
+          "end": 732
+        },
+        "text": "- 单测：5项发布Confirm/Return/NACK/超时/连接异常、4项处理顺序/指标/异常不ACK/延时边界、3项H2事务幂等/冲突/回滚；H2不充当MySQL实测证据。\r\n- 真实MySQL+RabbitMQ+Management：参数(1,1)对应RunId `it-376f1145-b134-4c8e-8bcb-3f2ec575ce75`；参数(4,2)对应 `it-3fd83d27-ce00-4306-8de7-8d801a97ab60`。每组24条独立事件，初始Ready=24，处理门闩暂停时Unacked分别为1、8，活跃处理数分别1、2，实际消费者数匹配配置；停止后Unacked=0且Ready>0，再启动最终Ready/Unacked=0，唯一事件24条、积分总和600。以上均由测试断言确认，不依据“启动成功”。\r\n- 恢复过程为逻辑停止监听容器、关闭投递通道后重入队，没有OS kill或网络分区。\r\n- 独立项目bil-rabbitmq-lab06，13321/5678/15678；Volume及测试数据全部保留。"
+      },
+      {
+        "span": {
+          "start": 1052,
+          "end": 1305
+        },
+        "text": "`Measure-Backlog.ps1`已做PowerShell语法检查，尚未运行人工性能对照采样；没有报告未经测量的吞吐率/延迟分位数。IT日志中的小样本耗时不作为性能结果。meanHandlerToAckMs是成功ACK回调的平均处理耗时，包含采样前日志开销；不含队列等待，不是端到端延迟。\r\nIDEA点击启动、人工Management观察、大量消息/资源饱和、真实进程崩溃、网络故障均待未来执行。入口见README和Measure-Backlog.ps1。本轮无提交/推送，无删除Volume。\r\n"
+      }
+    ],
+    "annotation": "审计者依据原文选择必要段落/完整代码；范围为零基码点左闭右开，不绑定Chunk；不连续区间分别标注。"
+  },
+  {
+    "questionId": "Q05",
+    "documentPath": "../ai-application-lab/03-llm-api-function-calling-spring-ai/notes/05-spring-ai-model-client-and-tools.md",
+    "sha256": "e6c8a44e338836c0dd30f544890d3528cbe7ebda795c3ac3ce9d3b298d2f1010",
+    "question": "专题使用哪些 Spring Boot、Spring AI 版本？通过什么接口调用哪一系列模型？",
+    "expectedAnswerPoints": [
+      "Spring Boot 3.5.15、Spring AI 1.1.8；通过百炼兼容接口调用 Qwen 系列模型；OpenAiChatModel 类名不代表使用 OpenAI 模型供应商"
+    ],
+    "goldEvidence": [
+      {
+        "span": {
+          "start": 47,
+          "end": 204
+        },
+        "text": "本专题工程锁定 Java 17+、Spring Boot 3.5.15、Spring AI 1.1.8，以 OpenAiChatModel 连接百炼兼容接口。远程模型为 Qwen；类名含 OpenAi 不代表使用 OpenAI 的模型服务。工程手工声明相关 Bean，不把手工组装解释成 Starter 自动配置。"
+      }
+    ],
+    "annotation": "审计者依据原文选择必要段落/完整代码；范围为零基码点左闭右开，不绑定Chunk；不连续区间分别标注。"
+  },
+  {
+    "questionId": "Q06",
+    "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/notes/04-chunking-and-context.md",
+    "sha256": "92dbbea63d4a8ecc88b7dab563198ab02cc76b912a1e7a2f56ea582b235d3bf7",
+    "question": "两种切分块数相同是否说明质量相同？",
+    "expectedAnswerPoints": [
+      "都四块但固定切词和定义，不说明质量相同"
+    ],
+    "goldEvidence": [
+      {
+        "span": {
+          "start": 1042,
+          "end": 1209
+        },
+        "text": "自编 RabbitMQ 教学样本包含 Publisher Confirm、Consumer ACK、消费失败重试。固定最多 100 个 Java 字符单位、无重叠的切分得到 4 块；它把“关联”和“重试流程”等词从中间断开，也把 ACK 标题与部分定义放到前块。这样的问题不是字数 100 的“数学错误”，而是边界没有尊重句子与概念。"
+      },
+      {
+        "span": {
+          "start": 1213,
+          "end": 1344
+        },
+        "text": "按 Markdown 二级标题切、超长小节先按段落拆，也得到 4 块：S1 是 Confirm 定义（74 字符），S2 是超时与重试（47），S3 是 ACK 及“前一种确认”的结论（88），S4 是消费失败重试（89）。两种策略块数相同，不代表检索质量相同。"
+      }
+    ],
+    "annotation": "审计者依据原文选择必要段落/完整代码；范围为零基码点左闭右开，不绑定Chunk；不连续区间分别标注。"
+  },
+  {
+    "questionId": "Q07",
+    "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/notes/04-chunking-and-context.md",
+    "sha256": "92dbbea63d4a8ecc88b7dab563198ab02cc76b912a1e7a2f56ea582b235d3bf7",
+    "question": "补相邻块能保证 Confirm/ACK 证据完整吗？",
+    "expectedAnswerPoints": [
+      "S3加S2仍缺S1定义"
+    ],
+    "goldEvidence": [
+      {
+        "span": {
+          "start": 1348,
+          "end": 1568
+        },
+        "text": "模拟命中 S3 时，用户要问“生产者收到 Confirm，能否认为消费者已处理完成？”S3 提到“前一种确认”，但定义在 Publisher Confirm 小节。按邻近顺序只补 S2，正文从 88 到 135 字符，仍缺关键定义 S1；再补 S1 达到 209，才补齐两种确认的关系。直接挑 S1 与 S3 的必要正文则是 162 字符。**补相邻块是一种候选方法，不是总能补齐证据的规则。**标题路径能帮助定位，但不会凭空补出正文条件。"
+      }
+    ],
+    "annotation": "审计者依据原文选择必要段落/完整代码；范围为零基码点左闭右开，不绑定Chunk；不连续区间分别标注。"
+  },
+  {
+    "questionId": "Q08",
+    "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/labs/04-hybrid-retrieval/README.md",
+    "sha256": "6b8efd01cc0056f786efffd604d547a1a35f5bea27d0a24bf6b8b5ea514869f8",
+    "question": "RRF 如何计算和处理重复 ID？",
+    "expectedAnswerPoints": [
+      "RRF 对各路倒数排名贡献 1/(k+rank) 求和，rank 从 1 开始，实验默认 k=60；单路重复 ID 只取首次命中，去重后赋连续排名；跨路同 ID 累加贡献，不相加不同尺度的原始分数"
+    ],
+    "goldEvidence": [
+      {
+        "span": {
+          "start": 6094,
+          "end": 6262
+        },
+        "text": "RRF 为 `Σ 1/(rankConstant + rank)`，rank 从 1 开始，默认 constant=60。未命中贡献 0；单路重复 ID 只使用首次命中，去重后赋连续排名；双路同 ID 累加，不把不同尺度的原始分数相加。JSON 分开保存余弦、BM25 和 RRF 分数；融合行同时记录两路排名。没有任一路结果也可运行。"
+      }
+    ],
+    "annotation": "审计者依据原文选择必要段落/完整代码；范围为零基码点左闭右开，不绑定Chunk；不连续区间分别标注。"
+  },
+  {
+    "questionId": "Q09",
+    "documentPath": "../backend-interview-lab/rabbitmq/notes/05-ordered-messages.md",
+    "sha256": "f89e2640255d383daa734939d5113f06dc39827f1073d32f1eb70afa995d865e",
+    "question": "单队列消费端保序需要哪些配置？前序消息失败时如何处理？",
+    "expectedAnswerPoints": [
+      "单队列消费端使用 SAC、prefetch=1、manual ACK，同步调用独立事务 Service，事务成功提交后 ACK；前序消息失败时阻止依赖它的后续事件先完成业务，不能移走失败消息后直接放行依赖事件"
+    ],
+    "goldEvidence": [
+      {
+        "span": {
+          "start": 1225,
+          "end": 1311
+        },
+        "text": "使用单队列、Single Active Consumer（SAC）、prefetch=1、manual ACK、同步调用独立的事务 Service，事务成功提交后 ACK。"
+      },
+      {
+        "span": {
+          "start": 1686,
+          "end": 1755
+        },
+        "text": "前序消息失败时，必须阻止依赖它的后续事件先完成业务。可以暂停分区并受控恢复，不能将失败消息移走后仍宣称严格保序。缺点是吞吐受限、队头阻塞。"
+      }
+    ],
+    "annotation": "审计者依据原文选择必要段落/完整代码；范围为零基码点左闭右开，不绑定Chunk；不连续区间分别标注。"
+  },
+  {
+    "questionId": "Q10",
+    "documentPath": "../backend-interview-lab/rabbitmq/notes/05-ordered-messages.md",
+    "sha256": "f89e2640255d383daa734939d5113f06dc39827f1073d32f1eb70afa995d865e",
+    "question": "分区扩容为何不能直接改变取模参数？",
+    "expectedAnswerPoints": [
+      "旧新事件进不同队列可能并行提交，需稳定映射或屏障"
+    ],
+    "goldEvidence": [
+      {
+        "span": {
+          "start": 2321,
+          "end": 2471
+        },
+        "text": "**扩容陷阱**：orderId=5，旧规则 5%4=1，新规则 5%8=5。E1 仍在 Queue-1，新事件 E2 却进入 Queue-5，两队列并行消费，E2 可能先提交。不能直接改取模规则。可采用稳定分区映射、停止发布并排空旧分区、有序迁移屏障或带版本路由。分区失败还可能阻塞同分区其他订单。"
+      }
+    ],
+    "annotation": "审计者依据原文选择必要段落/完整代码；范围为零基码点左闭右开，不绑定Chunk；不连续区间分别标注。"
+  },
+  {
+    "questionId": "Q11",
+    "documentPath": "../backend-interview-lab/juc/notes/06-completable-future.md",
+    "sha256": "a1809b5bc01ca6831d8e41f2c35c502cad49b4f854e7b8968216ef37ba35da53",
+    "question": "supplyAsync 与 join 何时提交和等待？",
+    "expectedAnswerPoints": [
+      "supplyAsync 调用时提交任务，提交不代表立即执行或一定并行；join 在 Future 尚未完成时使调用线程等待"
+    ],
+    "goldEvidence": [
+      {
+        "span": {
+          "start": 470,
+          "end": 642
+        },
+        "text": "这是业务类型片段；完整可运行版本是 [实验 3](../labs/03-completable-future/CompletableFutureLab.java)。两个任务在调用 supplyAsync 时就提交，不是 join 时启动；有两个空闲线程时可以并行。调用者最后 join 仍会占用调用线程等待，不等于整个 HTTP 链路已非阻塞。"
+      }
+    ],
+    "annotation": "审计者依据原文选择必要段落/完整代码；范围为零基码点左闭右开，不绑定Chunk；不连续区间分别标注。"
+  },
+  {
+    "questionId": "Q12",
+    "documentPath": "../backend-interview-lab/juc/notes/06-completable-future.md",
+    "sha256": "a1809b5bc01ca6831d8e41f2c35c502cad49b4f854e7b8968216ef37ba35da53",
+    "question": "orTimeout 会终止底层查询吗？",
+    "expectedAnswerPoints": [
+      "只改变Future完成状态；不会自动中断查询或保证停止计算"
+    ],
+    "goldEvidence": [
+      {
+        "span": {
+          "start": 4640,
+          "end": 4800
+        },
+        "text": "orTimeout 在 Java 9+ 可用，使这个 Future 超时异常完成；不是创建一个 HTTP 读取超时，也不是自动中断底层查询。completeOnTimeout 用默认值完成也一样不保证停止实际计算。CompletableFuture.cancel(true) 的 true 不提供停止底层计算的中断保证。"
+      }
+    ],
+    "annotation": "审计者依据原文选择必要段落/完整代码；范围为零基码点左闭右开，不绑定Chunk；不连续区间分别标注。"
+  }
+]

@@ -9,28 +9,29 @@ import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStrategy;
 import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedDocument;
 import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshot;
 import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshotService;
-import java.nio.file.*;
-import java.security.MessageDigest;
+import java.nio.file.Path;
 import java.time.Instant;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
-import tools.jackson.databind.json.JsonMapper;
 
 /** 本地单题评估编排；不计算质量分数。 */
 @Service
 @ConditionalOnProperty(name = "app.evaluation.enabled", havingValue = "true")
 public class EvaluationService {
-    private static final Path GOLD = Path.of("src/test/resources/answer-evaluation-v1.json");
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(EvaluationService.class);
+
     private final RagService rag;
     private final PublishedVersionSnapshotService snapshots;
     private final DocumentMapper documents;
     private final Environment environment;
-    private final JsonMapper json = JsonMapper.builder().build();
-    private final Path root;
+    private final EvaluationRunStore store;
 
     @org.springframework.beans.factory.annotation.Autowired
     public EvaluationService(
@@ -38,7 +39,7 @@ public class EvaluationService {
             PublishedVersionSnapshotService snapshots,
             DocumentMapper documents,
             Environment environment) {
-        this(rag, snapshots, documents, environment, Path.of("data/evaluation"));
+        this(rag, snapshots, documents, environment, EvaluationFiles.ROOT);
     }
 
     EvaluationService(
@@ -51,7 +52,7 @@ public class EvaluationService {
         this.snapshots = snapshots;
         this.documents = documents;
         this.environment = environment;
-        this.root = root;
+        this.store = new EvaluationRunStore(root);
     }
 
     public record Source(String documentPath, String sourceSha256) {}
@@ -70,38 +71,21 @@ public class EvaluationService {
 
     public record Outcome(String runId, String status, String errorCode) {}
 
-    private Dataset dataset() throws Exception {
-        return json.readerFor(Dataset.class)
-                .without(tools.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                .readValue(Files.readString(GOLD));
-    }
+    private final EvaluationDatasetLoader loader = new EvaluationDatasetLoader();
 
-    public Object datasets() throws Exception {
-        return Map.of("dataset", dataset(), "sha256", hash(GOLD));
+    public EvaluationDatasetLoader.Description datasets() throws Exception {
+        return loader.describe();
     }
 
     public Outcome run(Request request) throws Exception {
-        if (!"answer-evaluation-v1".equals(request.dataset())
+        if (!EvaluationFiles.ANSWER_PROTOCOL.equals(request.dataset())
                 || request.knowledgeBaseId() == null
                 || request.knowledgeBaseId() <= 0)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST");
-        String fingerprint = FrozenFingerprint.answer(json.readTree(Files.readString(GOLD)));
-        if (!"57c202a788d20e86a2ed166776c77dab6e66bed8b4ae08a1a925806458a5dbca".equals(fingerprint)) {
-            return new Outcome(null, "NOT_READY", "GOLD_FINGERPRINT_MISMATCH");
-        }
-        tools.jackson.databind.JsonNode frozen = json.readTree(Files.readString(GOLD));
-        if (!fingerprint.equals(frozen.path("freezeFingerprint").asString())
-                || frozen.path("datasetVersion").asInt() != 1)
-            return new Outcome(null, "NOT_READY", "GOLD_IDENTITY_MISMATCH");
-        for (tools.jackson.databind.JsonNode item : frozen.path("cases")) {
-            if (!"CONFIRMED".equals(item.path("reviewStatus").asString()))
-                return new Outcome(null, "NOT_READY", "GOLD_UNCONFIRMED");
-            for (String key : List.of("requiredFacts", "optionalFacts"))
-                for (tools.jackson.databind.JsonNode fact : item.path(key))
-                    if (!"CONFIRMED".equals(fact.path("reviewStatus").asString()))
-                        return new Outcome(null, "NOT_READY", "GOLD_UNCONFIRMED");
-        }
-        Dataset dataset = dataset();
+        EvaluationDatasetLoader.Loaded loaded = loader.load();
+        if (loaded.error() != null) return new Outcome(null, RunStatus.NOT_READY.name(), loaded.error());
+        String fingerprint = loaded.fingerprint();
+        Dataset dataset = loaded.dataset();
         GoldCase selected = dataset.cases().stream()
                 .filter(c -> c.caseId().equals(request.caseId()))
                 .findFirst()
@@ -110,58 +94,25 @@ public class EvaluationService {
                 request.retrievalStrategy() == null ? RetrievalStrategy.BM25 : request.retrievalStrategy();
         RetrievalParameters parameters =
                 request.parameters() == null ? RetrievalParameters.defaults() : request.parameters();
-        parameters.validate(strategy);
+        try {
+            parameters.validate(strategy);
+        } catch (IllegalArgumentException invalid) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "INVALID_RETRIEVAL_PARAMETERS");
+        }
         String runId = UUID.randomUUID().toString();
-        String status = "NOT_READY";
+        String status = RunStatus.NOT_READY.name();
         String error = null;
         PublishedVersionSnapshot snapshot = null;
         RagService.RagExecutionResult trace = null;
         try {
-            if (!"answer-evaluation-v1".equals(dataset.protocol())
-                    || !"FROZEN".equals(dataset.freezeStatus())
-                    || dataset.schemaVersion() != 1) throw new IllegalStateException("GOLD_NOT_FROZEN");
-            // 原文字节和发布版本均需匹配；只凭 KB ID 或文件名不能确认适用性。
-            snapshot = snapshots.read(request.knowledgeBaseId());
-            if (snapshot.documents().isEmpty()) throw new IllegalStateException("KB_NOT_PUBLISHED");
-            for (Source source : selected.sources()) {
-                if (!hash(Path.of(source.documentPath())).equals(source.sourceSha256()))
-                    throw new IllegalStateException("SOURCE_HASH_MISMATCH");
-                boolean matched = false;
-                for (PublishedDocument published : snapshot.documents()) {
-                    Document document = documents.selectById(published.documentId());
-                    if (document != null
-                            && Objects.equals(document.getKnowledgeBaseId(), request.knowledgeBaseId())
-                            && Objects.equals(document.getActiveVersionId(), published.indexVersionId())
-                            && source.sourceSha256().equals(document.getContentHash())) matched = true;
-                }
-                if (!matched) throw new IllegalStateException("PUBLISHED_SOURCE_MISMATCH");
-            }
-            if (!request.authorizeModelCost()
-                    || !environment.getProperty("assistant.model.enabled", Boolean.class, false)
-                    || !environment.getProperty("assistant.model.online-authorized", Boolean.class, false))
-                throw new IllegalStateException("MODEL_COST_NOT_AUTHORIZED");
-            com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties model =
-                    org.springframework.boot.context.properties.bind.Binder.get(environment)
-                            .bind(
-                                    "assistant.model",
-                                    com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties.class)
-                            .orElseThrow(() -> new IllegalStateException("MODEL_CONFIGURATION_INVALID"));
-            try {
-                com.lnjecit.knowledge.assistant.infrastructure.ai.ModelConfiguration.validateChat(model);
-                if (strategy != RetrievalStrategy.BM25)
-                    com.lnjecit.knowledge.assistant.infrastructure.ai.ModelConfiguration.validateEmbedding(model);
-            } catch (RuntimeException invalid) {
-                throw new IllegalStateException("MODEL_CONFIGURATION_INVALID");
-            }
-            // 暂不允许独立 rerank 供应商费用绕过单模型授权。
-            if (strategy == RetrievalStrategy.HYBRID_RERANK) throw new IllegalStateException("RERANK_NOT_SUPPORTED");
+            snapshot = precheck(request, selected, strategy);
             String expectedSnapshot = snapshot.snapshotHash();
             trace = rag.executeWithTrace(
                     request.knowledgeBaseId(), selected.question(), strategy, parameters, result -> {
                         if (!expectedSnapshot.equals(result.diagnostics().snapshotHash()))
-                            throw new IllegalStateException("EXECUTION_SNAPSHOT_MISMATCH");
+                            throw new PrecheckRejected("EXECUTION_SNAPSHOT_MISMATCH");
                     });
-            status = "FAILED";
+            status = RunStatus.FAILED.name();
             if (trace.retrieval() == null
                     || !snapshot.snapshotHash()
                             .equals(trace.retrieval().diagnostics().snapshotHash()))
@@ -169,65 +120,106 @@ public class EvaluationService {
             else if (trace.failureType() != null
                     || trace.answer() == null
                     || trace.answer().status() == RagStatus.FAILED) error = "RAG_EXECUTION_FAILED";
-            else status = "COMPLETED";
-        } catch (Exception failure) {
+            else status = RunStatus.COMPLETED.name();
+        } catch (PrecheckRejected rejected) {
+            error = rejected.code;
+        } catch (com.lnjecit.knowledge.assistant.common.error.BusinessException failure) {
+            error = "KB_NOT_AVAILABLE";
+        } catch (com.lnjecit.knowledge.assistant.retrieval.snapshot.SnapshotInvalidException failure) {
+            error = "PUBLISHED_SNAPSHOT_INVALID";
+        } catch (java.io.IOException failure) {
+            error = "SOURCE_UNAVAILABLE";
+        } catch (RuntimeException failure) {
+            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
+                    log, "EVALUATION_PRECHECK errorCode=PRECHECK_UNAVAILABLE", failure);
             error = "PRECHECK_UNAVAILABLE";
-            if (failure instanceof IllegalStateException
-                    && Set.of(
-                                    "GOLD_NOT_FROZEN",
-                                    "KB_NOT_PUBLISHED",
-                                    "SOURCE_HASH_MISMATCH",
-                                    "PUBLISHED_SOURCE_MISMATCH",
-                                    "MODEL_COST_NOT_AUTHORIZED",
-                                    "MODEL_CONFIGURATION_INVALID",
-                                    "RERANK_NOT_SUPPORTED")
-                            .contains(failure.getMessage())) error = failure.getMessage();
         }
-        // 临时目录不符合 Run ID 白名单，完整写入后在同一文件系统原子发布。
-        Files.createDirectories(root);
-        Path temporary = Files.createTempDirectory(root, ".pending-");
-        Map<String, Object> results = new LinkedHashMap<>();
-        results.put("case", selected);
-        results.put("execution", trace);
-        Files.writeString(temporary.resolve("results.json"), json.writeValueAsString(results));
-        Files.writeString(
-                temporary.resolve("report.md"),
-                "# Evaluation Run\n\n" + status + "\n\nNo quality scores were calculated.\n");
-        Map<String, Object> manifest = new LinkedHashMap<>();
-        manifest.put("runnerVersion", "m4-d03-answer-v1");
-        manifest.put("schemaVersion", 1);
-        manifest.put("runId", runId);
-        manifest.put("createdAt", Instant.now().toString());
-        manifest.put("dataset", request.dataset());
-        manifest.put("datasetSha256", fingerprint);
-        manifest.put("configuredChatModel", environment.getProperty("assistant.model.chat-model"));
-        manifest.put(
-                "configuredEmbeddingModel",
-                strategy == RetrievalStrategy.BM25 ? null : environment.getProperty("assistant.model.embedding-model"));
-        manifest.put(
-                "stage",
-                trace == null
-                        ? "PRECHECK"
-                        : trace.context() == null
-                                ? "RETRIEVAL"
-                                : trace.answer() == null ? "GENERATION" : "ANSWER_RESULT");
-        manifest.put("snapshot", snapshot);
-        manifest.put("request", request);
-        manifest.put("status", status);
-        manifest.put("errorCode", error);
-        manifest.put(
-                "artifactSha256",
-                Map.of(
-                        "results.json",
-                        hash(temporary.resolve("results.json")),
-                        "report.md",
-                        hash(temporary.resolve("report.md"))));
-        Files.writeString(temporary.resolve("manifest.json"), json.writeValueAsString(manifest));
-        Files.move(temporary, root.resolve(runId), StandardCopyOption.ATOMIC_MOVE);
+        save(runId, request, selected, strategy, fingerprint, snapshot, trace, status, error);
         return new Outcome(runId, status, error);
     }
 
-    static String hash(Path path) throws Exception {
-        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(path)));
+    private void save(
+            String runId,
+            Request request,
+            GoldCase selected,
+            RetrievalStrategy strategy,
+            String fingerprint,
+            PublishedVersionSnapshot snapshot,
+            RagService.RagExecutionResult trace,
+            String status,
+            String error) {
+        AnswerEvaluationRun.Results results = new AnswerEvaluationRun.Results(selected, trace);
+        String stage = trace == null
+                ? "PRECHECK"
+                : trace.context() == null ? "RETRIEVAL" : trace.answer() == null ? "GENERATION" : "ANSWER_RESULT";
+        AnswerEvaluationRun.Manifest manifest = new AnswerEvaluationRun.Manifest(
+                EvaluationFiles.RUN_PROTOCOL,
+                1,
+                runId,
+                Instant.now().toString(),
+                request.dataset(),
+                fingerprint,
+                environment.getProperty("assistant.model.chat-model"),
+                strategy == RetrievalStrategy.BM25 ? null : environment.getProperty("assistant.model.embedding-model"),
+                stage,
+                snapshot,
+                request,
+                RunStatus.valueOf(status),
+                error,
+                Map.of());
+        store.save(manifest, results);
+    }
+
+    /** 发布身份、来源字节和费用授权全部通过后才允许进入执行链。 */
+    private PublishedVersionSnapshot precheck(Request request, GoldCase selected, RetrievalStrategy strategy)
+            throws java.io.IOException {
+        // 原文字节和发布版本均需匹配；只凭 KB ID 或文件名不能确认适用性。
+        PublishedVersionSnapshot snapshot = snapshots.read(request.knowledgeBaseId());
+        if (snapshot.documents().isEmpty()) throw new PrecheckRejected("KB_NOT_PUBLISHED");
+        for (Source source : selected.sources()) {
+            if (!hash(Path.of(source.documentPath())).equals(source.sourceSha256()))
+                throw new PrecheckRejected("SOURCE_HASH_MISMATCH");
+            boolean matched = false;
+            for (PublishedDocument published : snapshot.documents()) {
+                Document document = documents.selectById(published.documentId());
+                if (document != null
+                        && Objects.equals(document.getKnowledgeBaseId(), request.knowledgeBaseId())
+                        && Objects.equals(document.getActiveVersionId(), published.indexVersionId())
+                        && source.sourceSha256().equals(document.getContentHash())) matched = true;
+            }
+            if (!matched) throw new PrecheckRejected("PUBLISHED_SOURCE_MISMATCH");
+        }
+        if (!request.authorizeModelCost()
+                || !environment.getProperty("assistant.model.enabled", Boolean.class, false)
+                || !environment.getProperty("assistant.model.online-authorized", Boolean.class, false))
+            throw new PrecheckRejected("MODEL_COST_NOT_AUTHORIZED");
+        com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties model =
+                org.springframework.boot.context.properties.bind.Binder.get(environment)
+                        .bind(
+                                "assistant.model",
+                                com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties.class)
+                        .orElseThrow(() -> new PrecheckRejected("MODEL_CONFIGURATION_INVALID"));
+        try {
+            com.lnjecit.knowledge.assistant.infrastructure.ai.ModelConfiguration.validateChat(model);
+            if (strategy != RetrievalStrategy.BM25)
+                com.lnjecit.knowledge.assistant.infrastructure.ai.ModelConfiguration.validateEmbedding(model);
+        } catch (RuntimeException invalid) {
+            throw new PrecheckRejected("MODEL_CONFIGURATION_INVALID");
+        }
+        // 暂不允许独立 rerank 供应商费用绕过单模型授权。
+        if (strategy == RetrievalStrategy.HYBRID_RERANK) throw new PrecheckRejected("RERANK_NOT_SUPPORTED");
+        return snapshot;
+    }
+
+    private static final class PrecheckRejected extends RuntimeException {
+        private final String code;
+
+        private PrecheckRejected(String code) {
+            this.code = code;
+        }
+    }
+
+    static String hash(Path path) throws java.io.IOException {
+        return Sha256.file(path);
     }
 }

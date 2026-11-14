@@ -32,8 +32,6 @@ public final class FrozenFingerprint {
     }
 
     public static String fingerprint(JsonNode node) throws Exception {
-        return java.util.HexFormat.of()
-                .formatHex(java.security.MessageDigest.getInstance("SHA-256")
-                        .digest(canonical(node).toString().getBytes(StandardCharsets.UTF_8)));
+        return Sha256.digest(canonical(node).toString().getBytes(StandardCharsets.UTF_8));
     }
 }

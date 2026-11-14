@@ -3,8 +3,6 @@ package com.lnjecit.knowledge.assistant.evaluation.metrics;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
@@ -15,7 +13,8 @@ class AnswerMetricsTests {
     private final JsonMapper json = JsonMapper.builder().build();
 
     private JsonNode dataset() throws Exception {
-        return json.readTree(Files.readString(Path.of("src/test/resources/answer-evaluation-v1.json")));
+        return json.readTree(new org.springframework.core.io.ClassPathResource("evaluation/answer-evaluation-v1.json")
+                .getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     private ObjectNode review(JsonNode d, int index) {

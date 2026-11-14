@@ -14,7 +14,7 @@ public class EvaluationRunController {
     }
 
     @GetMapping("/datasets")
-    public Object datasets() throws Exception {
+    public EvaluationDatasetLoader.Description datasets() throws Exception {
         return service.datasets();
     }
 
