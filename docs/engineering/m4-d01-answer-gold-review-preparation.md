@@ -169,3 +169,10 @@ U03 已重新检查八篇完整正文：固定100字符、四块和具体示例�
 拒答引用争议已按本轮用户意见解决：ANSWERED 必须合法非空引用；INSUFFICIENT_EVIDENCE 无引用、Citation Semantic Support=N/A，说明仍评价事实准确性与合理性；FAILED 不是拒答。整例需所有适用维度通过。生产协议不变。
 
 当前为12可答、4不可答候选，45 REQUIRED + 1 OPTIONAL，共46条 Fact。所有 case/Fact 继续 PENDING_REVIEW，freezeStatus=PROPOSED。Q01-F02、Q05-F04 的 OPTIONAL 建议及 Q11-F02 调度概括等首轮其他争议未在本轮扩大采用，仍待人工裁定。READY FOR D01 FINAL HUMAN APPROVAL：是，不代表已冻结或获准 D02。
+
+
+## 最终裁决归档
+
+用户在本次 ChatGPT 会话明确整体批准16 Cases、45 REQUIRED及1 OPTIONAL、当前协议，并指定修订 Q11-F02 为“两个任务通过执行器调度，有两个空闲线程时可以并行；提交任务不保证一定并行执行。”其余事实、题目、拒答边界及角色不变。此前建议仅为历史，不表示用户曾逐条独立审阅。
+
+2026-11-14T08:34:36Z，reviewer=USER；datasetVersion=1，FROZEN，全部 Case/Fact CONFIRMED。指纹 `57c202a788d20e86a2ed166776c77dab6e66bed8b4ae08a1a925806458a5dbca`。当前无剩余待审 Gold 标签；历史争议由本轮整体批准裁决。模型输出和引用支持尚未评估；READY FOR M4-D02，不在本轮实施。

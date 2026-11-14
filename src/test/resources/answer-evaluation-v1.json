@@ -1,7 +1,7 @@
 {
   "protocol": "answer-evaluation-v1",
   "schemaVersion": 1,
-  "freezeStatus": "PROPOSED",
+  "freezeStatus": "FROZEN",
   "baseline": "b2c126faf3d345bc715e2ae66fd0971538864e26",
   "sourceScope": "仅限既有 M4-01 Gold 对应的 8 篇原文字节；不是当前停车业务 LIVE KB。U 标签是此快照内待确认的材料不足判断，不是全库不存在性证明。",
   "sourceEvidenceIndexConvention": "零基索引，指向 docs/engineering/m4-01-gold-evidence.json 同题 goldEvidence；U basis 为核验完整原文后的依据。",
@@ -10,7 +10,7 @@
       "caseId": "Q01",
       "question": "提交异常一定证明已回滚吗？",
       "knowledgeAnswerable": true,
-      "reviewStatus": "PENDING_REVIEW",
+      "reviewStatus": "CONFIRMED",
       "sources": [
         {
           "documentPath": "../backend-interview-lab/spring/notes/04-transaction-boundaries-and-propagation.md",
@@ -31,7 +31,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q01-F02",
@@ -46,7 +46,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q01-F03",
@@ -61,7 +61,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         }
       ]
     },
@@ -69,7 +69,7 @@
       "caseId": "Q02",
       "question": "默认回滚规则与吞异常的影响？",
       "knowledgeAnswerable": true,
-      "reviewStatus": "PENDING_REVIEW",
+      "reviewStatus": "CONFIRMED",
       "sources": [
         {
           "documentPath": "../backend-interview-lab/spring/notes/04-transaction-boundaries-and-propagation.md",
@@ -90,7 +90,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q02-F02",
@@ -105,7 +105,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q02-F03",
@@ -120,7 +120,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         }
       ]
     },
@@ -128,7 +128,7 @@
       "caseId": "Q03",
       "question": "建表实验的列与索引是什么？",
       "knowledgeAnswerable": true,
-      "reviewStatus": "PENDING_REVIEW",
+      "reviewStatus": "CONFIRMED",
       "sources": [
         {
           "documentPath": "../backend-interview-lab/mysql/notes/01-index-and-sql.md",
@@ -149,7 +149,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW",
+          "reviewStatus": "CONFIRMED",
           "role": "REQUIRED"
         },
         {
@@ -165,7 +165,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW",
+          "reviewStatus": "CONFIRMED",
           "role": "REQUIRED"
         },
         {
@@ -181,7 +181,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW",
+          "reviewStatus": "CONFIRMED",
           "role": "REQUIRED"
         },
         {
@@ -197,7 +197,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW",
+          "reviewStatus": "CONFIRMED",
           "role": "REQUIRED"
         },
         {
@@ -213,7 +213,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW",
+          "reviewStatus": "CONFIRMED",
           "role": "REQUIRED"
         },
         {
@@ -229,7 +229,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW",
+          "reviewStatus": "CONFIRMED",
           "role": "REQUIRED"
         },
         {
@@ -245,7 +245,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW",
+          "reviewStatus": "CONFIRMED",
           "role": "REQUIRED"
         }
       ],
@@ -263,7 +263,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW",
+          "reviewStatus": "CONFIRMED",
           "role": "OPTIONAL"
         }
       ]
@@ -272,7 +272,7 @@
       "caseId": "Q04",
       "question": "预取实验观察是否足以证明性能提升？",
       "knowledgeAnswerable": true,
-      "reviewStatus": "PENDING_REVIEW",
+      "reviewStatus": "CONFIRMED",
       "sources": [
         {
           "documentPath": "../backend-interview-lab/rabbitmq/labs/06-prefetch-throughput/evidence/results.md",
@@ -294,7 +294,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q04-F02",
@@ -310,7 +310,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q04-F03",
@@ -326,7 +326,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q04-F04",
@@ -342,7 +342,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         }
       ]
     },
@@ -350,7 +350,7 @@
       "caseId": "Q05",
       "question": "专题使用哪些 Spring Boot、Spring AI 版本？通过什么接口调用哪一系列模型？",
       "knowledgeAnswerable": true,
-      "reviewStatus": "PENDING_REVIEW",
+      "reviewStatus": "CONFIRMED",
       "sources": [
         {
           "documentPath": "../ai-application-lab/03-llm-api-function-calling-spring-ai/notes/05-spring-ai-model-client-and-tools.md",
@@ -371,7 +371,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q05-F02",
@@ -386,7 +386,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q05-F03",
@@ -401,7 +401,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q05-F04",
@@ -416,7 +416,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         }
       ]
     },
@@ -424,7 +424,7 @@
       "caseId": "Q06",
       "question": "两种切分块数相同是否说明质量相同？",
       "knowledgeAnswerable": true,
-      "reviewStatus": "PENDING_REVIEW",
+      "reviewStatus": "CONFIRMED",
       "sources": [
         {
           "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/notes/04-chunking-and-context.md",
@@ -446,7 +446,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q06-F02",
@@ -462,7 +462,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q06-F03",
@@ -478,7 +478,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         }
       ]
     },
@@ -486,7 +486,7 @@
       "caseId": "Q07",
       "question": "补相邻块能保证 Confirm/ACK 证据完整吗？",
       "knowledgeAnswerable": true,
-      "reviewStatus": "PENDING_REVIEW",
+      "reviewStatus": "CONFIRMED",
       "sources": [
         {
           "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/notes/04-chunking-and-context.md",
@@ -507,7 +507,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q07-F02",
@@ -522,7 +522,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         }
       ]
     },
@@ -530,7 +530,7 @@
       "caseId": "Q08",
       "question": "RRF 如何计算和处理重复 ID？",
       "knowledgeAnswerable": true,
-      "reviewStatus": "PENDING_REVIEW",
+      "reviewStatus": "CONFIRMED",
       "sources": [
         {
           "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/labs/04-hybrid-retrieval/README.md",
@@ -551,7 +551,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q08-F02",
@@ -566,7 +566,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q08-F03",
@@ -581,7 +581,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q08-F04",
@@ -596,7 +596,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q08-F05",
@@ -611,7 +611,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q08-F06",
@@ -626,7 +626,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         }
       ]
     },
@@ -634,7 +634,7 @@
       "caseId": "Q09",
       "question": "单队列消费端保序需要哪些配置？前序消息失败时如何处理？",
       "knowledgeAnswerable": true,
-      "reviewStatus": "PENDING_REVIEW",
+      "reviewStatus": "CONFIRMED",
       "sources": [
         {
           "documentPath": "../backend-interview-lab/rabbitmq/notes/05-ordered-messages.md",
@@ -656,7 +656,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q09-F02",
@@ -672,7 +672,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q09-F03",
@@ -688,7 +688,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q09-F04",
@@ -704,7 +704,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q09-F05",
@@ -720,7 +720,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q09-F06",
@@ -736,7 +736,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         }
       ]
     },
@@ -744,7 +744,7 @@
       "caseId": "Q10",
       "question": "分区扩容为何不能直接改变取模参数？",
       "knowledgeAnswerable": true,
-      "reviewStatus": "PENDING_REVIEW",
+      "reviewStatus": "CONFIRMED",
       "sources": [
         {
           "documentPath": "../backend-interview-lab/rabbitmq/notes/05-ordered-messages.md",
@@ -765,7 +765,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q10-F02",
@@ -780,7 +780,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         }
       ]
     },
@@ -788,7 +788,7 @@
       "caseId": "Q11",
       "question": "supplyAsync 与 join 何时提交和等待？",
       "knowledgeAnswerable": true,
-      "reviewStatus": "PENDING_REVIEW",
+      "reviewStatus": "CONFIRMED",
       "sources": [
         {
           "documentPath": "../backend-interview-lab/juc/notes/06-completable-future.md",
@@ -809,22 +809,31 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q11-F02",
-          "description": "提交不代表立即执行或一定并行",
-          "qualifications": "保持描述中的对象、条件、否定和实验范围；允许等义表达",
+          "description": "两个任务通过执行器调度，有两个空闲线程时可以并行；提交任务不保证一定并行执行。",
+          "qualifications": "保留执行器调度和两个空闲线程时可以并行的条件；可以并行不等于保证并行，不追加立即执行的断言。",
           "sourceRefs": [
             {
               "documentPath": "../backend-interview-lab/juc/notes/06-completable-future.md",
               "sourceSha256": "a1809b5bc01ca6831d8e41f2c35c502cad49b4f854e7b8968216ef37ba35da53",
               "evidenceIndexes": [
                 0
+              ],
+              "supplementalEvidence": [
+                {
+                  "sourceSpan": {
+                    "start": 3810,
+                    "end": 3875
+                  },
+                  "text": "- supplyAsync(..., ioPool)：任务由指定执行器调度；若执行器策略自己在提交者执行，也不能仅凭名字保证隔离。"
+                }
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q11-F03",
@@ -839,7 +848,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         }
       ]
     },
@@ -847,7 +856,7 @@
       "caseId": "Q12",
       "question": "orTimeout 会终止底层查询吗？",
       "knowledgeAnswerable": true,
-      "reviewStatus": "PENDING_REVIEW",
+      "reviewStatus": "CONFIRMED",
       "sources": [
         {
           "documentPath": "../backend-interview-lab/juc/notes/06-completable-future.md",
@@ -868,7 +877,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         },
         {
           "factId": "Q12-F02",
@@ -883,7 +892,7 @@
               ]
             }
           ],
-          "reviewStatus": "PENDING_REVIEW"
+          "reviewStatus": "CONFIRMED"
         }
       ]
     },
@@ -903,7 +912,7 @@
           "basis": "未执行人工性能对照，未报告吞吐率/延迟分位数"
         }
       ],
-      "reviewStatus": "PENDING_REVIEW"
+      "reviewStatus": "CONFIRMED"
     },
     {
       "caseId": "U02",
@@ -921,7 +930,7 @@
           "basis": "原文明示没有 OS kill，真实进程崩溃待执行"
         }
       ],
-      "reviewStatus": "PENDING_REVIEW"
+      "reviewStatus": "CONFIRMED"
     },
     {
       "caseId": "U03",
@@ -944,7 +953,7 @@
           }
         }
       ],
-      "reviewStatus": "PENDING_REVIEW"
+      "reviewStatus": "CONFIRMED"
     },
     {
       "caseId": "U04",
@@ -962,7 +971,60 @@
           "basis": "原文明示命中 S3 是人工模拟，尚未实测 Embedding 排名"
         }
       ],
-      "reviewStatus": "PENDING_REVIEW"
+      "reviewStatus": "CONFIRMED"
     }
-  ]
+  ],
+  "datasetVersion": 1,
+  "confirmation": {
+    "reviewer": "USER",
+    "reviewBasis": "用户在 ChatGPT 中批准 Q11-F02 指定修订，并对其余 D01 候选及评估协议作整体确认；不表示用户逐条独立审阅，Codex 历史建议保留为候选评审历史。",
+    "confirmedAt": "2026-11-14T08:34:36Z"
+  },
+  "provenance": {
+    "candidateAuthor": "CODEX",
+    "historyDocument": "docs/engineering/m4-d01-answer-gold-review-preparation.md",
+    "freezeBaseline": "94af1df18d993f38077f114c015348afb6919306"
+  },
+  "freezeManifest": {
+    "caseCount": 16,
+    "requiredFactCount": 45,
+    "optionalFactCount": 1,
+    "protocolVersion": "answer-evaluation-v1",
+    "sourceHashes": [
+      {
+        "documentPath": "../ai-application-lab/03-llm-api-function-calling-spring-ai/notes/05-spring-ai-model-client-and-tools.md",
+        "sourceSha256": "e6c8a44e338836c0dd30f544890d3528cbe7ebda795c3ac3ce9d3b298d2f1010"
+      },
+      {
+        "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/labs/04-hybrid-retrieval/README.md",
+        "sourceSha256": "6b8efd01cc0056f786efffd604d547a1a35f5bea27d0a24bf6b8b5ea514869f8"
+      },
+      {
+        "documentPath": "../ai-application-lab/04-embedding-vector-search-rag/notes/04-chunking-and-context.md",
+        "sourceSha256": "92dbbea63d4a8ecc88b7dab563198ab02cc76b912a1e7a2f56ea582b235d3bf7"
+      },
+      {
+        "documentPath": "../backend-interview-lab/juc/notes/06-completable-future.md",
+        "sourceSha256": "a1809b5bc01ca6831d8e41f2c35c502cad49b4f854e7b8968216ef37ba35da53"
+      },
+      {
+        "documentPath": "../backend-interview-lab/mysql/notes/01-index-and-sql.md",
+        "sourceSha256": "4fc99c7f82c01fa0c24503815e0353771ad736ef3e4979b2fbe530e8fd2407eb"
+      },
+      {
+        "documentPath": "../backend-interview-lab/rabbitmq/labs/06-prefetch-throughput/evidence/results.md",
+        "sourceSha256": "3024ef3ff721d3b8083cbca62299d57067ca08b001200c574b85a59a54dfbe94"
+      },
+      {
+        "documentPath": "../backend-interview-lab/rabbitmq/notes/05-ordered-messages.md",
+        "sourceSha256": "f89e2640255d383daa734939d5113f06dc39827f1073d32f1eb70afa995d865e"
+      },
+      {
+        "documentPath": "../backend-interview-lab/spring/notes/04-transaction-boundaries-and-propagation.md",
+        "sourceSha256": "5441d647f5eee2e17870e9be1ff5bca8add8322ed7a2ba7dbe88219caafe85f9"
+      }
+    ]
+  },
+  "fingerprintAlgorithm": "SHA-256 over compact UTF-8 JSON (ensure_ascii=false, separators=comma/colon, recursive object-key sorting, array order preserved), excluding only top-level freezeFingerprint; stored confirmedAt is included and never regenerated during verification.",
+  "freezeFingerprint": "57c202a788d20e86a2ed166776c77dab6e66bed8b4ae08a1a925806458a5dbca"
 }

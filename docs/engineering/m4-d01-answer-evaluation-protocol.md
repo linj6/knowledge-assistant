@@ -1,10 +1,10 @@
-# M4-D01 Answer Evaluation V1 协议（候选）
+# M4-D01 Answer Evaluation V1 协议（V1 已冻结）
 
-本轮仅设计协议和人工评审数据，不实现 Answer Runner，不执行模型。基线为 `b2c126faf3d345bc715e2ae66fd0971538864e26`。
+本轮完成用户授权的 Gold 最终确认与冻结，不实现 Answer Runner，不执行模型。冻结基线为 `94af1df18d993f38077f114c015348afb6919306`。
 
 ## 数据与冻结边界
 
-数据见 [answer-evaluation-v1.json](../../src/test/resources/answer-evaluation-v1.json)：Q01–Q12 原问题不变，45 条 requiredFacts、1 条 optionalFacts（合计 46 条 Fact）；U01–U04 为不可答候选。全部新增事实与标签均为 PENDING_REVIEW，数据集为 PROPOSED，不是正式 Answer Gold。既有 Retrieval Gold 的 CONFIRMED 不传递到新拆分。用户逐项确认后才可另行冻结，保留版本、确认人、时间与变更记录。
+数据见 [answer-evaluation-v1.json](../../src/test/resources/answer-evaluation-v1.json)：Q01–Q12 原问题不变，45 条 requiredFacts、1 条 optionalFacts（合计 46 条 Fact）；U01–U04 为已确认不可答题。16 Cases / 46 Facts 均为 CONFIRMED，datasetVersion=1，freezeStatus=FROZEN。reviewer=USER，依据本轮 ChatGPT 会话对指定 Q11-F02 修订及其余候选与协议的整体批准，不虚构逐条独立人工审阅。历史 Codex 建议保留于评审准备文档。
 
 来源路径相对仓库根目录，SHA-256 按原文字节计算；sourceRefs 的 evidenceIndexes 指向旧 Gold 同题 goldEvidence 的零基索引，是人工复核定位范围，不表示整段每字都必须出现在答案。qualifications 与 description 共同约束事实。来源 SHA 与已有 Gold 必须一致，来源变化须另建版本，不修改旧冻结输入。
 
@@ -48,16 +48,28 @@ Knowledge TRUE、Context FALSE：合理拒答的 Appropriateness 可 PASS，但 
 
 正式统计只纳入来源/配置适用且全部必要人工标签已确认的样本。Whole-case：执行 FAILED 直接 FAIL；执行完成且所有适用维度 PASS 才 PASS，任一 FAIL 则 FAIL，无 FAIL 但存在 PENDING 则 PENDING。可答题错误拒答或因上下文不足拒答均不能整例 PASS；不可答题正确拒答可在完整性、Citation Validity 和 Citation Semantic Support 为 N/A 时通过。NOT_RUN 为 PENDING。
 
-每维通过率为 PASS/(PASS+FAIL)，分别报告 N/A、PENDING、NOT_READY 和执行失败数量；不以 N/A 填满分。整例通过率为 PASS/(PASS+FAIL)，执行失败包含在整例失败分母，另报执行成功率 COMPLETED/(COMPLETED+FAILED)。同时展示计划数、实际执行数、人工已完成数及待审数，避免排除待审造成虚高。当前全部候选未冻结、未运行，正式有效分母为 0，不发布质量成功率。
+每维通过率为 PASS/(PASS+FAIL)，分别报告 N/A、PENDING、NOT_READY 和执行失败数量；不以 N/A 填满分。整例通过率为 PASS/(PASS+FAIL)，执行失败包含在整例失败分母，另报执行成功率 COMPLETED/(COMPLETED+FAILED)。同时展示计划数、实际执行数、人工已完成数及待审数，避免排除待审造成虚高。当前 Gold 已冻结，但未执行答案评估，实际质量评分分母仍为 0，不发布质量成功率。
 
-## D01 人工复核入口
+## D01 冻结边界
 
-重点复核：46 条 Fact 的必要性及拆分粒度；Q03 保留精确列结构及引擎可选的角色划分；Q04 两组数字与否定结论；Q08 单路去重后连续排名；Q09 事务提交与依赖事件限制；Q11 修订后示例范围；U01–U04 快照范围、拒答边界及候选之间覆盖重复性。16 例只是开发集，不代表独立测试集或全库覆盖。
+已整体批准的范围：46 条 Fact 的必要性及拆分粒度；Q03 保留精确列结构及引擎可选的角色划分；Q04 两组数字与否定结论；Q08 单路去重后连续排名；Q09 事务提交与依赖事件限制；Q11 修订后示例范围；U01–U04 快照范围、拒答边界及候选之间覆盖重复性。16 例只是开发集，不代表独立测试集或全库覆盖。
 
-READY FOR D01 HUMAN REVIEW：是；未 READY FOR 冻结或 D02。未新增 Runner、生产代码、依赖或正式 Gold 标签。
+READY FOR M4-D02：是，仅表示 D01 数据和协议准备完成；本轮不开始 D02。未新增 Runner、生产代码或依赖。
 
 ## 本轮争议项修订
 
 ANSWERED 必须有合法、非空引用；INSUFFICIENT_EVIDENCE 必须无引用，Citation Semantic Support=N/A。模型拒答须有说明，空检索路径允许 null answer；FAILED 不属于正常拒答。整例通过必须满足全部适用维度，不以 N/A 抵消失败。此口径沿用现有 StructuredOutputParser、RagAnswer 与 CitationValidator，不修改生产协议。
 
-Q01-F03 恢复“可能”；Q03 为7条必要、1条可选；Q11-F03 移除未直接支持的已完成分支；U03 改为缺少问题与预算条件，无法给出通用最优精确值。全部新增 Fact 和拒答标签仍为 PENDING_REVIEW，未冻结。READY FOR D01 FINAL HUMAN APPROVAL：是。
+Q01-F03 恢复“可能”；Q03 为7条必要、1条可选；Q11-F03 移除未直接支持的已完成分支；U03 改为缺少问题与预算条件，无法给出通用最优精确值。全部 Fact 和拒答标签现依据用户整体批准确认冻结。
+
+## 最终冻结记录
+
+- datasetVersion：1；协议版本：answer-evaluation-v1。
+- 16 Cases（12 可答、4 不可答），46 Facts（45 REQUIRED、1 OPTIONAL，Q03-F08）。
+- confirmedAt：2026-11-14T08:34:36Z；reviewer：USER。共同确认元数据由全部 Case/Fact 继承。
+- freezeFingerprint：`57c202a788d20e86a2ed166776c77dab6e66bed8b4ae08a1a925806458a5dbca`。
+- Q11-F02：两个任务通过执行器调度，有两个空闲线程时可以并行；提交任务不保证一定并行执行。依据同题 E0 及同一 SHA 原文第123行的执行器调度说明（数据集 supplementalEvidence）。
+
+指纹为排除顶层 freezeFingerprint 后，递归排序对象键、保留数组顺序、紧凑 UTF-8 JSON（ensure_ascii=false，无多余空格）的 SHA-256。已存储的 confirmedAt 参与计算，复算不生成新时间；内容、来源身份和确认元数据变化均改变指纹。freezeManifest 保存数量、八篇来源 Hash 和协议版本。
+
+五维评估与 Whole-case Pass 规则保持不变。引用语义支持仍需后续对实际回答及引用正文作人工评审；Gold 冻结不代表模型回答质量已通过，历史评审建议不代表新的待审 Gold 标签。
