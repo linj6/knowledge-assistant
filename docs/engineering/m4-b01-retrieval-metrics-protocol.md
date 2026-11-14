@@ -14,7 +14,14 @@ Gold 原样嵌入 m4-02c1-gold-protocol.json（测试检查相等）；问题、
 
 仅 CONFIRMED 且非空的 ALL Gold 适用当前协议。每条 Evidence 在同一来源版本上被 Top-K 区间并集完整覆盖才算命中；相交不算，多个 Chunk 可联合覆盖。Recall@3/5 的问题内分母为 Evidence 数，跨问题取宏平均；CEC 为全部覆盖的 0/1；Evidence Hit 为至少一条完整覆盖的 0/1。First Evidence MRR@5 为首次完整覆盖任意 Evidence 的前缀排名倒数，未命中为 0。Complete Coverage Rank 为首次覆盖全部 Evidence 的前缀排名，未在已保存深度内完成返回 null，并同时返回观测深度 5，不能声称全排名无覆盖。
 
-Precision@3/5 使用独立人工等级 0/1/2/3，2/3 为相关，分母固定 K；不足 K 的空位置按不相关。Pooled nDCG@3/5 使用 2^rel-1 增益、log2(rank+1) 折扣；IDCG 来自同一问题同一切分冻结评审池全部已评块的理想排序。池有 UNJUDGED 时该问题 ranking 指标为 NOT_READY，不能当 0；全 0 导致 IDCG=0 时为 UNDEFINED，单列数量并排除均值。等级定义：0 无关，1 主题相关但不直接支持必要事实，2 直接支持部分必要事实，3 单块直接支持全部必要事实；必须由人工结合答案要点确认。
+Precision@3/5 使用独立人工等级 0/1/2/3，2/3 为相关，分母固定 K；不足 K 的空位置按不相关。Pooled nDCG@3/5 使用 2^rel-1 增益、log2(rank+1) 折扣；IDCG 来自同一问题同一切分冻结评审池全部已评块的理想排序。池有 UNJUDGED 时该问题 ranking 指标为 NOT_READY，不能当 0；全 0 导致 IDCG=0 时为 UNDEFINED，单列数量并排除均值。等级定义如下，必须由人工结合答案要点确认：
+
+- 3 DIRECT：Chunk 本身能够直接、准确、充分地支持至少一个明确的必要答案事实，且保留该事实所需的条件。
+- 2 SUPPORTING：对必要答案事实提供实质性支持，但仍缺少关键条件、完整推导或明确结论。
+- 1 TOPICAL：主题相关，但不能提供有实质作用的必要答案证据。
+- 0 IRRELEVANT：与问题无关、明显误导，或无法提供有效信息。
+
+单个 Chunk 获得 3 分不表示整道题的全部必要证据已覆盖；不得要求 3 分块支持整道题全部必要事实。建议与人工确认分离，不依据 Gold 区间重叠、检索分数或排名确定等级。
 
 池 ID 为 m4-02-top5-union-v1，身份及范围已固定，为每问题每切分三策略 Top-5 并集；不得静默扩池。judgments 使用 UNJUDGED、reviewer=null，pool.status=PENDING。后续人工确认时填写 reviewer，等级改为字符串 0/1/2/3；全部评完才改 COMPLETE。改池需新 ID。当前无四级人工标签，Precision/nDCG 不可计算。
 
