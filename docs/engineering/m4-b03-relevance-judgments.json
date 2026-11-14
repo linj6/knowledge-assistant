@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "definitionProtocol": "docs/engineering/m4-b01-retrieval-metrics-protocol.md",
-  "status": "PARTIALLY_CONFIRMED",
-  "instructions": "本文件包含 Q04、Q08、Q09 已获用户批准的 51 条 CONFIRMED 标签及其余九题 135 条 CODEX_PROPOSAL 待人工确认建议。原确认记录及其依据保持不变；confirmedAt 为确认落地记录时间，并非用户决定的精确时间。3 分只需充分支持至少一个必要事实，不代表整题覆盖。全局池未冻结；后续冻结时再适配 RankingMetrics，不直接用于正式 Precision/nDCG。",
+  "status": "CONFIRMED",
+  "instructions": "本文件包含全部 186 条已获用户批准的 CONFIRMED 标签，24 个独立评审池均审核完成。proposalSource 保留 CODEX_PROPOSAL 原始建议来源，proposedRelevance 保留获批等级；confirmedAt 为确认落地的记录时间，并非用户作出审核决定的精确时间。未虚构逐项人工阅读过程。3 分只需充分支持至少一个必要事实，不代表整题覆盖。原始 Fixture 的 Judgement Pool 未冻结、未修改；后续正式评估时再适配 RankingMetrics，本次不执行 Precision/nDCG 汇总。",
   "pools": [
     {
       "poolId": "m4-02-top5-union-v1/Q04/FIXED_CODE_POINT",
@@ -845,10 +845,11 @@
           "contentSha256": "1d2b5d149332474c87f8b97b38d9129a506639e76824e99e6ce7a6a6c4527c2b",
           "proposedRelevance": 3,
           "rationale": "明确说明目标正常返回不保证提交成功、提交连接故障需核实数据库状态，不能把提交异常一概解释为已回滚。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800100,
@@ -859,10 +860,11 @@
           "contentSha256": "b8fee8dd38f09f2d135ec538da40af13fc2d71d325fb4ca8aee55309d4b9da8e",
           "proposedRelevance": 3,
           "rationale": "内层代理标记 rollbackOnly，外层目标正常结束仍在提交时回滚并报告失败，直接支持正常返回不保证提交成功；不外推所有提交异常均回滚。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800100,
@@ -873,10 +875,11 @@
           "contentSha256": "ae69e1b0cb098007ebf7e109c0dfe30c628e6903dd9b99d01365fcc6cf7e5fbe",
           "proposedRelevance": 1,
           "rationale": "讨论保存点、独立事务或传播选择，未说明提交故障的结果不确定性，也未给出本题正常返回后提交失败的证据。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800100,
@@ -887,10 +890,11 @@
           "contentSha256": "6d6626ce12d1d9a21ed065aa34bba609f6c38462ef0ac140c68def6e288280f0",
           "proposedRelevance": 3,
           "rationale": "事务时序明确区分目标返回与代理请求提交，正常路径仍可能因回滚标记回滚；固定块末尾连接故障句截断，不用于支持最终状态核实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800100,
@@ -901,13 +905,14 @@
           "contentSha256": "612cb8c7d55f38ca9aad37af9593dfc946bae1d092cfe82f1775b9c58fd37771",
           "proposedRelevance": 3,
           "rationale": "有条件的 REQUIRED 示例说明外层捕获后正常返回仍可能 UnexpectedRollbackException，直接支持正常返回不能保证提交；保留已过代理及回滚标记条件。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         }
       ],
-      "reviewStatus": "PENDING_HUMAN_CONFIRMATION"
+      "reviewStatus": "COMPLETE"
     },
     {
       "poolId": "m4-02-top5-union-v1/Q01/MARKDOWN_STRUCTURE_AWARE",
@@ -925,10 +930,11 @@
           "contentSha256": "20c0d9448aa4fda3a82506244fcf2d3c703110396919dd1b182579e72cfc2c2d",
           "proposedRelevance": 3,
           "rationale": "明确说明目标正常返回不保证提交成功、提交连接故障需核实数据库状态，不能把提交异常一概解释为已回滚。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900100,
@@ -939,10 +945,11 @@
           "contentSha256": "b335328f8ddfe1064082cb7536c6931d65b0e319716ca0d98e838e7f0b4a0e19",
           "proposedRelevance": 3,
           "rationale": "内层代理标记 rollbackOnly，外层目标正常结束仍在提交时回滚并报告失败，直接支持正常返回不保证提交成功；不外推所有提交异常均回滚。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900100,
@@ -953,10 +960,11 @@
           "contentSha256": "910730e91a563739336b69470ea4ccdc5cc99d5eb6e5d633d3c96f7367c8bf07",
           "proposedRelevance": 1,
           "rationale": "讨论保存点、独立事务或传播选择，未说明提交故障的结果不确定性，也未给出本题正常返回后提交失败的证据。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900100,
@@ -967,10 +975,11 @@
           "contentSha256": "d5a38b5da957215f3a52fec136d2bc839a36bbcae24c4d8957fa638a0b260537",
           "proposedRelevance": 3,
           "rationale": "有条件的 REQUIRED 示例说明外层捕获后正常返回仍可能 UnexpectedRollbackException，直接支持正常返回不能保证提交；保留已过代理及回滚标记条件。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900100,
@@ -981,10 +990,11 @@
           "contentSha256": "c880184f31000d917365ce390fc09ecf76945593e26a870625d382defbf90b76",
           "proposedRelevance": 1,
           "rationale": "只有 Spring 事务标题，没有必要事实正文。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900100,
@@ -995,10 +1005,11 @@
           "contentSha256": "de91ab5966e613d21fdebe6f3c51eea94d15b8b1a4f050dd06f1ed316ac4d003",
           "proposedRelevance": 3,
           "rationale": "事务时序明确区分目标返回与代理请求提交，正常路径仍可能因回滚标记回滚；固定块末尾连接故障句截断，不用于支持最终状态核实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900100,
@@ -1009,10 +1020,11 @@
           "contentSha256": "521c740950857b5d92c907dad922175e0d49a2f7c6330a5e0133362bfe0888de",
           "proposedRelevance": 1,
           "rationale": "讨论保存点、独立事务或传播选择，未说明提交故障的结果不确定性，也未给出本题正常返回后提交失败的证据。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900100,
@@ -1023,13 +1035,14 @@
           "contentSha256": "fe38cced05e2ebed901fad333fb0108610874e08f7184256aadccb11b7b7ca83",
           "proposedRelevance": 1,
           "rationale": "讨论保存点、独立事务或传播选择，未说明提交故障的结果不确定性，也未给出本题正常返回后提交失败的证据。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         }
       ],
-      "reviewStatus": "PENDING_HUMAN_CONFIRMATION"
+      "reviewStatus": "COMPLETE"
     },
     {
       "poolId": "m4-02-top5-union-v1/Q02/FIXED_CODE_POINT",
@@ -1047,10 +1060,11 @@
           "contentSha256": "1d2b5d149332474c87f8b97b38d9129a506639e76824e99e6ce7a6a6c4527c2b",
           "proposedRelevance": 3,
           "rationale": "完整说明 RuntimeException/Error 默认回滚、受检异常默认不回滚，以及内部吞异常未到代理时 rollbackFor 无法使代理感知。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800100,
@@ -1061,10 +1075,11 @@
           "contentSha256": "b8fee8dd38f09f2d135ec538da40af13fc2d71d325fb4ca8aee55309d4b9da8e",
           "proposedRelevance": 3,
           "rationale": "明确内层运行时异常穿过代理按默认规则标记回滚，外层 catch 不清标记；直接支持默认运行时异常回滚的事实，不能混同目标自身吞异常。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800100,
@@ -1075,10 +1090,11 @@
           "contentSha256": "e556e909c1a51803bf1f7fea4d837409a14d49877e681dfe6987fb6ec41f7410",
           "proposedRelevance": 1,
           "rationale": "讨论超时、隔离、提交边界或传播选择，未直接说明默认异常分类及目标吞异常对 rollbackFor 的影响。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800100,
@@ -1089,10 +1105,11 @@
           "contentSha256": "ae69e1b0cb098007ebf7e109c0dfe30c628e6903dd9b99d01365fcc6cf7e5fbe",
           "proposedRelevance": 1,
           "rationale": "讨论超时、隔离、提交边界或传播选择，未直接说明默认异常分类及目标吞异常对 rollbackFor 的影响。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800100,
@@ -1103,10 +1120,11 @@
           "contentSha256": "6d6626ce12d1d9a21ed065aa34bba609f6c38462ef0ac140c68def6e288280f0",
           "proposedRelevance": 2,
           "rationale": "时序说明异常须到达事务拦截器才按规则处理，提供代理边界证据，但缺默认异常分类和内部吞异常的明确结论。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800100,
@@ -1117,13 +1135,14 @@
           "contentSha256": "612cb8c7d55f38ca9aad37af9593dfc946bae1d092cfe82f1775b9c58fd37771",
           "proposedRelevance": 3,
           "rationale": "完整表格说明内层运行时异常经代理后标记共享事务，外层 catch 仍回滚；保留跨 Bean、同事务管理器及运行时异常前提，支持默认运行时异常回滚。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         }
       ],
-      "reviewStatus": "PENDING_HUMAN_CONFIRMATION"
+      "reviewStatus": "COMPLETE"
     },
     {
       "poolId": "m4-02-top5-union-v1/Q02/MARKDOWN_STRUCTURE_AWARE",
@@ -1141,10 +1160,11 @@
           "contentSha256": "d5a38b5da957215f3a52fec136d2bc839a36bbcae24c4d8957fa638a0b260537",
           "proposedRelevance": 3,
           "rationale": "完整说明 RuntimeException/Error 默认回滚、受检异常默认不回滚，以及内部吞异常未到代理时 rollbackFor 无法使代理感知。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900100,
@@ -1155,10 +1175,11 @@
           "contentSha256": "20c0d9448aa4fda3a82506244fcf2d3c703110396919dd1b182579e72cfc2c2d",
           "proposedRelevance": 1,
           "rationale": "讨论超时、隔离、提交边界或传播选择，未直接说明默认异常分类及目标吞异常对 rollbackFor 的影响。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900100,
@@ -1169,10 +1190,11 @@
           "contentSha256": "b335328f8ddfe1064082cb7536c6931d65b0e319716ca0d98e838e7f0b4a0e19",
           "proposedRelevance": 3,
           "rationale": "明确内层运行时异常穿过代理按默认规则标记回滚，外层 catch 不清标记；直接支持默认运行时异常回滚的事实，不能混同目标自身吞异常。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900100,
@@ -1183,10 +1205,11 @@
           "contentSha256": "910730e91a563739336b69470ea4ccdc5cc99d5eb6e5d633d3c96f7367c8bf07",
           "proposedRelevance": 1,
           "rationale": "讨论超时、隔离、提交边界或传播选择，未直接说明默认异常分类及目标吞异常对 rollbackFor 的影响。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900100,
@@ -1197,10 +1220,11 @@
           "contentSha256": "521c740950857b5d92c907dad922175e0d49a2f7c6330a5e0133362bfe0888de",
           "proposedRelevance": 3,
           "rationale": "明确运行时异常未被外层捕获并穿过外层代理时，外层按自身规则回滚，直接支持默认运行时异常回滚这一事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900100,
@@ -1211,10 +1235,11 @@
           "contentSha256": "de91ab5966e613d21fdebe6f3c51eea94d15b8b1a4f050dd06f1ed316ac4d003",
           "proposedRelevance": 2,
           "rationale": "时序说明异常须到达事务拦截器才按规则处理，提供代理边界证据，但缺默认异常分类和内部吞异常的明确结论。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900100,
@@ -1225,10 +1250,11 @@
           "contentSha256": "fe38cced05e2ebed901fad333fb0108610874e08f7184256aadccb11b7b7ca83",
           "proposedRelevance": 1,
           "rationale": "讨论超时、隔离、提交边界或传播选择，未直接说明默认异常分类及目标吞异常对 rollbackFor 的影响。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900100,
@@ -1239,13 +1265,14 @@
           "contentSha256": "9953387e926130ab293b65145f065423464a0d2cdce502f636316687a9e527d0",
           "proposedRelevance": 1,
           "rationale": "讨论超时、隔离、提交边界或传播选择，未直接说明默认异常分类及目标吞异常对 rollbackFor 的影响。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         }
       ],
-      "reviewStatus": "PENDING_HUMAN_CONFIRMATION"
+      "reviewStatus": "COMPLETE"
     },
     {
       "poolId": "m4-02-top5-union-v1/Q03/FIXED_CODE_POINT",
@@ -1263,10 +1290,11 @@
           "contentSha256": "4d885896a986e6a13d8306420f450531d2e60c605e49b39f32377e457e4d280b",
           "proposedRelevance": 3,
           "rationale": "完整 CREATE TABLE 明确列类型、主键、非空约束、两个联合索引的列序及 InnoDB。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800101,
@@ -1277,10 +1305,11 @@
           "contentSha256": "e0507ca052d23b0a4ab1fa65dc75dba196f9170834b35eb3ecc7be118baddad5",
           "proposedRelevance": 3,
           "rationale": "正文明确列出本实验 (user_id,created_at,status) 索引，并对照 (user_id,status,created_at)，直接支持联合索引列序事实；不据 SELECT 推断类型或非空。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800101,
@@ -1291,10 +1320,11 @@
           "contentSha256": "3af372129380541b5ec7298bf8f74b3099fb5dea41524e8273c42899c899b605",
           "proposedRelevance": 1,
           "rationale": "讨论 InnoDB/B+Tree，CREATE TABLE 在列定义前截断，无法确定本实验列或索引；背景引擎不能代替具体建表声明。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800101,
@@ -1305,10 +1335,11 @@
           "contentSha256": "b3e02bf313e24b413f2d0e4dfdf41dbea5344bdeeecb5e29ac6ada4c9a5e43e4",
           "proposedRelevance": 2,
           "rationale": "SELECT 展示实际列名及索引名，有助于核对表结构，但未给类型、约束或联合索引完整列序，不能补造 DDL。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800101,
@@ -1319,10 +1350,11 @@
           "contentSha256": "fc918fad643691a4d2613df8c6bdc14f415089c6f758caf47931303c48170fc1",
           "proposedRelevance": 3,
           "rationale": "正文明确指出 (user_id,status,created_at) 与 (user_id,created_at,status) 的分组差异，直接支持两种索引列序；尾部 SQL 截断不影响完整列序。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800101,
@@ -1333,13 +1365,14 @@
           "contentSha256": "c28f9c6097359cc1ae43e3b2a327ffda3bb46cb1737891e7b55b7ec6f4c070ed",
           "proposedRelevance": 3,
           "rationale": "正文明确说明换用 (user_id,status,created_at) 联合索引，直接支持该索引列序；不据机制假设计数推断 DDL 约束。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         }
       ],
-      "reviewStatus": "PENDING_HUMAN_CONFIRMATION"
+      "reviewStatus": "COMPLETE"
     },
     {
       "poolId": "m4-02-top5-union-v1/Q03/MARKDOWN_STRUCTURE_AWARE",
@@ -1357,10 +1390,11 @@
           "contentSha256": "c1e9b8a3d1d22ca66d9b7f4d03a11cece77529064747a513118a182907aca14f",
           "proposedRelevance": 3,
           "rationale": "完整 CREATE TABLE 明确列类型、主键、非空约束、两个联合索引的列序及 InnoDB。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900101,
@@ -1371,10 +1405,11 @@
           "contentSha256": "3e998a44509e9457b4a7d8113c1b5c2fef2de58ebf7f99e40b751d3fc668e206",
           "proposedRelevance": 2,
           "rationale": "SELECT 展示实际列名及索引名，有助于核对表结构，但未给类型、约束或联合索引完整列序，不能补造 DDL。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900101,
@@ -1385,10 +1420,11 @@
           "contentSha256": "8fed2d60a94dc43460608c17f7f3aceaddefde9e537541bf2a38bf087d63ca3d",
           "proposedRelevance": 1,
           "rationale": "索引原理、引言或执行计划字段，仅主题相关，不能给出本实验列类型、约束或完整建表索引。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900101,
@@ -1399,10 +1435,11 @@
           "contentSha256": "d29aaaf559643f852850cae498b42271e88cfa20e6feb61afafc66bb3d568f16",
           "proposedRelevance": 1,
           "rationale": "索引原理、引言或执行计划字段，仅主题相关，不能给出本实验列类型、约束或完整建表索引。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900101,
@@ -1413,10 +1450,11 @@
           "contentSha256": "cae19cd2d1f1f6ce0a3beea4d593025acaffd5454e94ec45135d45ae8fc4bfed",
           "proposedRelevance": 1,
           "rationale": "索引原理、引言或执行计划字段，仅主题相关，不能给出本实验列类型、约束或完整建表索引。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900101,
@@ -1427,10 +1465,11 @@
           "contentSha256": "dfd48668e7021668b93bf3621abf136530292fdc5e3ebd71cf2df55e811089fc",
           "proposedRelevance": 3,
           "rationale": "正文明确说明换用 (user_id,status,created_at) 联合索引，直接支持该索引列序；不据机制假设计数推断 DDL 约束。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900101,
@@ -1441,13 +1480,14 @@
           "contentSha256": "e1ed62a54b79f44460b72a1bcb73165548a66dbb01b1cd638ab1f10ebd963181",
           "proposedRelevance": 3,
           "rationale": "正文明确列出本实验 (user_id,created_at,status) 索引，并对照 (user_id,status,created_at)，直接支持联合索引列序事实；不据 SELECT 推断类型或非空。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         }
       ],
-      "reviewStatus": "PENDING_HUMAN_CONFIRMATION"
+      "reviewStatus": "COMPLETE"
     },
     {
       "poolId": "m4-02-top5-union-v1/Q05/FIXED_CODE_POINT",
@@ -1465,10 +1505,11 @@
           "contentSha256": "74c513aa80671b87b666e142cda59f0b710bfc0ff1ce2881747244baa7ed23b9",
           "proposedRelevance": 3,
           "rationale": "明确专题 Boot 3.5.15、AI 1.1.8、百炼兼容接口与 Qwen，并解释 OpenAi 类名不等于 OpenAI 供应商；不替换为当前仓库版本。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800103,
@@ -1479,10 +1520,11 @@
           "contentSha256": "1a233370cfed2051b4b5e1aad6fd311597463540a78cfc53f2f3c18250b1ddd7",
           "proposedRelevance": 1,
           "rationale": "图尾仅残留“服务商 HTTP 协议→远程 Qwen”，与模型调用主题相关；缺少图首及适配器身份，无法独立建立本专题所用接口与模型的明确关联，也没有 Boot/AI 版本。仅作术语线索，不补全百炼接口、版本或供应商结论。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800103,
@@ -1493,10 +1535,11 @@
           "contentSha256": "04964477ca35f9316cdae44da8c0a4fd8850e47be819d3959d58073cf4c5c9e8",
           "proposedRelevance": 1,
           "rationale": "工具循环、响应观察或纯标题，与专题有关，但不能确定所问版本、接口及模型系列。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800105,
@@ -1507,10 +1550,11 @@
           "contentSha256": "790b9def1cd8569984afdbfc6290c695bc1dc80d7e69eb2b8d87f42bf8b12742",
           "proposedRelevance": 0,
           "rationale": "检索实验运行及验证记录未给本题专题 Boot/AI 版本和 Qwen 对话模型接口。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800105,
@@ -1521,10 +1565,11 @@
           "contentSha256": "db218f60fdaccb4c2636a97fe8ce010f46edd6c7991cfecd8203c3c571e60b1c",
           "proposedRelevance": 0,
           "rationale": "检索实验运行及验证记录未给本题专题 Boot/AI 版本和 Qwen 对话模型接口。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800105,
@@ -1535,10 +1580,11 @@
           "contentSha256": "7ff9d26c8b290a10450ec46dde3dbd01c61c36dff0ca8fdd54a0dad6bd682ea9",
           "proposedRelevance": 1,
           "rationale": "另一 RAG 实验虽明确 AI 1.1.8 和百炼 Embedding 接口，但不是本题 ChatModel 专题的配置证据，不能跨工程复制版本或模型系列。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800106,
@@ -1549,10 +1595,11 @@
           "contentSha256": "018cff0caa57b48089b8f6a921e61331d31894ad8c2855ca182b572390cacc9e",
           "proposedRelevance": 0,
           "rationale": "RabbitMQ 保序或 Spring 事务材料，无法支持本题 Spring AI 专题版本及调用模型事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800106,
@@ -1563,10 +1610,11 @@
           "contentSha256": "a5680b20b5f70af11745be73ab47b0f927cdc4461ec412f6c1ae4f9dbf8f21b0",
           "proposedRelevance": 0,
           "rationale": "RabbitMQ 保序或 Spring 事务材料，无法支持本题 Spring AI 专题版本及调用模型事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800103,
@@ -1577,13 +1625,14 @@
           "contentSha256": "ca51bcddc783bcc5ceeb2ede5665a659b45ca3f8b015d78896daee018611d86a",
           "proposedRelevance": 3,
           "rationale": "正文明确“1.1.8 同步 OpenAiChatModel”路径，直接支持本专题 Spring AI 版本事实；不推断 Boot 版本或 OpenAI 供应商。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         }
       ],
-      "reviewStatus": "PENDING_HUMAN_CONFIRMATION"
+      "reviewStatus": "COMPLETE"
     },
     {
       "poolId": "m4-02-top5-union-v1/Q05/MARKDOWN_STRUCTURE_AWARE",
@@ -1601,10 +1650,11 @@
           "contentSha256": "ca0d97b4338900802b6fce48226565aa30ac626f1b5a1e72f3c5511871b70998",
           "proposedRelevance": 3,
           "rationale": "明确专题 Boot 3.5.15、AI 1.1.8、百炼兼容接口与 Qwen，并解释 OpenAi 类名不等于 OpenAI 供应商；不替换为当前仓库版本。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900103,
@@ -1615,10 +1665,11 @@
           "contentSha256": "4e1b133bafc62de2ce5479a6480fc7d28897da6d3ed6828b2eca6186afe323ab",
           "proposedRelevance": 1,
           "rationale": "工具循环、响应观察或纯标题，与专题有关，但不能确定所问版本、接口及模型系列。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900103,
@@ -1629,10 +1680,11 @@
           "contentSha256": "56c4825e87c144eaa72b785a0d2fdb0827fd011c5accf7bb12cda5491240bbda",
           "proposedRelevance": 3,
           "rationale": "完整调用图明确服务商 HTTP 路径通向远程 Qwen，直接支持模型系列这一必要事实；未覆盖版本及兼容接口供应商。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900103,
@@ -1643,10 +1695,11 @@
           "contentSha256": "06b0b5a46492819514571e16a02593ece51f06a7e224d646a9771f55794ec779",
           "proposedRelevance": 1,
           "rationale": "工具循环、响应观察或纯标题，与专题有关，但不能确定所问版本、接口及模型系列。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900105,
@@ -1657,10 +1710,11 @@
           "contentSha256": "74508686162c8c91d8cb801bbbfc3cd0a716aaa629b5d0b45c9f73f0f36224cd",
           "proposedRelevance": 1,
           "rationale": "另一 RAG 实验虽明确 AI 1.1.8 和百炼 Embedding 接口，但不是本题 ChatModel 专题的配置证据，不能跨工程复制版本或模型系列。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900106,
@@ -1671,10 +1725,11 @@
           "contentSha256": "644fba90d61d090e539c2acb5e64abe5019d516ff49388611e5c63f3c3d90c30",
           "proposedRelevance": 0,
           "rationale": "RabbitMQ 保序或 Spring 事务材料，无法支持本题 Spring AI 专题版本及调用模型事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900100,
@@ -1685,10 +1740,11 @@
           "contentSha256": "b335328f8ddfe1064082cb7536c6931d65b0e319716ca0d98e838e7f0b4a0e19",
           "proposedRelevance": 0,
           "rationale": "RabbitMQ 保序或 Spring 事务材料，无法支持本题 Spring AI 专题版本及调用模型事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900103,
@@ -1699,13 +1755,14 @@
           "contentSha256": "d5d4f2ccc496deaaadba796bf8609b4d5a94939546c7e38971d8bdf7fd0832d1",
           "proposedRelevance": 3,
           "rationale": "正文明确“1.1.8 同步 OpenAiChatModel”路径，直接支持本专题 Spring AI 版本事实；不推断 Boot 版本或 OpenAI 供应商。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         }
       ],
-      "reviewStatus": "PENDING_HUMAN_CONFIRMATION"
+      "reviewStatus": "COMPLETE"
     },
     {
       "poolId": "m4-02-top5-union-v1/Q06/FIXED_CODE_POINT",
@@ -1723,10 +1780,11 @@
           "contentSha256": "7bbdc3070067712b4352a94b4c9dcbff851ee907fc9ab361e106d4cd0c720f83",
           "proposedRelevance": 3,
           "rationale": "正文明确仅比较块数或平均长度不足以验收，直接支持块数相同不证明质量相同；不声称包含四块实验细节。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800104,
@@ -1737,10 +1795,11 @@
           "contentSha256": "033432ffeeb48f8055be89861291c4674053cf08eb25f87f64afd3838390fbca",
           "proposedRelevance": 2,
           "rationale": "表格解释否定条件、标题、列名被切开会导致证据不足，为块数不能代替质量提供实质机制支持；缺两种都四块的对照事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800104,
@@ -1751,10 +1810,11 @@
           "contentSha256": "7bd97f81307e7d2a0ac09397553c6233c4d9106d9c7658356e47fefba2dbe21b",
           "proposedRelevance": 3,
           "rationale": "明确固定与结构切分都四块，固定切断词和定义，并直接否定块数相同代表质量相同。固定块尾部截断不影响该事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800104,
@@ -1765,10 +1825,11 @@
           "contentSha256": "98b7131bff0aa82bd36825dd0d345b3c85d8d668c5b2bac3e1e4a7ee2649d864",
           "proposedRelevance": 2,
           "rationale": "说明切分须保留原文结构、相关字段与语义，提供质量不能仅靠长度/数量的实质依据，但缺本题四块对照及明确比较结论。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800104,
@@ -1779,10 +1840,11 @@
           "contentSha256": "e7f022e5b28ee5b1ab3821207e96126081c92499c6c8944c9f68e31c205fba02",
           "proposedRelevance": 1,
           "rationale": "上下文选择或切分引言仅给一般目标，未给四块对照，也未完整论证相同块数与质量的关系。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800105,
@@ -1793,10 +1855,11 @@
           "contentSha256": "7ff9d26c8b290a10450ec46dde3dbd01c61c36dff0ca8fdd54a0dad6bd682ea9",
           "proposedRelevance": 0,
           "rationale": "讨论检索路线、Lucene 分词或模型响应；分词 token 与文档切块不是同一对象，不能作为两种切分质量对照。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800105,
@@ -1807,10 +1870,11 @@
           "contentSha256": "4faa87ef37eca9ce6f939db5e98aa8c872cdf863540ce1d133457a4acbf46816",
           "proposedRelevance": 0,
           "rationale": "讨论检索路线、Lucene 分词或模型响应；分词 token 与文档切块不是同一对象，不能作为两种切分质量对照。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800105,
@@ -1821,13 +1885,14 @@
           "contentSha256": "482338958fb47b706be078af39ef1379ed822c1e6f2f9dff793f5aef4518b4aa",
           "proposedRelevance": 0,
           "rationale": "讨论检索路线、Lucene 分词或模型响应；分词 token 与文档切块不是同一对象，不能作为两种切分质量对照。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         }
       ],
-      "reviewStatus": "PENDING_HUMAN_CONFIRMATION"
+      "reviewStatus": "COMPLETE"
     },
     {
       "poolId": "m4-02-top5-union-v1/Q06/MARKDOWN_STRUCTURE_AWARE",
@@ -1845,10 +1910,11 @@
           "contentSha256": "f2bf5a1a58f3bacc4a1bdd9763188de030b22977d561b9f7619dd230313ac7c3",
           "proposedRelevance": 3,
           "rationale": "正文明确仅比较块数或平均长度不足以验收，直接支持块数相同不证明质量相同；不声称包含四块实验细节。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900104,
@@ -1859,10 +1925,11 @@
           "contentSha256": "9a3d349dff1e6f65ce1eed6851f890f3a2d31225578f9784d4e8144b35ed7b0e",
           "proposedRelevance": 2,
           "rationale": "表格解释否定条件、标题、列名被切开会导致证据不足，为块数不能代替质量提供实质机制支持；缺两种都四块的对照事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900104,
@@ -1873,10 +1940,11 @@
           "contentSha256": "eae3889b8e20cb3b9a3625847ca91d208ae6e9fce7f302dd0f6eda0c8a0ecc86",
           "proposedRelevance": 3,
           "rationale": "明确固定与结构切分都四块，固定切断词和定义，并直接否定块数相同代表质量相同。固定块尾部截断不影响该事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900104,
@@ -1887,10 +1955,11 @@
           "contentSha256": "7f70cb04b0523c695dc603be0ec0b691455eab557d7a98701e3f26383556f225",
           "proposedRelevance": 1,
           "rationale": "上下文选择或切分引言仅给一般目标，未给四块对照，也未完整论证相同块数与质量的关系。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900104,
@@ -1901,10 +1970,11 @@
           "contentSha256": "eb9667084dc0496a6d298b73bee022a636ee4ecf125a514e340fbed452e00fc1",
           "proposedRelevance": 2,
           "rationale": "说明切分须保留原文结构、相关字段与语义，提供质量不能仅靠长度/数量的实质依据，但缺本题四块对照及明确比较结论。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900105,
@@ -1915,10 +1985,11 @@
           "contentSha256": "74508686162c8c91d8cb801bbbfc3cd0a716aaa629b5d0b45c9f73f0f36224cd",
           "proposedRelevance": 0,
           "rationale": "讨论检索路线、Lucene 分词或模型响应；分词 token 与文档切块不是同一对象，不能作为两种切分质量对照。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900105,
@@ -1929,10 +2000,11 @@
           "contentSha256": "d5879ac21370bfbb0aba4e44d82ec95f923cf12501bc764e99d8d9de0ffcabfa",
           "proposedRelevance": 0,
           "rationale": "讨论检索路线、Lucene 分词或模型响应；分词 token 与文档切块不是同一对象，不能作为两种切分质量对照。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900103,
@@ -1943,13 +2015,14 @@
           "contentSha256": "06b0b5a46492819514571e16a02593ece51f06a7e224d646a9771f55794ec779",
           "proposedRelevance": 0,
           "rationale": "讨论检索路线、Lucene 分词或模型响应；分词 token 与文档切块不是同一对象，不能作为两种切分质量对照。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         }
       ],
-      "reviewStatus": "PENDING_HUMAN_CONFIRMATION"
+      "reviewStatus": "COMPLETE"
     },
     {
       "poolId": "m4-02-top5-union-v1/Q07/FIXED_CODE_POINT",
@@ -1967,10 +2040,11 @@
           "contentSha256": "033432ffeeb48f8055be89861291c4674053cf08eb25f87f64afd3838390fbca",
           "proposedRelevance": 3,
           "rationale": "明确模拟命中 S3 后只补 S2 仍缺 S1 定义，直接支持不能保证补齐；保留人工模拟而非真实排名实验的限定。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800105,
@@ -1981,10 +2055,11 @@
           "contentSha256": "b7f03d80ce304e2e3623ea3a54918749e57e1dccb2f2622d50cf042f7d6044f9",
           "proposedRelevance": 1,
           "rationale": "Confirm/ACK 的结论、来源或证据组表没有 S1/S2/S3 补块关系；术语相同不能证明本题模拟结果。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800104,
@@ -1995,10 +2070,11 @@
           "contentSha256": "e7f022e5b28ee5b1ab3821207e96126081c92499c6c8944c9f68e31c205fba02",
           "proposedRelevance": 2,
           "rationale": "明确跨块概念须选择定义块和结论块、不盲目追加相邻块，提供实质组装原则；缺 S3+S2 仍缺 S1 的具体对照。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800105,
@@ -2009,10 +2085,11 @@
           "contentSha256": "7442df0968fb4f3b2e71f20cc80fe6806e77cb27c006066036be49a5979a7fb7",
           "proposedRelevance": 1,
           "rationale": "Confirm/ACK 的结论、来源或证据组表没有 S1/S2/S3 补块关系；术语相同不能证明本题模拟结果。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800106,
@@ -2023,10 +2100,11 @@
           "contentSha256": "ed4f96a89dd20cb5e307be79c4089ed846cd857ad6c7e5f077582b738725b8d0",
           "proposedRelevance": 0,
           "rationale": "保序、SAC、重试或分区方案，与本题 Confirm/ACK 切分补块实验无关。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800104,
@@ -2037,13 +2115,14 @@
           "contentSha256": "7bd97f81307e7d2a0ac09397553c6233c4d9106d9c7658356e47fefba2dbe21b",
           "proposedRelevance": 3,
           "rationale": "尾部虽在“再补 S1”之后截断，但此前“只补 S2…仍缺关键定义 S1”已完整，直接支持必要事实，不补写后续内容。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         }
       ],
-      "reviewStatus": "PENDING_HUMAN_CONFIRMATION"
+      "reviewStatus": "COMPLETE"
     },
     {
       "poolId": "m4-02-top5-union-v1/Q07/MARKDOWN_STRUCTURE_AWARE",
@@ -2061,10 +2140,11 @@
           "contentSha256": "eae3889b8e20cb3b9a3625847ca91d208ae6e9fce7f302dd0f6eda0c8a0ecc86",
           "proposedRelevance": 3,
           "rationale": "明确模拟命中 S3 后只补 S2 仍缺 S1 定义，直接支持不能保证补齐；保留人工模拟而非真实排名实验的限定。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900105,
@@ -2075,10 +2155,11 @@
           "contentSha256": "0444acb04447e3a07ad5fe949ba922e6467b50c0baaf2229e227916d3aa92b0a",
           "proposedRelevance": 1,
           "rationale": "Confirm/ACK 的结论、来源或证据组表没有 S1/S2/S3 补块关系；术语相同不能证明本题模拟结果。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900105,
@@ -2089,10 +2170,11 @@
           "contentSha256": "78d62d492ff045509bd89eaa023b48b591bcf41477d1a20090c9cf34dcc4000c",
           "proposedRelevance": 1,
           "rationale": "Confirm/ACK 的结论、来源或证据组表没有 S1/S2/S3 补块关系；术语相同不能证明本题模拟结果。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900104,
@@ -2103,10 +2185,11 @@
           "contentSha256": "f2bf5a1a58f3bacc4a1bdd9763188de030b22977d561b9f7619dd230313ac7c3",
           "proposedRelevance": 1,
           "rationale": "提到跨段 Confirm 问题和证据覆盖评估，但没有相邻补块及 S1 缺失的直接证据。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900106,
@@ -2117,10 +2200,11 @@
           "contentSha256": "47ec5228615c04f1fa6d598021df5954a5cf777c2259cd0c9401061c68923a7c",
           "proposedRelevance": 0,
           "rationale": "保序、SAC、重试或分区方案，与本题 Confirm/ACK 切分补块实验无关。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900104,
@@ -2131,10 +2215,11 @@
           "contentSha256": "b72d82aad1f68be8e4deb2c91193eaf9372e5c2b1c70a9d5f59adc2357317431",
           "proposedRelevance": 2,
           "rationale": "明确跨块概念须选择定义块和结论块、不盲目追加相邻块，提供实质组装原则；缺 S3+S2 仍缺 S1 的具体对照。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900106,
@@ -2145,13 +2230,14 @@
           "contentSha256": "9b5b7e8ca6318ca450bfffb931fdf1caac2e3d54ff1421a68fa5e3a717443073",
           "proposedRelevance": 0,
           "rationale": "保序、SAC、重试或分区方案，与本题 Confirm/ACK 切分补块实验无关。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         }
       ],
-      "reviewStatus": "PENDING_HUMAN_CONFIRMATION"
+      "reviewStatus": "COMPLETE"
     },
     {
       "poolId": "m4-02-top5-union-v1/Q10/FIXED_CODE_POINT",
@@ -2169,10 +2255,11 @@
           "contentSha256": "a5680b20b5f70af11745be73ab47b0f927cdc4461ec412f6c1ae4f9dbf8f21b0",
           "proposedRelevance": 3,
           "rationale": "说明两个队列可并行提交使 E2 先于 E1，需稳定映射、迁移屏障或可靠缺口恢复；固定块图首截断不损害完整解释段。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800106,
@@ -2183,10 +2270,11 @@
           "contentSha256": "ed4f96a89dd20cb5e307be79c4089ed846cd857ad6c7e5f077582b738725b8d0",
           "proposedRelevance": 3,
           "rationale": "完整问答说明四分区改八分区使同 Key 新旧事件进入不同队列并发提交，直接支持风险事实；不要求同时给全部解决方案。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800104,
@@ -2197,10 +2285,11 @@
           "contentSha256": "7bd97f81307e7d2a0ac09397553c6233c4d9106d9c7658356e47fefba2dbe21b",
           "proposedRelevance": 0,
           "rationale": "讨论文本切分、模型、事务锁、Future 时间线或预取实验；不能将其他场景并发或“分区”术语迁移为 Key 取模扩容事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800104,
@@ -2211,10 +2300,11 @@
           "contentSha256": "033432ffeeb48f8055be89861291c4674053cf08eb25f87f64afd3838390fbca",
           "proposedRelevance": 0,
           "rationale": "讨论文本切分、模型、事务锁、Future 时间线或预取实验；不能将其他场景并发或“分区”术语迁移为 Key 取模扩容事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800106,
@@ -2225,10 +2315,11 @@
           "contentSha256": "a6bc27ea0241d8049b3b60d0f326434a2084baa1ea94d23c56e9a79e9023bf9c",
           "proposedRelevance": 3,
           "rationale": "明确 5%4=1、5%8=5 的新旧队列及并行提交风险，给出稳定映射、排空、屏障或版本路由措施。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800106,
@@ -2239,10 +2330,11 @@
           "contentSha256": "018cff0caa57b48089b8f6a921e61331d31894ad8c2855ca182b572390cacc9e",
           "proposedRelevance": 2,
           "rationale": "指出固定 Key 分区需要处理扩容迁移并保持生产顺序，有实质补充作用，但未解释取模改变如何让新旧事件跨队列并发。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800106,
@@ -2253,10 +2345,11 @@
           "contentSha256": "b69805076b7bbb4807913677e00b7b5c5e0d89111ba4930c0f10e30deeb2b363",
           "proposedRelevance": 3,
           "rationale": "扩容图完整保留同一订单 5 的旧事件 E1 按 5%4=1 留在 Queue-1、新事件 E2 按 5%8=5 进入 Queue-5，直接支持改变取模使同 Key 新旧事件进入不同队列这一必要事实。消费者连线尾部截断，不据此声称正文已完整解释并行提交或给出稳定映射、迁移屏障；TTL 图不作为取模扩容证据。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800103,
@@ -2267,13 +2360,14 @@
           "contentSha256": "1a233370cfed2051b4b5e1aad6fd311597463540a78cfc53f2f3c18250b1ddd7",
           "proposedRelevance": 0,
           "rationale": "讨论文本切分、模型、事务锁、Future 时间线或预取实验；不能将其他场景并发或“分区”术语迁移为 Key 取模扩容事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         }
       ],
-      "reviewStatus": "PENDING_HUMAN_CONFIRMATION"
+      "reviewStatus": "COMPLETE"
     },
     {
       "poolId": "m4-02-top5-union-v1/Q10/MARKDOWN_STRUCTURE_AWARE",
@@ -2291,10 +2385,11 @@
           "contentSha256": "684d094cfe3c9097425176e4e287b0caf00753f07bd89646fce20bd948158203",
           "proposedRelevance": 3,
           "rationale": "说明两个队列可并行提交使 E2 先于 E1，需稳定映射、迁移屏障或可靠缺口恢复；固定块图首截断不损害完整解释段。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900106,
@@ -2305,10 +2400,11 @@
           "contentSha256": "51775680c7ef23f7ed158a7bf337cd13e806d047a1a71544a24e4687b19e036d",
           "proposedRelevance": 3,
           "rationale": "明确 5%4=1、5%8=5 的新旧队列及并行提交风险，给出稳定映射、排空、屏障或版本路由措施。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900106,
@@ -2319,10 +2415,11 @@
           "contentSha256": "47ec5228615c04f1fa6d598021df5954a5cf777c2259cd0c9401061c68923a7c",
           "proposedRelevance": 1,
           "rationale": "分区代价表或单队列配置仅给保序背景，未解释取模扩容造成的新旧队列并发及映射/屏障措施。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900100,
@@ -2333,10 +2430,11 @@
           "contentSha256": "b3b6501a81f67722799d5dd8bfee09106013169d59bfad336155f4ba70930644",
           "proposedRelevance": 0,
           "rationale": "讨论文本切分、模型、事务锁、Future 时间线或预取实验；不能将其他场景并发或“分区”术语迁移为 Key 取模扩容事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900107,
@@ -2347,10 +2445,11 @@
           "contentSha256": "d5237d0108fb8f305e4768a4bca69988bad048fc968269e81f1847a3657174f7",
           "proposedRelevance": 0,
           "rationale": "讨论文本切分、模型、事务锁、Future 时间线或预取实验；不能将其他场景并发或“分区”术语迁移为 Key 取模扩容事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900106,
@@ -2361,10 +2460,11 @@
           "contentSha256": "3be3b65bb5f15436161fd4918f5ae24bacecfc05ef2e1e0eeaf3fe8d68d762df",
           "proposedRelevance": 2,
           "rationale": "指出固定 Key 分区需要处理扩容迁移并保持生产顺序，有实质补充作用，但未解释取模改变如何让新旧事件跨队列并发。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900102,
@@ -2375,10 +2475,11 @@
           "contentSha256": "cd481913efa8ede0230b38e6ca63270a8d1a3d75a10667c97234d8057ea38e7f",
           "proposedRelevance": 0,
           "rationale": "讨论文本切分、模型、事务锁、Future 时间线或预取实验；不能将其他场景并发或“分区”术语迁移为 Key 取模扩容事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900103,
@@ -2389,10 +2490,11 @@
           "contentSha256": "06b0b5a46492819514571e16a02593ece51f06a7e224d646a9771f55794ec779",
           "proposedRelevance": 0,
           "rationale": "讨论文本切分、模型、事务锁、Future 时间线或预取实验；不能将其他场景并发或“分区”术语迁移为 Key 取模扩容事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900106,
@@ -2403,10 +2505,11 @@
           "contentSha256": "9b5b7e8ca6318ca450bfffb931fdf1caac2e3d54ff1421a68fa5e3a717443073",
           "proposedRelevance": 3,
           "rationale": "完整问答说明四分区改八分区使同 Key 新旧事件进入不同队列并发提交，直接支持风险事实；不要求同时给全部解决方案。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900106,
@@ -2417,13 +2520,14 @@
           "contentSha256": "644fba90d61d090e539c2acb5e64abe5019d516ff49388611e5c63f3c3d90c30",
           "proposedRelevance": 1,
           "rationale": "分区代价表或单队列配置仅给保序背景，未解释取模扩容造成的新旧队列并发及映射/屏障措施。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         }
       ],
-      "reviewStatus": "PENDING_HUMAN_CONFIRMATION"
+      "reviewStatus": "COMPLETE"
     },
     {
       "poolId": "m4-02-top5-union-v1/Q11/FIXED_CODE_POINT",
@@ -2441,10 +2545,11 @@
           "contentSha256": "65e03147b0a278e73e71f65edadcc875fcfa15aaed3c3eab600a112c29823c2c",
           "proposedRelevance": 3,
           "rationale": "图和文字在两个空闲 worker 的假设下先 supplyAsync 提交再 join 等待，直接支持未完成结果的等待事实；固定块图尾截断但先提交再等待已完整。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800107,
@@ -2455,10 +2560,11 @@
           "contentSha256": "0329db3ce8f9e390425d6ed9d0aa595fbf6ca74d9bf06ff08d25688ceb77d311",
           "proposedRelevance": 3,
           "rationale": "明确两个任务调用 supplyAsync 时提交、非 join 启动，两个空闲线程时可并行且 join 占调用线程等待；不泛化为立即执行。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800107,
@@ -2469,10 +2575,11 @@
           "contentSha256": "a891e2de79059ff1b273fc980dc9d8f4d4a5d45e2dee70928fcbcba7dfacad83",
           "proposedRelevance": 3,
           "rationale": "正文明确 supplyAsync 任务由指定执行器调度，且执行器策略可能在提交者线程执行，直接支持提交不保证另线程隔离或一定并行这一必要事实。开头及末尾虽截断，该规则完整；不声称包含 supplyAsync 提交时点、立即执行保证或 join 未完成等待的完整说明。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800107,
@@ -2483,10 +2590,11 @@
           "contentSha256": "40a600850a6a63736a16312becc19e7c7fa327a99efad8a63e1bae1b2a6f2f26",
           "proposedRelevance": 3,
           "rationale": "同池父任务 join、子任务排队无 worker 的具体条件，直接支持提交不等于立即执行/一定并行，以及 join 占线程等待。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800107,
@@ -2497,13 +2605,14 @@
           "contentSha256": "4c3d2c13b8761a6b26f1bf40fdfbf8dc0ce53a2ab36ab8c9bdc8c6582e672d42",
           "proposedRelevance": 3,
           "rationale": "图尾明确两者正常完成组合后 join 返回，支持在结果完成前等待；开头任务提交行截断，不据此单独推断 supplyAsync 提交时点。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         }
       ],
-      "reviewStatus": "PENDING_HUMAN_CONFIRMATION"
+      "reviewStatus": "COMPLETE"
     },
     {
       "poolId": "m4-02-top5-union-v1/Q11/MARKDOWN_STRUCTURE_AWARE",
@@ -2521,10 +2630,11 @@
           "contentSha256": "82e7afbeeb0999b098e31283ac5a1d4920339d8e3e4c69acc034ded4b30fddf2",
           "proposedRelevance": 3,
           "rationale": "明确两个任务调用 supplyAsync 时提交、非 join 启动，两个空闲线程时可并行且 join 占调用线程等待；不泛化为立即执行。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900107,
@@ -2535,10 +2645,11 @@
           "contentSha256": "302c1c35c0a1c1d4e09cda3d3c45da60924143150f5ca525dd436e6ec0d988d8",
           "proposedRelevance": 3,
           "rationale": "正文完整说明 supplyAsync 由指定执行器调度，执行器策略可能在提交者线程执行，直接支持提交不保证另线程隔离或一定并行这一必要事实。仅对该事实评为 DIRECT，不将回调线程规则扩张为提交即执行，也不声称已覆盖 join 等待条件和全部答案。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900107,
@@ -2549,10 +2660,11 @@
           "contentSha256": "4cd1fd33287ce06c7e1fcb33f6857c741c7f0048c31a5ad1ee1e4107110430b3",
           "proposedRelevance": 3,
           "rationale": "图和文字在两个空闲 worker 的假设下先 supplyAsync 提交再 join 等待，直接支持未完成结果的等待事实；固定块图尾截断但先提交再等待已完整。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900107,
@@ -2563,10 +2675,11 @@
           "contentSha256": "7a95b245913116969f4bcbff1784390744ba03d480c5a8975c6af687a4306c30",
           "proposedRelevance": 1,
           "rationale": "讨论依赖、独立任务组合或面试摘要，没有明确 supplyAsync 提交时点与 join 未完成等待规则。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900107,
@@ -2577,10 +2690,11 @@
           "contentSha256": "d5aba9356728b8ae047c4277e990ae266f8ffcda0e1d3926ec271d4c1c7db23e",
           "proposedRelevance": 3,
           "rationale": "同池父任务 join、子任务排队无 worker 的具体条件，直接支持提交不等于立即执行/一定并行，以及 join 占线程等待。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900107,
@@ -2591,10 +2705,11 @@
           "contentSha256": "d5237d0108fb8f305e4768a4bca69988bad048fc968269e81f1847a3657174f7",
           "proposedRelevance": 3,
           "rationale": "串行时间线明确提交 U 后 join U 等待再提交 P，直接支持任务未完成时 join 等待；不据示例耗时推断普遍性能。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900107,
@@ -2605,13 +2720,14 @@
           "contentSha256": "a5a47d1b6b444143737757fb6263629c406a12c59070616d3720552c4289bb7f",
           "proposedRelevance": 1,
           "rationale": "讨论依赖、独立任务组合或面试摘要，没有明确 supplyAsync 提交时点与 join 未完成等待规则。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         }
       ],
-      "reviewStatus": "PENDING_HUMAN_CONFIRMATION"
+      "reviewStatus": "COMPLETE"
     },
     {
       "poolId": "m4-02-top5-union-v1/Q12/FIXED_CODE_POINT",
@@ -2629,10 +2745,11 @@
           "contentSha256": "e14ab4ecc75a800144dea5b67547d49b17bc2040101b39bbdb5cb361eea590c6",
           "proposedRelevance": 3,
           "rationale": "orTimeout 追问明确 Future 已结束不代表任务停止，直接支持超时结果不能保证底层查询停止；固定块开头 cancel 句截断不用于补全结论。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800101,
@@ -2643,10 +2760,11 @@
           "contentSha256": "b3e02bf313e24b413f2d0e4dfdf41dbea5344bdeeecb5e29ac6ada4c9a5e43e4",
           "proposedRelevance": 0,
           "rationale": "SQL、消息重试、检索证据表或事务传播不提供 CompletableFuture.orTimeout 的状态与停止保证事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800107,
@@ -2657,10 +2775,11 @@
           "contentSha256": "40a600850a6a63736a16312becc19e7c7fa327a99efad8a63e1bae1b2a6f2f26",
           "proposedRelevance": 3,
           "rationale": "明确 orTimeout 使 Future 超时异常完成而不自动中断底层查询，并说明其他超时/取消 API 不保证停止实际计算。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800100,
@@ -2671,10 +2790,11 @@
           "contentSha256": "e556e909c1a51803bf1f7fea4d837409a14d49877e681dfe6987fb6ec41f7410",
           "proposedRelevance": 1,
           "rationale": "这里是 JDBC 事务 timeout，不是 CompletableFuture.orTimeout；虽同有超时不自动中断的边界，不能跨 API 直接替代本题事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800101,
@@ -2685,10 +2805,11 @@
           "contentSha256": "c28f9c6097359cc1ae43e3b2a327ffda3bb46cb1737891e7b55b7ec6f4c070ed",
           "proposedRelevance": 0,
           "rationale": "SQL、消息重试、检索证据表或事务传播不提供 CompletableFuture.orTimeout 的状态与停止保证事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800106,
@@ -2699,10 +2820,11 @@
           "contentSha256": "ed4f96a89dd20cb5e307be79c4089ed846cd857ad6c7e5f077582b738725b8d0",
           "proposedRelevance": 0,
           "rationale": "SQL、消息重试、检索证据表或事务传播不提供 CompletableFuture.orTimeout 的状态与停止保证事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800105,
@@ -2713,10 +2835,11 @@
           "contentSha256": "b7f03d80ce304e2e3623ea3a54918749e57e1dccb2f2622d50cf042f7d6044f9",
           "proposedRelevance": 0,
           "rationale": "SQL、消息重试、检索证据表或事务传播不提供 CompletableFuture.orTimeout 的状态与停止保证事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800100,
@@ -2727,10 +2850,11 @@
           "contentSha256": "b8fee8dd38f09f2d135ec538da40af13fc2d71d325fb4ca8aee55309d4b9da8e",
           "proposedRelevance": 0,
           "rationale": "SQL、消息重试、检索证据表或事务传播不提供 CompletableFuture.orTimeout 的状态与停止保证事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800107,
@@ -2741,10 +2865,11 @@
           "contentSha256": "11431ee9ef0ff7586c5c0eeb4c984b8289ec80ff4d62c18ff923432493c269c0",
           "proposedRelevance": 1,
           "rationale": "讨论 Future 异常恢复与取消语义，未解释 orTimeout 对 Future 状态及底层查询的影响。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 800107,
@@ -2755,13 +2880,14 @@
           "contentSha256": "65e03147b0a278e73e71f65edadcc875fcfa15aaed3c3eab600a112c29823c2c",
           "proposedRelevance": 1,
           "rationale": "Future 执行等待时间线，未讨论 orTimeout 或任务取消停止保证。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         }
       ],
-      "reviewStatus": "PENDING_HUMAN_CONFIRMATION"
+      "reviewStatus": "COMPLETE"
     },
     {
       "poolId": "m4-02-top5-union-v1/Q12/MARKDOWN_STRUCTURE_AWARE",
@@ -2779,10 +2905,11 @@
           "contentSha256": "ad1f6f22f1591d88dcf9fc20e3fd303fe6f0fbeef1d2cf988af91a7d77ebd83a",
           "proposedRelevance": 3,
           "rationale": "明确 orTimeout 使 Future 超时异常完成而不自动中断底层查询，并说明其他超时/取消 API 不保证停止实际计算。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900100,
@@ -2793,10 +2920,11 @@
           "contentSha256": "9953387e926130ab293b65145f065423464a0d2cdce502f636316687a9e527d0",
           "proposedRelevance": 1,
           "rationale": "这里是 JDBC 事务 timeout，不是 CompletableFuture.orTimeout；虽同有超时不自动中断的边界，不能跨 API 直接替代本题事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900107,
@@ -2807,10 +2935,11 @@
           "contentSha256": "a5a47d1b6b444143737757fb6263629c406a12c59070616d3720552c4289bb7f",
           "proposedRelevance": 3,
           "rationale": "orTimeout 追问明确 Future 已结束不代表任务停止，直接支持超时结果不能保证底层查询停止；固定块开头 cancel 句截断不用于补全结论。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900107,
@@ -2821,10 +2950,11 @@
           "contentSha256": "d5237d0108fb8f305e4768a4bca69988bad048fc968269e81f1847a3657174f7",
           "proposedRelevance": 1,
           "rationale": "Future 执行等待时间线，未讨论 orTimeout 或任务取消停止保证。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900101,
@@ -2835,10 +2965,11 @@
           "contentSha256": "ab8bade073637e927eefe759f55a26207e17b316b84ff8dd3321eec10bb550e9",
           "proposedRelevance": 0,
           "rationale": "SQL、消息重试、检索证据表或事务传播不提供 CompletableFuture.orTimeout 的状态与停止保证事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900106,
@@ -2849,10 +2980,11 @@
           "contentSha256": "9b5b7e8ca6318ca450bfffb931fdf1caac2e3d54ff1421a68fa5e3a717443073",
           "proposedRelevance": 0,
           "rationale": "SQL、消息重试、检索证据表或事务传播不提供 CompletableFuture.orTimeout 的状态与停止保证事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900105,
@@ -2863,10 +2995,11 @@
           "contentSha256": "78d62d492ff045509bd89eaa023b48b591bcf41477d1a20090c9cf34dcc4000c",
           "proposedRelevance": 0,
           "rationale": "SQL、消息重试、检索证据表或事务传播不提供 CompletableFuture.orTimeout 的状态与停止保证事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900107,
@@ -2877,10 +3010,11 @@
           "contentSha256": "a6149ca4e4e2473cefac0ce49cb36eb87212197cca20f820a547c4e0941cf6e9",
           "proposedRelevance": 1,
           "rationale": "讨论 Future 异常恢复与取消语义，未解释 orTimeout 对 Future 状态及底层查询的影响。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         },
         {
           "documentId": 900101,
@@ -2891,13 +3025,14 @@
           "contentSha256": "cae19cd2d1f1f6ce0a3beea4d593025acaffd5454e94ec45135d45ae8fc4bfed",
           "proposedRelevance": 0,
           "rationale": "SQL、消息重试、检索证据表或事务传播不提供 CompletableFuture.orTimeout 的状态与停止保证事实。",
-          "reviewStatus": "PENDING_HUMAN_CONFIRMATION",
+          "reviewStatus": "CONFIRMED",
           "proposalSource": "CODEX_PROPOSAL",
-          "reviewer": null,
-          "confirmedAt": null
+          "reviewer": "USER",
+          "confirmedAt": "2026-11-14T04:01:41+00:00",
+          "confirmationBasis": "用户在 ChatGPT 会话中明确批准经过重点复核和四项边界修订后的剩余 135 条建议"
         }
       ],
-      "reviewStatus": "PENDING_HUMAN_CONFIRMATION"
+      "reviewStatus": "COMPLETE"
     }
   ]
 }
