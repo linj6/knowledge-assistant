@@ -40,7 +40,7 @@ class ImportTests {
                             values[1]))
                     .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new ChunkingConfig(
-                        2, com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy.FIXED_CODE_POINT, 800, 120))
+                        3, com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy.FIXED_CODE_POINT, 800, 120))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new ChunkingConfig(1, null, 800, 120)).isInstanceOf(IllegalArgumentException.class);
     }
@@ -124,6 +124,10 @@ class ImportTests {
         model.setEmbeddingModel("configured-model");
         model.setDimensions(768);
         ChunkingProperties chunking = new ChunkingProperties();
+        com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingProperties embedding =
+                new com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingProperties();
+        embedding.setMaxInputCodePoints(800);
+        chunking.setEmbeddingProperties(embedding);
         chunking.setVersion(1);
         chunking.setStrategy(com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy.FIXED_CODE_POINT);
         chunking.setChunkSize(800);

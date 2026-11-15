@@ -228,6 +228,44 @@ class EmbeddingPersistenceIT {
                             "SELECT count(*) FROM document_chunk WHERE index_version_id=6 AND embedding IS NOT NULL",
                             Integer.class))
                     .isZero();
+            // 默认配置已为 v2，历史 v1 恢复仍只读取版本中保存的快照。
+            jdbc.update("INSERT INTO document_index_version(id,document_id,chunking_config) VALUES(9,2,?)", config);
+            com.lnjecit.knowledge.assistant.ingestion.parser.ParsedDocument blankParsed =
+                    new TxtDocumentParser().parse(("a" + " ".repeat(2000) + "b").getBytes(StandardCharsets.UTF_8));
+            java.util.List<com.lnjecit.knowledge.assistant.document.entity.DocumentChunk> legacy =
+                    service.initialize(2L, 9L, blankParsed);
+            assertThat(legacy).hasSize(3);
+            assertThat(legacy.get(1).getContent()).isBlank();
+            assertThat(legacy).extracting(c -> c.getChunkOrder()).containsExactly(0, 1, 2);
+            assertThat(legacy).extracting(c -> c.getSourceStart()).containsExactly(0, 680, 1360);
+            assertThat(legacy).extracting(c -> c.getSourceEnd()).containsExactly(800, 1480, 2002);
+            assertThat(legacy).allMatch(c -> c.getContent()
+                    .equals(blankParsed.source().substring(c.getSourceStart(), c.getSourceEnd())));
+            String legacySnapshot = jdbc.queryForObject(
+                    "SELECT json_agg(t ORDER BY id)::text FROM document_chunk t WHERE index_version_id=9",
+                    String.class);
+            assertThat(service.initialize(2L, 9L, blankParsed))
+                    .extracting(c -> c.getId())
+                    .containsExactlyElementsOf(
+                            legacy.stream().map(c -> c.getId()).toList());
+            assertThat(jdbc.queryForObject(
+                            "SELECT json_agg(t ORDER BY id)::text FROM document_chunk t WHERE index_version_id=9",
+                            String.class))
+                    .isEqualTo(legacySnapshot);
+            assertThat(jdbc.queryForObject(
+                            "SELECT expected_chunk_count FROM document_index_version WHERE id=9", Integer.class))
+                    .isEqualTo(3);
+            org.mockito.Mockito.clearInvocations(model);
+            assertThatThrownBy(() -> embeddingService.embed(2L, 9L)).hasMessageContaining("input limit exceeded");
+            org.mockito.Mockito.verify(model, org.mockito.Mockito.never())
+                    .call(org.mockito.ArgumentMatchers.any(org.springframework.ai.embedding.EmbeddingRequest.class));
+            assertThat(jdbc.queryForObject(
+                            "SELECT json_agg(t ORDER BY id)::text FROM document_chunk t WHERE index_version_id=9",
+                            String.class))
+                    .isEqualTo(legacySnapshot);
+            jdbc.update(
+                    "UPDATE document_index_version SET chunking_config=? WHERE id=7",
+                    config.replace("\"version\":1", "\"version\":2"));
             java.util.List<com.lnjecit.knowledge.assistant.document.entity.DocumentChunk> whitespace =
                     service.initialize(
                             2L,

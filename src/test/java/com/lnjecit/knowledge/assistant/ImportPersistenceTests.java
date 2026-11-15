@@ -152,11 +152,11 @@ class ImportPersistenceTests {
                     first.task().documentId());
             com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingProperties properties =
                     context.getBean(com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingProperties.class);
-            properties.setChunkSize(900);
+            properties.setChunkSize(700);
             assertThat(context.getBean(tools.jackson.databind.json.JsonMapper.class)
                             .readValue(snapshot, ChunkingConfig.class))
                     .isEqualTo(new ChunkingConfig(
-                            1,
+                            2,
                             com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy.FIXED_CODE_POINT,
                             800,
                             120));

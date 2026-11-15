@@ -16,6 +16,19 @@ import tools.jackson.databind.json.JsonMapper;
 
 class ChunkingStrategyTests {
     @Test
+    void applicationDefaultsUseV2AndRejectUnknownVersions() throws Exception {
+        String yaml = new org.springframework.core.io.ClassPathResource("application.yml")
+                .getContentAsString(StandardCharsets.UTF_8);
+        ChunkingProperties properties = bind(yaml);
+        properties.afterPropertiesSet();
+        assertThat(properties.snapshot().version()).isEqualTo(2);
+        for (int version : new int[] {0, 3, -1}) {
+            assertThatThrownBy(() -> new ChunkingConfig(version, ChunkingStrategy.FIXED_CODE_POINT, 800, 120))
+                    .hasMessage("Invalid chunking configuration");
+        }
+    }
+
+    @Test
     void oldSnapshotAndEnumRoundTrip() {
         JsonMapper json = JsonMapper.builder().build();
         String old = "{\"version\":1,\"strategy\":\"FIXED_CODE_POINT\",\"chunkSize\":800,\"chunkOverlap\":120}";

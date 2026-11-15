@@ -17,9 +17,19 @@ class DocumentSplitterTests {
         String source = "a" + " ".repeat(2000) + "b";
         DocumentSplitter splitter = new FixedCodePointSplitter();
         ChunkingConfig config = new ChunkingConfig(
-                1, com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy.FIXED_CODE_POINT, 800, 120);
+                2, com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy.FIXED_CODE_POINT, 800, 120);
         ParsedDocument parsed = new DocumentParserFactory().parse("a.txt", source.getBytes(StandardCharsets.UTF_8));
+        java.util.List<DocumentSplitter.Chunk> legacy = splitter.split(
+                parsed, new ChunkingConfig(1, config.strategy(), config.chunkSize(), config.chunkOverlap()));
+        assertThat(legacy).hasSize(3);
+        assertThat(legacy).extracting(DocumentSplitter.Chunk::chunkOrder).containsExactly(0, 1, 2);
+        assertThat(legacy.get(1).content()).isBlank();
+        assertThat(legacy.get(1).span().start()).isEqualTo(680);
+        assertThat(legacy.get(1).span().end()).isEqualTo(1480);
+        assertThat(legacy).allMatch(c -> c.content().equals(c.span().extract(source)));
         java.util.List<DocumentSplitter.Chunk> chunks = splitter.split(parsed, config);
+        assertThat(chunks.get(0)).isEqualTo(legacy.get(0));
+        assertThat(chunks.get(1).headingPath()).isEqualTo(legacy.get(2).headingPath());
         assertThat(chunks).hasSize(2).allMatch(c -> !c.content().isBlank());
         assertThat(chunks).extracting(DocumentSplitter.Chunk::chunkOrder).containsExactly(0, 1);
         assertThat(chunks).extracting(c -> c.span().start()).containsExactly(0, 1360);

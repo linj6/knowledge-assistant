@@ -8,7 +8,8 @@ import java.util.List;
 
 public final class FixedCodePointSplitter implements DocumentSplitter {
     public List<Chunk> split(ParsedDocument document, ChunkingConfig config) {
-        if (config.version() != 1 || config.strategy() != ChunkingStrategy.FIXED_CODE_POINT) {
+        if ((config.version() != 1 && config.version() != 2)
+                || config.strategy() != ChunkingStrategy.FIXED_CODE_POINT) {
             throw new IllegalArgumentException("Unsupported chunking protocol");
         }
         String source = document.source();
@@ -21,8 +22,8 @@ public final class FixedCodePointSplitter implements DocumentSplitter {
             int end = start + Math.min(config.chunkSize(), length - start);
             while (document.fragments().get(fragment).span().end() <= start) fragment++;
             String content = source.substring(boundaries[start], boundaries[end]);
-            // 跳过空白窗口，保留原文偏移；有效块按结果数量连续编号。
-            if (!content.isBlank())
+            // v1 保留历史窗口身份；v2 跳过空白窗口，保留原文偏移并连续编号。
+            if (config.version() == 1 || !content.isBlank())
                 chunks.add(new Chunk(
                         chunks.size(),
                         content,
