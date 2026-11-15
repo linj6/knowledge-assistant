@@ -31,8 +31,8 @@ import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 /** D01 冻结 Gold 上的纯离线人工标签计算，不推断语义。 */
-public final class AnswerMetrics {
-    private AnswerMetrics() {}
+public final class BaselineAnswerMetrics {
+    private BaselineAnswerMetrics() {}
 
     public static final String GOLD_V1_FINGERPRINT = "57c202a788d20e86a2ed166776c77dab6e66bed8b4ae08a1a925806458a5dbca";
 
@@ -176,7 +176,7 @@ public final class AnswerMetrics {
                 && FROZEN.equals(dataset.freezeStatus())
                 && ANSWER_PROTOCOL.equals(dataset.protocol())
                 && dataset.freezeFingerprint().equals(input.payloadFingerprint())
-                && dataset.cases().stream().allMatch(AnswerMetrics::confirmed);
+                && dataset.cases().stream().allMatch(BaselineAnswerMetrics::confirmed);
     }
 
     public static Result calculate(JsonNode dataset, JsonNode gold, JsonNode review) {
@@ -353,7 +353,7 @@ public final class AnswerMetrics {
     public static Summary summarize(JsonNode dataset, List<JsonNode> reviews) {
         return summarize(
                 readDataset(dataset),
-                reviews.stream().map(AnswerMetrics::readReview).toList());
+                reviews.stream().map(BaselineAnswerMetrics::readReview).toList());
     }
 
     public static Summary summarize(DatasetInput input, List<Review> reviews) {

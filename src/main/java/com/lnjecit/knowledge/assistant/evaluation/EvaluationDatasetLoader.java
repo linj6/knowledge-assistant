@@ -33,6 +33,12 @@ final class EvaluationDatasetLoader {
         return new Loaded(dataset, fingerprint, null, Sha256.digest(bytes));
     }
 
+    AnswerEvaluationDataset full() throws Exception {
+        Loaded loaded = load();
+        if (loaded.error() != null) throw new IllegalStateException(loaded.error());
+        return json.readValue(resource.getContentAsByteArray(), AnswerEvaluationDataset.class);
+    }
+
     record Description(Dataset dataset, String sha256) {}
 
     Description describe() throws Exception {
