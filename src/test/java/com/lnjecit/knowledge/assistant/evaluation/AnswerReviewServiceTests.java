@@ -157,7 +157,30 @@ class AnswerReviewServiceTests {
                 facts,
                 List.of(),
                 true);
+        // 未完成的正常拒答仍不能确认。
+        AnswerReview.Input incomplete = new AnswerReview.Input(
+                "stub",
+                "Q01",
+                1,
+                dataset.freezeFingerprint(),
+                null,
+                "TEST",
+                "stub",
+                AnswerReview.Status.CONFIRMED,
+                AnswerReview.Answerable.PENDING,
+                AnswerReview.Judgment.PENDING,
+                Map.of(),
+                List.of(),
+                false);
+        assertThrows(ResponseStatusException.class, () -> service.save("stub", incomplete));
         service.save("stub", confirmed);
+        byte[] savedReview = java.nio.file.Files.readAllBytes(root.resolve("stub/review.json"));
+        ResponseStatusException conflict =
+                assertThrows(ResponseStatusException.class, () -> service.save("stub", confirmed));
+        assertEquals(org.springframework.http.HttpStatus.CONFLICT, conflict.getStatusCode());
+        assertEquals("REVIEW_ALREADY_CONFIRMED", conflict.getReason());
+        assertThrows(ResponseStatusException.class, () -> service.save("stub", input(dataset, "stub", Map.of())));
+        assertArrayEquals(savedReview, java.nio.file.Files.readAllBytes(root.resolve("stub/review.json")));
         AnswerMetrics.Result score = service.score("stub");
         assertEquals(AnswerMetrics.State.PASS, score.appropriateness());
         assertEquals(AnswerMetrics.State.NA, score.correctness());
@@ -198,7 +221,43 @@ class AnswerReviewServiceTests {
         when(runs.read("failed"))
                 .thenReturn(new AnswerEvaluationRun.Response(
                         "failed", failed, new AnswerEvaluationRun.Results(results.goldCase(), null)));
-        java.nio.file.Files.createDirectory(root.resolve("failed"));
+        // 使用真实文件 Store 发布 Stub Run，逐字节确认历史产物不受评审影响。
+        EvaluationRunStore fileRuns = new EvaluationRunStore(root);
+        fileRuns.save(failed, new AnswerEvaluationRun.Results(results.goldCase(), null));
+        AnswerReviewService failedService = new AnswerReviewService(fileRuns, new AnswerReviewStore(root));
+        Map<String, byte[]> artifacts = new java.util.LinkedHashMap<>();
+        for (String name : List.of("manifest.json", "results.json", "report.md"))
+            artifacts.put(
+                    name,
+                    java.nio.file.Files.readAllBytes(root.resolve("failed").resolve(name)));
+        AnswerReview.Input failedConfirmation = new AnswerReview.Input(
+                "failed",
+                "Q01",
+                1,
+                dataset.freezeFingerprint(),
+                null,
+                "TEST",
+                "确认 MODEL_TIMEOUT 执行失败，无可评回答",
+                AnswerReview.Status.CONFIRMED,
+                null,
+                null,
+                null,
+                null,
+                false);
+        failedService.save("failed", failedConfirmation);
+        assertEquals(AnswerReview.Status.CONFIRMED, failedService.read("failed").reviewStatus());
+        AnswerMetrics.Result failedScore = failedService.score("failed");
+        assertEquals(AnswerMetrics.State.FAIL, failedScore.wholeCase());
+        for (AnswerMetrics.State state : List.of(
+                failedScore.appropriateness(),
+                failedScore.correctness(),
+                failedScore.completeness(),
+                failedScore.validity(),
+                failedScore.support())) assertEquals(AnswerMetrics.State.NA, state);
+        for (Map.Entry<String, byte[]> artifact : artifacts.entrySet())
+            assertArrayEquals(
+                    artifact.getValue(),
+                    java.nio.file.Files.readAllBytes(root.resolve("failed").resolve(artifact.getKey())));
         assertEquals(AnswerMetrics.State.FAIL, service.score("failed").wholeCase());
         assertEquals(AnswerMetrics.State.NA, service.score("failed").appropriateness());
     }

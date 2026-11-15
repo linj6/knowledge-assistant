@@ -76,20 +76,26 @@ public class AnswerReviewService {
 
     public AnswerReview.Saved save(String id, AnswerReview.Input input) throws Exception {
         AnswerReview.Material material = read(id);
+        // V1 确认后只读，普通 PUT 不能覆盖或退回草稿。
+        if (material.reviewStatus() == AnswerReview.Status.CONFIRMED)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "REVIEW_ALREADY_CONFIRMED");
         validateIdentity(material.run(), material.gold(), loader.full(), input);
+        boolean failed = material.run().manifest().status() == RunStatus.FAILED;
         if (input.reviewStatus() == null
-                || input.contextAnswerable() == null
-                || input.appropriateness() == null
-                || input.factCoverage() == null
-                || input.claims() == null) throw invalid("INVALID_REVIEW");
+                || (!failed
+                        && (input.contextAnswerable() == null
+                                || input.appropriateness() == null
+                                || input.factCoverage() == null
+                                || input.claims() == null))) throw invalid("INVALID_REVIEW");
         Set<String> facts = new HashSet<>();
         for (AnswerEvaluationDataset.Fact fact : material.gold().requiredFacts()) facts.add(fact.factId());
-        if (!facts.containsAll(input.factCoverage().keySet())
-                || input.factCoverage().values().stream().anyMatch(Objects::isNull))
+        if (input.factCoverage() != null
+                && (!facts.containsAll(input.factCoverage().keySet())
+                        || input.factCoverage().values().stream().anyMatch(Objects::isNull)))
             throw invalid("INVALID_FACT_ID_OR_JUDGMENT");
         List<String> citations = citations(material.run());
         Set<String> claims = new HashSet<>();
-        for (AnswerMetrics.Claim claim : input.claims()) {
+        for (AnswerMetrics.Claim claim : input.claims() == null ? List.<AnswerMetrics.Claim>of() : input.claims()) {
             if (claim == null
                     || claim.claimId() == null
                     || claim.claimId().isBlank()
@@ -106,22 +112,25 @@ public class AnswerReviewService {
         }
         AnswerReview.Saved saved = new AnswerReview.Saved(
                 input, Instant.now(), material.gold().knowledgeAnswerable(), validity(material.run()));
-        // 确认要求人工清单完整；明确 FAIL 也必须完成其余判断，不能用失败掩盖待审。
+        // 执行失败没有可评回答，只确认评审人和依据；完成的回答仍须完成人工判断。
         if (input.reviewStatus() == AnswerReview.Status.CONFIRMED) {
+            AnswerMetrics.Result result = score(material, saved);
             if (input.reviewer() == null
                     || input.reviewer().isBlank()
                     || input.basis() == null
                     || input.basis().isBlank()
-                    || input.contextAnswerable() == AnswerReview.Answerable.PENDING
-                    || input.appropriateness() == AnswerReview.Judgment.PENDING
-                    || !input.claimsComplete()
-                    || !input.factCoverage().keySet().equals(facts)
-                    || input.factCoverage().containsValue(AnswerReview.Judgment.PENDING)
-                    || input.claims().stream()
-                            .anyMatch(c -> "PENDING".equals(c.correctness()) || "PENDING".equals(c.support()))
-                    || score(material, saved).wholeCase() == AnswerMetrics.State.NOT_READY
-                    || score(material, saved).wholeCase() == AnswerMetrics.State.PENDING)
-                throw invalid("REVIEW_INCOMPLETE");
+                    || (!failed
+                            && (input.contextAnswerable() == null
+                                    || input.contextAnswerable() == AnswerReview.Answerable.PENDING
+                                    || input.appropriateness() == AnswerReview.Judgment.PENDING
+                                    || !input.claimsComplete()
+                                    || !input.factCoverage().keySet().equals(facts)
+                                    || input.factCoverage().containsValue(AnswerReview.Judgment.PENDING)
+                                    || input.claims().stream()
+                                            .anyMatch(c -> "PENDING".equals(c.correctness())
+                                                    || "PENDING".equals(c.support()))))
+                    || result.wholeCase() == AnswerMetrics.State.NOT_READY
+                    || result.wholeCase() == AnswerMetrics.State.PENDING) throw invalid("REVIEW_INCOMPLETE");
         }
         reviews.save(id, saved);
         return saved;
@@ -188,7 +197,7 @@ public class AnswerReviewService {
                 : run.results().execution().answer();
         boolean failed = run.manifest().status() == RunStatus.FAILED;
         Map<String, String> coverage = new LinkedHashMap<>();
-        input.factCoverage().forEach((key, value) -> coverage.put(key, value.name()));
+        if (input.factCoverage() != null) input.factCoverage().forEach((key, value) -> coverage.put(key, value.name()));
         // 执行状态、答案、引用与错误只取持久化 Run，不接受人工输入覆盖。
         AnswerMetrics.Review review = new AnswerMetrics.Review(
                 input.caseId(),
@@ -206,14 +215,16 @@ public class AnswerReviewService {
                 Objects.toString(input.reviewer(), ""),
                 Objects.toString(input.basis(), ""),
                 material.gold().knowledgeAnswerable(),
-                input.contextAnswerable() == AnswerReview.Answerable.PENDING
+                input.contextAnswerable() == null || input.contextAnswerable() == AnswerReview.Answerable.PENDING
                         ? null
                         : input.contextAnswerable() == AnswerReview.Answerable.TRUE,
-                input.appropriateness().name(),
+                input.appropriateness() == null
+                        ? "PENDING"
+                        : input.appropriateness().name(),
                 validity(run),
                 input.claimsComplete(),
                 coverage,
-                input.claims());
+                input.claims() == null ? List.of() : input.claims());
         return AnswerMetrics.calculate(datasetInput, material.gold(), review);
     }
 }
