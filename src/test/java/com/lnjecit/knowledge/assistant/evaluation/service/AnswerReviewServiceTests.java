@@ -181,7 +181,42 @@ class AnswerReviewServiceTests {
                 List.of(),
                 false);
         assertThrows(ResponseStatusException.class, () -> service.save("stub", incomplete));
-        service.save("stub", confirmed);
+        // 确认请求停在原子保存之前，第二个 PUT 必须阻塞在业务临界区之外。
+        java.util.concurrent.CountDownLatch entered = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        AnswerReviewStore blockingStore = new AnswerReviewStore(root) {
+            @Override
+            public void save(String id, AnswerReview.Saved review) throws Exception {
+                entered.countDown();
+                assertTrue(release.await(5, java.util.concurrent.TimeUnit.SECONDS));
+                super.save(id, review);
+            }
+        };
+        AnswerReviewService concurrent = new AnswerReviewService(runs, blockingStore);
+        java.util.concurrent.FutureTask<AnswerReview.Saved> first =
+                new java.util.concurrent.FutureTask<>(() -> concurrent.save("stub", confirmed));
+        java.util.concurrent.FutureTask<ResponseStatusException> second =
+                new java.util.concurrent.FutureTask<>(() -> assertThrows(
+                        ResponseStatusException.class,
+                        () -> concurrent.save("stub", input(dataset, "stub", Map.of()))));
+        Thread confirming = new Thread(first);
+        Thread drafting = new Thread(second);
+        confirming.start();
+        try {
+            assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            drafting.start();
+            long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+            while (drafting.getState() != Thread.State.BLOCKED && !second.isDone() && System.nanoTime() < deadline)
+                Thread.yield();
+            assertEquals(Thread.State.BLOCKED, drafting.getState());
+        } finally {
+            release.countDown();
+        }
+        first.get(5, java.util.concurrent.TimeUnit.SECONDS);
+        assertEquals(
+                org.springframework.http.HttpStatus.CONFLICT,
+                second.get(5, java.util.concurrent.TimeUnit.SECONDS).getStatusCode());
+        assertEquals(confirmed, service.read("stub").review().judgments());
         byte[] savedReview = java.nio.file.Files.readAllBytes(root.resolve("stub/review.json"));
         ResponseStatusException conflict =
                 assertThrows(ResponseStatusException.class, () -> service.save("stub", confirmed));
@@ -196,21 +231,27 @@ class AnswerReviewServiceTests {
         assertEquals(AnswerMetrics.State.NA, score.validity());
         assertEquals(AnswerMetrics.State.NA, score.support());
         assertEquals(AnswerMetrics.State.FAIL, score.wholeCase());
+        when(runs.read("invalid")).thenReturn(new AnswerEvaluationRun.Response("invalid", manifest, results));
+        java.nio.file.Files.createDirectory(root.resolve("invalid"));
         AnswerReview.Input illegal = new AnswerReview.Input(
-                "stub",
+                "invalid",
                 "Q01",
                 1,
                 dataset.freezeFingerprint(),
                 null,
                 "TEST",
-                "stub",
+                "invalid",
                 AnswerReview.Status.PENDING,
                 AnswerReview.Answerable.FALSE,
                 AnswerReview.Judgment.PASS,
                 facts,
                 List.of(new AnswerMetrics.Claim("C1", "断言", "PASS", "PASS", List.of("E99"))),
                 true);
-        assertThrows(ResponseStatusException.class, () -> service.save("stub", illegal));
+        ResponseStatusException invalid =
+                assertThrows(ResponseStatusException.class, () -> service.save("invalid", illegal));
+        assertEquals(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY, invalid.getStatusCode());
+        assertEquals("INVALID_CLAIM_OR_CITATION", invalid.getReason());
+        assertNull(service.read("invalid").review());
         AnswerEvaluationRun.Manifest failed = new AnswerEvaluationRun.Manifest(
                 "m4-d03-answer-v1",
                 1,

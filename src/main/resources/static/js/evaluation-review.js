@@ -4,7 +4,7 @@ const judgments = ['PENDING', 'PASS', 'FAIL'];
 const dimensions = {appropriateness:'Response Appropriateness', correctness:'Factual Correctness', completeness:'Answer Completeness', validity:'Citation Validity', support:'Citation Semantic Support', wholeCase:'Whole-case'};
 function el(tag, text, parent) { const n = document.createElement(tag); if (text != null) n.textContent = String(text); parent.append(n); return n; }
 function field(label, tag, parent, value = '') { const n = el(tag, null, el('label', label, parent)); n.value = value; return n; }
-function picker(label, values, parent, value = 'PENDING') { const n = field(label, 'select', parent, value); for (const v of values) el('option', v, n).value = v; return n; }
+function picker(label, values, parent, value = 'PENDING') { const n = field(label, 'select', parent); for (const v of values) el('option', v, n).value = v; n.value = value; return n; }
 function fold(title, text, parent) { const box = el('details', null, parent); el('summary', title, box); el('pre', text ?? '未记录', box); return box; }
 function facts(fact, parent) {
     el('h4', fact.factId ?? '未记录 Fact ID', parent); el('p', fact.description ?? '未记录描述', parent);

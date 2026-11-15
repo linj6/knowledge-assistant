@@ -80,7 +80,8 @@ public class AnswerReviewService {
                 || !Objects.equals(snapshot, input.snapshotHash())) throw invalid("REVIEW_IDENTITY_MISMATCH");
     }
 
-    public AnswerReview.Saved save(String id, AnswerReview.Input input) throws Exception {
+    // Spring 单例的所有 PUT 共用监视器，保护读取、校验和保存；仅保证单 JVM。
+    public synchronized AnswerReview.Saved save(String id, AnswerReview.Input input) throws Exception {
         AnswerReview.Material material = read(id);
         // V1 确认后只读，普通 PUT 不能覆盖或退回草稿。
         if (material.reviewStatus() == AnswerReview.Status.CONFIRMED)

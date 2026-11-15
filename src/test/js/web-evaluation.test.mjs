@@ -110,3 +110,14 @@ test('快速切换Run时旧评审响应不得覆盖新Run',async()=>{
  await h.respond(old,{...h.material,gold:{...h.material.gold,question:'旧请求不能覆盖'}});assert.doesNotMatch(h.elements['eval-content'].textContent,/旧请求不能覆盖/);
  await h.respond(newer,{...h.material,run:second,gold:{...h.material.gold,question:'第二个Run'}});await h.respond(h.calls.length-1,h.pending);assert.match(h.elements['eval-content'].textContent,/第二个Run/);
 });
+
+for (const context of ['TRUE','FALSE']) for (const judgment of ['PASS','FAIL','PENDING']) test(`saved select ${context}/${judgment}`,async()=>{
+ const h=await reviewFixture();
+ void h.reviewButton('保存草稿').fire('click');await tick();const i=h.calls.length-1;
+ const input=JSON.parse(h.calls[i].options.body);input.contextAnswerable=context;input.appropriateness=judgment;
+ input.factCoverage=Object.fromEntries(dataset.cases[0].requiredFacts.map(f=>[f.factId,judgment]));
+ input.claims=[{claimId:'C1',text:'saved',correctness:judgment,support:judgment,citationIds:['E1']}];
+ await h.respond(i,{});await h.respond(h.calls.length-1,{...h.material,reviewStatus:'CONFIRMED',review:{judgments:input}});await h.respond(h.calls.length-1,h.pending);
+ for(const label of ['Response Appropriateness','覆盖判断','Factual Correctness','Citation Semantic Support']) assert.equal(h.reviewField(label).value,judgment);
+ assert.equal(h.reviewField('Context Answerable').value,context);assert.equal(h.reviewField('Context Answerable').disabled,true);
+});

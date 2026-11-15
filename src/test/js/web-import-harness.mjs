@@ -8,7 +8,7 @@ class Element {
     set textContent(value) { this.text = String(value); this.children = []; }
     get textContent() { return this.text + this.children.map(child => child.textContent).join(''); }
     get value() { return this._value || (this.tag === 'select' ? this.children[0]?.value ?? '' : ''); }
-    set value(value) { this._value = value; }
+    set value(value) { this._value = this.tag === 'select' ? (this.children.some(c => c.value === value) ? value : '') : value; }
     get options() { return this.children; }
     insertBefore(child, reference) { const index = this.children.indexOf(reference); this.children.splice(index < 0 ? 0 : index, 0, child); }
     append(...children) { this.children.push(...children); }
