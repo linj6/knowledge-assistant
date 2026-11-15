@@ -8,11 +8,9 @@ INFO 表示正常状态；WARN 表示业务拒绝、预期可恢复问题；ERRO
 
 ## 日志输出边界
 
-`FailureLog` 将原始异常转换为独立诊断 Throwable，再交给 SLF4J；原始异常从不直接传给日志后端。转换同时处理 cause、suppressed 和堆栈，原因链限制16层并识别循环；不是仅对格式化消息做替换。原始异常仍保留给服务端调试，不直接序列化至 API。
+当前 FailureLog 将原始 Throwable 交给 SLF4J，不创建独立诊断副本、不限制 Cause 16 层。默认 logback-spring.xml 的 CredentialRedactingConverter 和 CredentialThrowableConverter 分别对消息与标准完整堆栈输出脱敏，保留 Cause、suppressed 与定位信息。自定义 Appender、额外采集通道及原始日志事件不自动获得相同保障，需单独核验。
 
-实际配置中的模型 Key、数据源密码、MinIO access-key/secret-key 按完整值替换；同时处理凭据赋值、Bearer、Authorization、Cookie 和 URL userinfo。普通异常消息经脱敏后保留。普通 SDK、网络和 JDBC 包装消息经过脱敏后保留，不按包名隐藏。确实包含完整 HTTP 响应的异常采用结构化摘要：OpenAI status/code/type/error.message，ES status/type/reason，MinIO HTTP status/code/message，SQLException SQLState/vendorCode/脱敏描述。OpenAI 只读取结构化 error.message；非对象或无法解码时明确记录 unavailable 和省略原因，禁止回退到完整响应。默认不输出请求头、响应体、问题、上传正文或向量。
-
-这不是全局 Logback 过滤器：业务必须通过此边界记录异常，不得直接 `log.error(..., rawThrowable)`。第三方自行输出的日志不受此工具保护；动态新增认证属性需加入凭据注册，编码/变换后的密钥、任意未知 SDK 中隐藏的 Payload 不能依靠正则获得绝对安全保证。上线前需要额外核验 SDK 日志级别和采集通道。SQL 服务端 Detail 可能包含业务值，生产场景需进一步评估。
+不得主动记录敏感正文；已注册凭据及模式匹配无法保证覆盖所有未知或变换后的敏感信息。新增认证配置须同步注册。
 
 ## 责任边界
 
@@ -29,7 +27,7 @@ INFO 表示正常状态；WARN 表示业务拒绝、预期可恢复问题；ERRO
 
 `ImportEvents` 吞掉日志后端故障是有意设计，避免诊断改变首次发布/补偿语义，不递归打印日志故障。参数非法、文本编码拒绝、重复导入、受控解析/模型响应校验属于合理业务转换，不机械提升为 ERROR。Repository 事务、重试、首次发布语义及检索算法不变。
 
-## 审计结果
+## 历史审计结果（以下为当时记录）
 
 恢复时生产源码共有65处 catch（不包括测试），其中新增 Rerank 错误体解析 catch 已纳入审计；本次工具增加2处 catch，完成后共67处 catch、26个含 catch 的生产文件。重点问题：ModelFailures/MinIO/ES 包装删除 Cause；API 兜底只留类名；Retrieval/Worker/补偿转状态不记录主要故障。以上已进行针对性修复。本轮继续修复 MinIO 读取超时/连接转换、Embedding 数据库写入丢失 Cause；ES Scroll 清理失败作为原故障 suppressed 保留；ES Bulk 非成功项保留 HTTP status/type/reason，响应正文不进入异常。解析器、参数 DTO 和向量内容校验继续使用安全拒绝信息，不记录原始业务 Payload。下表按源码文件列出 catch 数量，数量用于覆盖审计范围，不表示每处都需要修改。
 

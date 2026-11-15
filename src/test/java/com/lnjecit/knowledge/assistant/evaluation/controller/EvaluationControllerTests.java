@@ -32,11 +32,8 @@ class EvaluationControllerTests {
 
     @Test
     void readsHistoryAndRejectsCorruption() throws Exception {
-        Path source = Path.of("target/evaluation/m4-c01-offline-v1");
-        org.junit.jupiter.api.Assumptions.assumeTrue(Files.isDirectory(source));
-        Path run = Files.createDirectory(root.resolve("history"));
-        for (String name : java.util.List.of("manifest.json", "metrics.json", "retrieval-results.jsonl", "report.md"))
-            Files.copy(source.resolve(name), run.resolve(name));
+        Path run = root.resolve("history");
+        com.lnjecit.knowledge.assistant.evaluation.runner.OfflineEvaluationRunner.run(run, false);
         EvaluationController controller = new EvaluationController(new EvaluationRunStore(root));
         assertEquals("history", ((EvaluationRunStore.OfflineResponse) controller.read("history")).runId());
         assertEquals(1, controller.list().size());
@@ -47,14 +44,22 @@ class EvaluationControllerTests {
                         .getStatusCode()
                         .value());
         assertTrue(controller.list().isEmpty());
+        assertEquals(
+                "ARTIFACT_HASH_MISMATCH: metrics.json",
+                assertThrows(ResponseStatusException.class, () -> controller.read("history"))
+                        .getReason());
+        com.lnjecit.knowledge.assistant.evaluation.runner.OfflineEvaluationRunner.run(run, true);
         Files.writeString(run.resolve("manifest.json"), "broken json");
-        assertThrows(ResponseStatusException.class, () -> controller.read("history"));
+        assertEquals(
+                "INVALID_RECORD_JSON_OR_PROTOCOL",
+                assertThrows(ResponseStatusException.class, () -> controller.read("history"))
+                        .getReason());
+        com.lnjecit.knowledge.assistant.evaluation.runner.OfflineEvaluationRunner.run(run, true);
         Files.delete(run.resolve("report.md"));
         assertEquals(
-                422,
+                "MISSING_FILE",
                 assertThrows(ResponseStatusException.class, () -> controller.read("history"))
-                        .getStatusCode()
-                        .value());
+                        .getReason());
     }
 
     @Test
@@ -72,10 +77,26 @@ class EvaluationControllerTests {
     void historicalTypedResponsesPreserveArchivedJsonStructure() throws Exception {
         tools.jackson.databind.json.JsonMapper mapper =
                 tools.jackson.databind.json.JsonMapper.builder().build();
-        for (String id : java.util.List.of("m4-c01-offline-v1", "m4-c02-live-bm25-v1", "m4-c02-live-vector-rrf-v1")) {
-            Path archive = Path.of("target/evaluation").resolve(id);
-            org.junit.jupiter.api.Assumptions.assumeTrue(Files.isDirectory(archive));
-            EvaluationRunResponse response = new EvaluationRunStore(Path.of("target/evaluation")).read(id);
+        for (String id : java.util.List.of("offline", "live")) {
+            Path archive = root.resolve(id);
+            com.lnjecit.knowledge.assistant.evaluation.runner.OfflineEvaluationRunner.run(archive, false);
+            if (id.equals("live")) {
+                // 复用已生成归档的身份字段，构造最小 C02 空结果归档。
+                tools.jackson.databind.node.ObjectNode manifest = (tools.jackson.databind.node.ObjectNode)
+                        mapper.readTree(Files.readString(archive.resolve("manifest.json")));
+                manifest.put("mode", "LIVE");
+                manifest.put("runnerVersion", "m4-c02-live-v1");
+                Files.writeString(archive.resolve("metrics.json"), "{\"runs\":[],\"summaries\":{}}");
+                Files.writeString(archive.resolve("retrieval-results.jsonl"), "");
+                tools.jackson.databind.node.ObjectNode hashes =
+                        (tools.jackson.databind.node.ObjectNode) manifest.path("artifactSha256");
+                for (String name : java.util.List.of("metrics.json", "retrieval-results.jsonl", "report.md"))
+                    hashes.put(
+                            name,
+                            com.lnjecit.knowledge.assistant.evaluation.dataset.Sha256.file(archive.resolve(name)));
+                Files.writeString(archive.resolve("manifest.json"), mapper.writeValueAsString(manifest));
+            }
+            EvaluationRunResponse response = new EvaluationRunStore(root).read(id);
             tools.jackson.databind.JsonNode actual = mapper.readTree(mapper.writeValueAsString(response));
             assertEquals(mapper.readTree(Files.readString(archive.resolve("manifest.json"))), actual.path("manifest"));
             assertEquals(mapper.readTree(Files.readString(archive.resolve("metrics.json"))), actual.path("metrics"));

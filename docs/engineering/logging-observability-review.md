@@ -1,3 +1,7 @@
+> 本文为历史验收记录，旧机制描述不代表现行规范。
+
+当前 FailureLog 将原始 Throwable 交给 SLF4J，不创建独立诊断副本、不限制 Cause 16 层。默认 logback-spring.xml 的 CredentialRedactingConverter 和 CredentialThrowableConverter 分别对消息与标准完整堆栈输出脱敏，保留 Cause、suppressed 与定位信息。自定义 Appender、额外采集通道及原始日志事件不自动获得相同保障，需单独核验。
+
 # 全项目日志与异常诊断审查
 
 ## 范围与基线

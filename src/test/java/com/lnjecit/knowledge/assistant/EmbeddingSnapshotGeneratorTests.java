@@ -78,7 +78,7 @@ class EmbeddingSnapshotGeneratorTests {
                 new EmbeddingSnapshotGenerator.Budget(true, "text-embedding-v4", "", 153, 16, true))) {
             assertThatThrownBy(() -> EmbeddingSnapshotGenerator.run(
                             data,
-                            EmbeddingSnapshotGenerator.TARGET,
+                            temporary.resolve("gates"),
                             10,
                             EmbeddingSnapshotGenerator.Mode.EXECUTE,
                             budget,
@@ -87,19 +87,11 @@ class EmbeddingSnapshotGeneratorTests {
                             }))
                     .isInstanceOf(IllegalArgumentException.class);
         }
-        assertThatThrownBy(() -> EmbeddingSnapshotGenerator.run(
-                        data,
-                        temporary,
-                        10,
-                        EmbeddingSnapshotGenerator.Mode.EXECUTE,
-                        budget(true, 153, 16),
-                        () -> model))
-                .hasMessage("FIXED_TARGET_REQUIRED");
         Map<EmbeddingSnapshot.Input, String> changed = new LinkedHashMap<>(data.inputs());
         changed.remove(changed.keySet().iterator().next());
         assertThatThrownBy(() -> EmbeddingSnapshotGenerator.run(
                         new EmbeddingSnapshotGenerator.Dataset(data.manifest(), changed),
-                        EmbeddingSnapshotGenerator.TARGET,
+                        temporary.resolve("gates"),
                         10,
                         EmbeddingSnapshotGenerator.Mode.EXECUTE,
                         budget(true, 153, 16),
@@ -117,7 +109,7 @@ class EmbeddingSnapshotGeneratorTests {
                 m.chunkingFingerprint());
         assertThatThrownBy(() -> EmbeddingSnapshotGenerator.run(
                         new EmbeddingSnapshotGenerator.Dataset(wrong, data.inputs()),
-                        EmbeddingSnapshotGenerator.TARGET,
+                        temporary.resolve("gates"),
                         10,
                         EmbeddingSnapshotGenerator.Mode.EXECUTE,
                         budget(true, 153, 16),
@@ -126,7 +118,7 @@ class EmbeddingSnapshotGeneratorTests {
         for (int batch : List.of(0, 11, 9)) {
             assertThatThrownBy(() -> EmbeddingSnapshotGenerator.run(
                             data,
-                            EmbeddingSnapshotGenerator.TARGET,
+                            temporary.resolve("gates"),
                             batch,
                             EmbeddingSnapshotGenerator.Mode.EXECUTE,
                             budget(true, 153, 16),
@@ -138,8 +130,8 @@ class EmbeddingSnapshotGeneratorTests {
 
     @Test
     void fakeExecuteAndResumeRequireFreshAuthorization() throws Exception {
-        Path target = EmbeddingSnapshotGenerator.TARGET;
-        // 不覆盖任何已有快照；测试完成后清除自己创建的 Fake 产物。
+        Path target = temporary.resolve("embedding");
+        // Fake 产物仅由 JUnit 清理自己的临时目录。
         assertThat(Files.exists(target)).isFalse();
         EmbeddingSnapshotGenerator.Dataset data = small();
         OpenAiEmbeddingModel first = fake();
@@ -156,7 +148,7 @@ class EmbeddingSnapshotGeneratorTests {
         when(first.call(any(EmbeddingRequest.class)))
                 .thenAnswer(answer)
                 .thenThrow(new IllegalStateException("fake failure"));
-        try {
+        {
             assertThatThrownBy(() -> EmbeddingSnapshotGenerator.run(
                             data,
                             target,
@@ -190,10 +182,6 @@ class EmbeddingSnapshotGeneratorTests {
                             data.manifest(),
                             data.inputs()))
                     .hasSize(153);
-        } finally {
-            for (String name : List.of("manifest.json", "vectors.jsonl", "failure.json"))
-                Files.deleteIfExists(target.resolve(name));
-            Files.deleteIfExists(target);
         }
     }
 }

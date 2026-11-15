@@ -191,9 +191,6 @@ public final class EmbeddingSnapshotGenerator {
                         JSON.writeValueAsString(data.inputs().keySet())))
                 || !CONFIG_FINGERPRINT.equals(data.manifest().configFingerprint()))
             throw new IllegalArgumentException("FROZEN_DATASET_MISMATCH");
-        if (!target.equals(TARGET)
-                || !target.toFile().getCanonicalFile().toPath().equals(TARGET))
-            throw new IllegalArgumentException("FIXED_TARGET_REQUIRED");
         if (unique.size() > 153
                 || requests > 16
                 || budget.maxInputs() > 153
@@ -249,6 +246,10 @@ public final class EmbeddingSnapshotGenerator {
                 || !"text-embedding-v4".equals(properties.getEmbeddingModel())
                 || !Integer.valueOf(1024).equals(properties.getDimensions()))
             throw new IllegalArgumentException("ONLINE_PROPERTIES_MISMATCH");
+        target = target.toAbsolutePath().normalize();
+        if (!target.equals(TARGET)
+                || !target.toFile().getCanonicalFile().toPath().equals(TARGET))
+            throw new IllegalArgumentException("FIXED_TARGET_REQUIRED");
         return run(
                 data,
                 target,

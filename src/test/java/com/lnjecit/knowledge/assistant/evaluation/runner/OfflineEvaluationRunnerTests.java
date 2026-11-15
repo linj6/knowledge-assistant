@@ -64,7 +64,10 @@ class OfflineEvaluationRunnerTests {
                 .collect(java.util.stream.Collectors.joining(java.io.File.pathSeparator));
         Path log = temporary.resolve("failure.log");
         Process process = new ProcessBuilder(
-                        Path.of(System.getProperty("java.home"), "bin", "java.exe")
+                        Path.of(
+                                        System.getProperty("java.home"),
+                                        "bin",
+                                        System.getProperty("os.name").startsWith("Windows") ? "java.exe" : "java")
                                 .toString(),
                         "-cp",
                         absoluteClasspath,

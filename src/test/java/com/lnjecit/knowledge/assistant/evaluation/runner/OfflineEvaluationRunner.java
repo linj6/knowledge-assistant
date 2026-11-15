@@ -47,7 +47,7 @@ public final class OfflineEvaluationRunner {
         run(OUTPUT, args.length == 1);
     }
 
-    static void run(Path output, boolean overwrite) throws Exception {
+    public static void run(Path output, boolean overwrite) throws Exception {
         if (Files.exists(output) && !overwrite) throw new IOException("OUTPUT_ERROR: 输出目录已存在: " + output);
         RetrievalFixture fixture;
         FrozenRankingEvaluation.ReviewMaterials materials;
