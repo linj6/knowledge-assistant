@@ -1,5 +1,14 @@
 package com.lnjecit.knowledge.assistant.evaluation.metrics;
 
+import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.FrozenPool;
+import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.FrozenPools;
+import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.GoldQuestionIdentity;
+import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.OfflineRetrievalRunResult;
+import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RelevanceJudgment;
+import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RetrievalFixture;
+import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RetrievalFixturePool;
+import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RetrievalFixturePoolJudgmentsItem;
+import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RetrievalFixtureSource;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -9,14 +18,16 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
-import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /** 仅适配 M4 冻结实验；校验失败时拒绝评分，不修补人工标签。 */
 public final class FrozenRankingEvaluation {
-    private static final JsonMapper JSON = JsonMapper.builder().build();
+    private static final JsonMapper JSON = JsonMapper.builder()
+            .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+            .build();
 
     private FrozenRankingEvaluation() {}
 
@@ -45,164 +56,265 @@ public final class FrozenRankingEvaluation {
         return com.lnjecit.knowledge.assistant.evaluation.FrozenFingerprint.fingerprint(node);
     }
 
-    private static String poolKey(JsonNode p) {
-        return p.path("questionId").asString() + "/" + p.path("chunking").asString();
+    private static String poolKey(String questionId, String chunking) {
+        return questionId + "/" + chunking;
     }
 
-    private static String identity(JsonNode c) {
-        return c.path("documentId").asString() + "/" + c.path("indexVersionId").asString() + "/"
-                + c.path("chunkId").asString();
+    private static String identity(Long documentId, Long versionId, Long chunkId) {
+        return documentId + "/" + versionId + "/" + chunkId;
     }
 
-    private static Map<String, JsonNode> index(JsonNode array, boolean pools) {
-        Map<String, JsonNode> map = new TreeMap<>();
-        for (JsonNode item : array) {
-            String key = pools ? poolKey(item) : identity(item);
+    private static <T> Map<String, T> index(List<T> items, java.util.function.Function<T, String> keyOf) {
+        Map<String, T> map = new TreeMap<>();
+        for (T item : items) {
+            String key = keyOf.apply(item);
             require(map.putIfAbsent(key, item) == null, "INVALID_POOL", "重复身份: " + key);
         }
         return map;
     }
 
-    public record Frozen(ObjectNode fixture, ObjectNode manifest) {}
+    public record MaterialCandidate(
+            Long chunkId,
+            Long documentId,
+            Long indexVersionId,
+            String documentPath,
+            String sourceSha256,
+            Integer sourceStart,
+            Integer sourceEnd,
+            String content,
+            String contentSha256) {}
 
+    public record MaterialPool(
+            String poolId,
+            Long poolVersion,
+            String dataset,
+            RetrievalFixtureSource source,
+            String snapshotHash,
+            String questionId,
+            String chunking,
+            List<MaterialCandidate> candidates) {}
+
+    public record ReviewMaterials(List<MaterialPool> pools) {}
+
+    public record JudgmentPool(
+            String poolId,
+            Long poolVersion,
+            String questionId,
+            String chunking,
+            String snapshotHash,
+            List<RelevanceJudgment> judgments,
+            String reviewStatus) {}
+
+    public record ConfirmedJudgments(String status, List<JudgmentPool> pools) {}
+    /** 原始输入的规范化摘要，包含投影模型不参与业务计算的说明字段。 */
+    public record InputFingerprints(String fixture, String materials, String judgments) {}
+
+    public record Frozen(RetrievalFixture fixture, FrozenPools manifest) {}
+
+    public static JsonNode fixtureJson(Frozen frozen) {
+        return JSON.valueToTree(frozen.fixture());
+    }
+
+    public static JsonNode manifestJson(Frozen frozen) {
+        return JSON.valueToTree(frozen.manifest());
+    }
+
+    // JSON 入口只读取类型和规范化摘要；所有冻结规则集中在强类型实现。
     public static Frozen freeze(JsonNode fixture, JsonNode materials, JsonNode judgments) throws Exception {
-        require(judgments.path("status").asString().equals("CONFIRMED"), "NOT_READY", "确认文件未完成");
-        Map<String, JsonNode> pools = index(materials.path("pools"), true);
-        Map<String, JsonNode> labels = index(judgments.path("pools"), true);
+        return freeze(
+                JSON.treeToValue(fixture, RetrievalFixture.class),
+                JSON.treeToValue(materials, ReviewMaterials.class),
+                JSON.treeToValue(judgments, ConfirmedJudgments.class),
+                new InputFingerprints(fingerprint(fixture), fingerprint(materials), fingerprint(judgments)));
+    }
+
+    private static String fingerprintWithoutDigest(Object value) throws Exception {
+        ObjectNode node = (ObjectNode) JSON.valueToTree(value);
+        node.remove("fingerprint");
+        return fingerprint(node);
+    }
+
+    public static Frozen freeze(
+            RetrievalFixture fixture, ReviewMaterials materials, ConfirmedJudgments judgments, InputFingerprints inputs)
+            throws Exception {
+        require("CONFIRMED".equals(judgments.status()), "NOT_READY", "确认文件未完成");
+        Map<String, MaterialPool> pools = index(materials.pools(), p -> poolKey(p.questionId(), p.chunking()));
+        Map<String, JudgmentPool> labels = index(judgments.pools(), p -> poolKey(p.questionId(), p.chunking()));
         require(pools.size() == 24 && pools.keySet().equals(labels.keySet()), "INVALID_POOL", "池集合不一致");
-        require(fixture.path("runs").size() == 72, "INVALID_POOL", "检索运行数量不是 72");
+        require(fixture.runs().size() == 72, "INVALID_POOL", "检索运行数量不是 72");
         java.util.Set<String> runKeys = new java.util.HashSet<>();
-        Map<String, Map<String, JsonNode>> candidates = new TreeMap<>();
+        Map<String, Map<String, com.lnjecit.knowledge.assistant.retrieval.model.RankedChunk>> candidates =
+                new TreeMap<>();
         Map<String, String> snapshots = new TreeMap<>();
-        for (JsonNode run : fixture.path("runs")) {
-            String key = poolKey(run);
+        // 保持原校验顺序：运行身份、快照、正文区间，再核对人工候选与标签。
+        for (OfflineRetrievalRunResult run : fixture.runs()) {
+            String key = poolKey(run.questionId(), run.chunking());
             require(
-                    List.of("VECTOR", "BM25", "HYBRID_RRF")
-                                    .contains(run.path("strategy").asString())
-                            && runKeys.add(key + "/" + run.path("strategy").asString()),
+                    List.of("VECTOR", "BM25", "HYBRID_RRF").contains(run.strategy())
+                            && runKeys.add(key + "/" + run.strategy()),
                     "INVALID_POOL",
                     "策略未知或运行重复");
-            String snapshot = run.path("snapshotHash").asString();
-            String previous = snapshots.putIfAbsent(key, snapshot);
-            require(previous == null || previous.equals(snapshot), "INVALID_POOL", "快照冲突");
-            Map<String, JsonNode> union = candidates.computeIfAbsent(key, ignored -> new TreeMap<>());
-            for (JsonNode c : run.path("chunks")) {
-                JsonNode prior = union.putIfAbsent(identity(c), c);
+            String previous = snapshots.putIfAbsent(key, run.snapshotHash());
+            require(previous == null || previous.equals(run.snapshotHash()), "INVALID_POOL", "快照冲突");
+            Map<String, com.lnjecit.knowledge.assistant.retrieval.model.RankedChunk> union =
+                    candidates.computeIfAbsent(key, ignored -> new TreeMap<>());
+            for (com.lnjecit.knowledge.assistant.retrieval.model.RankedChunk c : run.chunks()) {
+                com.lnjecit.knowledge.assistant.retrieval.model.RankedChunk prior =
+                        union.putIfAbsent(identity(c.documentId(), c.indexVersionId(), c.chunkId()), c);
                 require(
                         prior == null
                                 || prior.equals(c)
-                                || (prior.path("content").equals(c.path("content"))
-                                        && prior.path("sourceStart").equals(c.path("sourceStart"))
-                                        && prior.path("sourceEnd").equals(c.path("sourceEnd"))),
+                                || (prior.content().equals(c.content())
+                                        && prior.sourceStart() == c.sourceStart()
+                                        && prior.sourceEnd() == c.sourceEnd()),
                         "INVALID_POOL",
                         "候选正文/来源区间冲突");
             }
         }
         require(candidates.keySet().equals(pools.keySet()), "INVALID_POOL", "Fixture 池集合不一致");
         List<String> paths = Files.readAllLines(Path.of("docs/engineering/m4-01-samples.txt"));
-        ObjectNode view = (ObjectNode) fixture.deepCopy();
-        ObjectNode adaptedPool = (ObjectNode) view.path("pool");
-        ArrayNode adaptedLabels = JSON.createArrayNode();
-        ObjectNode manifest = JSON.createObjectNode();
-        manifest.put("schemaVersion", 1);
-        manifest.put(
-                "canonicalization",
-                "recursive sorted object keys; array order retained; compact UTF-8 JSON; no timestamp");
-        ArrayNode frozenPools = manifest.putArray("pools");
+        List<RetrievalFixturePoolJudgmentsItem> adaptedLabels = new ArrayList<>();
+        List<FrozenPool> frozenPools = new ArrayList<>();
         int total = 0;
         for (String key : pools.keySet()) {
-            JsonNode p = pools.get(key), l = labels.get(key);
-            String expectedId = fixture.path("pool").path("id").asString() + "/" + key;
+            MaterialPool p = pools.get(key);
+            JudgmentPool l = labels.get(key);
+            String expectedId = fixture.pool().id() + "/" + key;
             require(
-                    p.path("poolId").asString().equals(expectedId)
-                            && p.path("poolVersion").asInt() == 1
-                            && p.path("dataset").equals(fixture.path("protocol"))
-                            && p.path("source").equals(fixture.path("source")),
+                    expectedId.equals(p.poolId())
+                            && Long.valueOf(1).equals(p.poolVersion())
+                            && java.util.Objects.equals(p.dataset(), fixture.protocol())
+                            && java.util.Objects.equals(p.source(), fixture.source()),
                     "INVALID_POOL",
                     "池来源或版本不一致");
-            for (String field : List.of("poolId", "poolVersion", "snapshotHash"))
-                require(p.path(field).equals(l.path(field)), "INVALID_POOL", "池字段不一致: " + field);
-            require(p.path("snapshotHash").asString().equals(snapshots.get(key)), "INVALID_POOL", "Fixture 快照不一致");
-            require(l.path("reviewStatus").asString().equals("COMPLETE"), "NOT_READY", "池尚未确认");
-            Map<String, JsonNode> material = index(p.path("candidates"), false);
-            Map<String, JsonNode> grades = index(l.path("judgments"), false);
+            require(java.util.Objects.equals(p.poolId(), l.poolId()), "INVALID_POOL", "池字段不一致: poolId");
+            require(java.util.Objects.equals(p.poolVersion(), l.poolVersion()), "INVALID_POOL", "池字段不一致: poolVersion");
+            require(
+                    java.util.Objects.equals(p.snapshotHash(), l.snapshotHash()),
+                    "INVALID_POOL",
+                    "池字段不一致: snapshotHash");
+            require(java.util.Objects.equals(p.snapshotHash(), snapshots.get(key)), "INVALID_POOL", "Fixture 快照不一致");
+            require("COMPLETE".equals(l.reviewStatus()), "NOT_READY", "池尚未确认");
+            Map<String, MaterialCandidate> material =
+                    index(p.candidates(), c -> identity(c.documentId(), c.indexVersionId(), c.chunkId()));
+            Map<String, RelevanceJudgment> grades =
+                    index(l.judgments(), c -> identity(c.documentId(), c.indexVersionId(), c.chunkId()));
             require(
                     material.keySet().equals(grades.keySet())
                             && material.keySet().equals(candidates.get(key).keySet()),
                     "INVALID_POOL",
                     "候选缺失或池外候选");
-            ObjectNode frozenPool = JSON.createObjectNode();
-            for (String field : List.of("poolId", "poolVersion", "questionId", "chunking", "snapshotHash"))
-                frozenPool.set(field, p.path(field));
-            frozenPool.put("status", "COMPLETE");
-            ArrayNode entries = frozenPool.putArray("judgments");
+            List<RelevanceJudgment> entries = new ArrayList<>();
             for (String id : grades.keySet()) {
-                JsonNode grade = grades.get(id),
-                        c = material.get(id),
-                        raw = candidates.get(key).get(id);
-                require(grade.path("reviewStatus").asString().equals("CONFIRMED"), "NOT_READY", "标签未确认");
+                RelevanceJudgment grade = grades.get(id);
+                MaterialCandidate c = material.get(id);
+                com.lnjecit.knowledge.assistant.retrieval.model.RankedChunk raw =
+                        candidates.get(key).get(id);
+                require("CONFIRMED".equals(grade.reviewStatus()), "NOT_READY", "标签未确认");
                 require(
-                        grade.path("proposedRelevance").isIntegralNumber()
-                                && grade.path("proposedRelevance").asInt() >= 0
-                                && grade.path("proposedRelevance").asInt() <= 3,
+                        grade.proposedRelevance() != null
+                                && grade.proposedRelevance() >= 0
+                                && grade.proposedRelevance() <= 3,
                         "INVALID_POOL",
                         "非法等级");
-                for (String field : List.of("reviewer", "confirmationBasis", "confirmedAt"))
-                    require(
-                            grade.path(field).isString()
-                                    && !grade.path(field).asString().isBlank(),
-                            "NOT_READY",
-                            "缺少确认字段: " + field);
-                for (String field : List.of("documentPath", "sourceSha256", "contentSha256"))
-                    require(grade.path(field).equals(c.path(field)), "INVALID_POOL", "来源身份不一致");
+                require(grade.reviewer() != null && !grade.reviewer().isBlank(), "NOT_READY", "缺少确认字段: reviewer");
                 require(
-                        c.path("content").equals(raw.path("content"))
-                                && c.path("sourceStart").equals(raw.path("sourceStart"))
-                                && c.path("sourceEnd").equals(raw.path("sourceEnd")),
+                        grade.confirmationBasis() != null
+                                && !grade.confirmationBasis().isBlank(),
+                        "NOT_READY",
+                        "缺少确认字段: confirmationBasis");
+                require(
+                        grade.confirmedAt() != null && !grade.confirmedAt().isBlank(),
+                        "NOT_READY",
+                        "缺少确认字段: confirmedAt");
+                require(java.util.Objects.equals(grade.documentPath(), c.documentPath()), "INVALID_POOL", "来源身份不一致");
+                require(java.util.Objects.equals(grade.sourceSha256(), c.sourceSha256()), "INVALID_POOL", "来源身份不一致");
+                require(java.util.Objects.equals(grade.contentSha256(), c.contentSha256()), "INVALID_POOL", "来源身份不一致");
+                require(
+                        java.util.Objects.equals(c.content(), raw.content())
+                                && java.util.Objects.equals(c.sourceStart(), raw.sourceStart())
+                                && java.util.Objects.equals(c.sourceEnd(), raw.sourceEnd()),
                         "INVALID_POOL",
                         "Fixture 正文或区间不一致");
                 require(
-                        hash(raw.path("content").asString().getBytes(StandardCharsets.UTF_8))
-                                .equals(c.path("contentSha256").asString()),
+                        hash(raw.content().getBytes(StandardCharsets.UTF_8)).equals(c.contentSha256()),
                         "INVALID_POOL",
                         "正文 Hash 错误");
-                long base = p.path("chunking").asString().equals("FIXED_CODE_POINT") ? 800000 : 900000;
-                int offset = (int) (c.path("documentId").asLong() - base - 100);
+                long base = "FIXED_CODE_POINT".equals(p.chunking()) ? 800000 : 900000;
+                int offset = (int) (c.documentId() - base - 100);
                 require(
                         offset >= 0
                                 && offset < paths.size()
-                                && c.path("indexVersionId").asLong() == base + 200 + offset
-                                && paths.get(offset)
-                                        .equals(c.path("documentPath").asString()),
+                                && c.indexVersionId() == base + 200 + offset
+                                && paths.get(offset).equals(c.documentPath()),
                         "INVALID_POOL",
                         "实验来源映射错误");
                 require(
-                        hash(Files.readAllBytes(Path.of(paths.get(offset))))
-                                .equals(c.path("sourceSha256").asString()),
+                        hash(Files.readAllBytes(Path.of(paths.get(offset)))).equals(c.sourceSha256()),
                         "INVALID_POOL",
                         "来源文件 Hash 错误");
-                ObjectNode entry = (ObjectNode) grade.deepCopy();
-                entry.put(
-                        "relevance",
-                        Integer.toString(grade.path("proposedRelevance").asInt()));
-                entries.add(entry);
-                ObjectNode adapted = entry.deepCopy();
-                adapted.set("questionId", p.path("questionId"));
-                adapted.set("chunking", p.path("chunking"));
-                adaptedLabels.add(adapted);
+                String relevance = Long.toString(grade.proposedRelevance());
+                entries.add(new RelevanceJudgment(
+                        grade.documentId(),
+                        grade.indexVersionId(),
+                        grade.chunkId(),
+                        grade.documentPath(),
+                        grade.sourceSha256(),
+                        grade.contentSha256(),
+                        grade.proposedRelevance(),
+                        grade.rationale(),
+                        grade.reviewStatus(),
+                        grade.proposalSource(),
+                        grade.reviewer(),
+                        grade.confirmedAt(),
+                        grade.confirmationBasis(),
+                        relevance));
+                adaptedLabels.add(new RetrievalFixturePoolJudgmentsItem(
+                        p.questionId(), p.chunking(), grade.chunkId(), relevance, grade.reviewer()));
                 total++;
             }
-            frozenPool.put("fingerprint", fingerprint(frozenPool));
-            frozenPools.add(frozenPool);
+            FrozenPool pool = new FrozenPool(
+                    p.poolId(),
+                    p.poolVersion(),
+                    p.questionId(),
+                    p.chunking(),
+                    p.snapshotHash(),
+                    "COMPLETE",
+                    entries,
+                    null);
+            frozenPools.add(new FrozenPool(
+                    pool.poolId(),
+                    pool.poolVersion(),
+                    pool.questionId(),
+                    pool.chunking(),
+                    pool.snapshotHash(),
+                    pool.status(),
+                    entries,
+                    fingerprintWithoutDigest(pool)));
         }
         require(total == 186, "INVALID_POOL", "候选数不是 186");
-        adaptedPool.set("judgments", adaptedLabels);
-        adaptedPool.put("status", "COMPLETE");
-        manifest.put("fixtureFingerprint", fingerprint(fixture));
-        manifest.put("judgmentsFingerprint", fingerprint(judgments));
-        manifest.put("materialsFingerprint", fingerprint(materials));
-        manifest.put("fingerprint", fingerprint(manifest));
-        return new Frozen(view, manifest);
+        RetrievalFixturePool adaptedPool =
+                new RetrievalFixturePool(fixture.pool().id(), fixture.pool().scope(), "COMPLETE", adaptedLabels);
+        RetrievalFixture view =
+                new RetrievalFixture(fixture.protocol(), fixture.source(), fixture.gold(), adaptedPool, fixture.runs());
+        FrozenPools manifest = new FrozenPools(
+                1L,
+                "recursive sorted object keys; array order retained; compact UTF-8 JSON; no timestamp",
+                frozenPools,
+                inputs.fixture(),
+                inputs.judgments(),
+                inputs.materials(),
+                null);
+        return new Frozen(
+                view,
+                new FrozenPools(
+                        manifest.schemaVersion(),
+                        manifest.canonicalization(),
+                        manifest.pools(),
+                        manifest.fixtureFingerprint(),
+                        manifest.judgmentsFingerprint(),
+                        manifest.materialsFingerprint(),
+                        fingerprintWithoutDigest(manifest)));
     }
 
     public record Mean(double numerator, int denominator) {
@@ -222,75 +334,129 @@ public final class FrozenRankingEvaluation {
         return new Mean(sum, count);
     }
 
-    public static ObjectNode evaluate(Frozen frozen) {
-        ObjectNode result = JSON.createObjectNode();
-        result.set("frozenPool", frozen.manifest());
-        ArrayNode runs = result.putArray("runs");
-        for (JsonNode run : frozen.fixture().path("runs")) {
-            ObjectNode item = JSON.createObjectNode();
-            for (String field : List.of("questionId", "chunking", "strategy")) item.set(field, run.path(field));
-            for (int k : List.of(3, 5))
-                item.set("at" + k, JSON.valueToTree(RankingMetrics.calculate(frozen.fixture(), run, k)));
-            // Evidence 与 Ranking 共用已验证的来源身份，但保留独立判定口径。
-            Map<String, EvidenceMetrics.Source> sourceMap = new TreeMap<>();
-            for (JsonNode pool : frozen.manifest().path("pools"))
-                if (poolKey(pool).equals(poolKey(run)))
-                    for (JsonNode c : pool.path("judgments"))
-                        sourceMap.putIfAbsent(
-                                c.path("documentId").asString(),
-                                new EvidenceMetrics.Source(
-                                        c.path("documentId").asLong(),
-                                        c.path("indexVersionId").asLong(),
-                                        c.path("documentPath").asString(),
-                                        c.path("sourceSha256").asString()));
-            JsonNode gold = null;
-            for (JsonNode q : frozen.fixture().path("gold").path("questions"))
-                if (q.path("questionId").equals(run.path("questionId"))) gold = q;
-            for (int k : List.of(3, 5))
-                item.set(
-                        "evidence" + k,
-                        JSON.valueToTree(EvidenceMetrics.calculate(gold, run, new ArrayList<>(sourceMap.values()), k)));
-            ArrayNode ranked = item.putArray("grades");
-            for (JsonNode c : run.path("chunks")) {
-                for (JsonNode label : frozen.fixture().path("pool").path("judgments"))
-                    if (poolKey(label).equals(poolKey(run)) && identity(label).equals(identity(c)))
-                        ranked.add(Integer.parseInt(label.path("relevance").asString()));
+    public record RunMetrics(
+            String questionId,
+            String chunking,
+            String strategy,
+            RankingMetrics.Result at3,
+            RankingMetrics.Result at5,
+            EvidenceMetrics.Result evidence3,
+            EvidenceMetrics.Result evidence5,
+            List<Integer> grades) {}
+
+    public record Aggregate(double numerator, int denominator, Double value) {}
+
+    public record GroupMetrics(
+            String chunking,
+            String strategy,
+            Map<String, Map<String, Integer>> statuses,
+            Aggregate precision3,
+            Aggregate ndcg3,
+            Aggregate precision5,
+            Aggregate ndcg5) {}
+
+    public record Report(FrozenPools frozenPool, List<RunMetrics> runs, List<GroupMetrics> groups) {}
+
+    private static RankingMetrics.Run rankingRun(OfflineRetrievalRunResult run) {
+        return new RankingMetrics.Run(
+                run.questionId(),
+                run.chunking(),
+                run.snapshotHash(),
+                run.status(),
+                run.chunks().stream()
+                        .map(c -> new RankingMetrics.Candidate(
+                                c.documentId(), c.indexVersionId(), c.chunkId(), c.content(), c.finalRank()))
+                        .toList());
+    }
+
+    private static Aggregate aggregate(List<Double> values) {
+        Mean mean = mean(values);
+        return new Aggregate(mean.numerator(), mean.denominator(), mean.value());
+    }
+
+    public static Report evaluateTyped(Frozen frozen) {
+        RetrievalFixture fixture = frozen.fixture();
+        RankingMetrics.Fixture ranking = new RankingMetrics.Fixture(
+                fixture.pool(),
+                fixture.runs().stream().map(FrozenRankingEvaluation::rankingRun).toList());
+        List<RunMetrics> runs = new ArrayList<>();
+        for (OfflineRetrievalRunResult run : fixture.runs()) {
+            Map<String, EvidenceMetrics.Source> sources = new TreeMap<>();
+            for (FrozenPool pool : frozen.manifest().pools()) {
+                if (!pool.questionId().equals(run.questionId())
+                        || !pool.chunking().equals(run.chunking())) continue;
+                for (RelevanceJudgment c : pool.judgments())
+                    sources.putIfAbsent(
+                            c.documentId().toString(),
+                            new EvidenceMetrics.Source(
+                                    c.documentId(), c.indexVersionId(), c.documentPath(), c.sourceSha256()));
             }
-            runs.add(item);
+            GoldQuestionIdentity gold = fixture.gold().questions().stream()
+                    .filter(q -> q.questionId().equals(run.questionId()))
+                    .findFirst()
+                    .orElse(null);
+            EvidenceMetrics.Gold evidenceGold = gold == null
+                    ? null
+                    : new EvidenceMetrics.Gold(
+                            null,
+                            gold.reviewStatus(),
+                            gold.relation(),
+                            gold.documentPath(),
+                            gold.sourceSha256(),
+                            gold.evidence());
+            EvidenceMetrics.Run evidenceRun = new EvidenceMetrics.Run(
+                    run.status(),
+                    run.chunks().stream()
+                            .map(c -> new EvidenceMetrics.Candidate(
+                                    c.documentId(), c.indexVersionId(), c.finalRank(), c.sourceStart(), c.sourceEnd()))
+                            .toList());
+            List<Integer> grades = new ArrayList<>();
+            for (com.lnjecit.knowledge.assistant.retrieval.model.RankedChunk c : run.chunks())
+                for (RetrievalFixturePoolJudgmentsItem label : fixture.pool().judgments())
+                    if (label.questionId().equals(run.questionId())
+                            && label.chunking().equals(run.chunking())
+                            && label.chunkId().equals(c.chunkId())) grades.add(Integer.parseInt(label.relevance()));
+            // 两类指标共用已冻结身份，各自保留原有分母和排除规则。
+            runs.add(new RunMetrics(
+                    run.questionId(),
+                    run.chunking(),
+                    run.strategy(),
+                    RankingMetrics.calculate(ranking, rankingRun(run), 3),
+                    RankingMetrics.calculate(ranking, rankingRun(run), 5),
+                    EvidenceMetrics.calculate(evidenceGold, evidenceRun, new ArrayList<>(sources.values()), 3),
+                    EvidenceMetrics.calculate(evidenceGold, evidenceRun, new ArrayList<>(sources.values()), 5),
+                    grades));
         }
-        ArrayNode groups = result.putArray("groups");
+        List<GroupMetrics> groups = new ArrayList<>();
         for (String chunking : List.of("FIXED_CODE_POINT", "MARKDOWN_STRUCTURE_AWARE"))
             for (String strategy : List.of("VECTOR", "BM25", "HYBRID_RRF")) {
-                ObjectNode group = groups.addObject();
-                group.put("chunking", chunking);
-                group.put("strategy", strategy);
-                ObjectNode statuses = group.putObject("statuses");
+                List<RunMetrics> selected = runs.stream()
+                        .filter(r ->
+                                r.chunking().equals(chunking) && r.strategy().equals(strategy))
+                        .toList();
+                Map<String, Map<String, Integer>> statuses = new java.util.LinkedHashMap<>();
                 for (int k : List.of(3, 5)) {
                     Map<String, Integer> counts = new TreeMap<>();
-                    for (String metric : List.of("precision", "ndcg")) {
-                        List<Double> values = new ArrayList<>();
-                        for (JsonNode run : runs)
-                            if (run.path("chunking").asString().equals(chunking)
-                                    && run.path("strategy").asString().equals(strategy)) {
-                                JsonNode score = run.path("at" + k);
-                                if (metric.equals("precision"))
-                                    counts.merge(score.path("status").asString(), 1, Integer::sum);
-                                values.add(
-                                        score.path(metric).isNumber()
-                                                ? score.path(metric).asDouble()
-                                                : null);
-                            }
-                        Mean mean = mean(values);
-                        ObjectNode summary = group.putObject(metric + k);
-                        summary.put("numerator", mean.numerator());
-                        summary.put("denominator", mean.denominator());
-                        if (mean.value() == null) summary.putNull("value");
-                        else summary.put("value", mean.value());
-                    }
-                    statuses.set("at" + k, JSON.valueToTree(counts));
+                    for (RunMetrics run : selected)
+                        counts.merge((k == 3 ? run.at3() : run.at5()).status(), 1, Integer::sum);
+                    statuses.put("at" + k, counts);
                 }
+                groups.add(new GroupMetrics(
+                        chunking,
+                        strategy,
+                        statuses,
+                        aggregate(
+                                selected.stream().map(r -> r.at3().precision()).toList()),
+                        aggregate(selected.stream().map(r -> r.at3().ndcg()).toList()),
+                        aggregate(
+                                selected.stream().map(r -> r.at5().precision()).toList()),
+                        aggregate(selected.stream().map(r -> r.at5().ndcg()).toList())));
             }
-        return result;
+        return new Report(frozen.manifest(), runs, groups);
+    }
+
+    public static ObjectNode evaluate(Frozen frozen) {
+        return (ObjectNode) JSON.readTree(JSON.writeValueAsString(evaluateTyped(frozen)));
     }
 
     public static void main(String[] args) throws Exception {

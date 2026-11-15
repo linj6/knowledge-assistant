@@ -12,14 +12,19 @@ import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProto
 import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProtocol.SUCCESS;
 import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProtocol.UNDEFINED;
 
+import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RetrievalFixturePool;
+import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RetrievalFixturePoolJudgmentsItem;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /** 冻结评审池上的离线排名计算，不推断人工标签。 */
 public final class RankingMetrics {
@@ -43,10 +48,27 @@ public final class RankingMetrics {
 
     public record Result(String status, Double precision, Double dcg, Double idcg, Double ndcg) {}
 
-    private static String identity(JsonNode chunk) {
-        return chunk.path("documentId").asString() + "/"
-                + chunk.path("indexVersionId").asString() + "/"
-                + chunk.path("chunkId").asString();
+    // 历史候选缺少 RankedChunk 必填字段，使用仅含评分所需字段的投影。
+    public record Candidate(Long documentId, Long indexVersionId, Long chunkId, String content, int finalRank) {}
+
+    public record Run(String questionId, String chunking, String snapshotHash, String status, List<Candidate> chunks) {}
+
+    public record Fixture(RetrievalFixturePool pool, List<Run> runs) {}
+
+    private static final JsonMapper JSON = JsonMapper.builder()
+            .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+            .build();
+
+    public static Fixture readFixture(JsonNode node) {
+        return JSON.treeToValue(node, Fixture.class);
+    }
+
+    public static Run readRun(JsonNode node) {
+        return JSON.treeToValue(node, Run.class);
+    }
+
+    private static String identity(Candidate chunk) {
+        return chunk.documentId() + "/" + chunk.indexVersionId() + "/" + chunk.chunkId();
     }
 
     public static double dcg(List<Integer> grades, int k) {
@@ -66,46 +88,48 @@ public final class RankingMetrics {
     }
 
     public static Result calculate(JsonNode fixture, JsonNode run, int k) {
+        return calculate(readFixture(fixture), readRun(run), k);
+    }
+
+    public static Result calculate(Fixture fixture, Run run, int k) {
         if (k <= 0) throw new IllegalArgumentException("K 必须为正数");
-        if (!run.path("status").asString().equals(SUCCESS)) return unavailable(EXECUTION_NOT_SUCCESS);
-        Map<String, JsonNode> candidates = new HashMap<>();
+        if (!run.status().equals(SUCCESS)) return unavailable(EXECUTION_NOT_SUCCESS);
+        Map<Long, Candidate> candidates = new HashMap<>();
         // 先核对同问题、同切分、同快照的候选身份；策略只决定排名。
-        for (JsonNode other : fixture.path("runs")) {
-            if (!other.path("questionId").equals(run.path("questionId"))
-                    || !other.path("chunking").equals(run.path("chunking"))) continue;
-            if (!other.path("snapshotHash").equals(run.path("snapshotHash"))) return unavailable(SNAPSHOT_MISMATCH);
-            for (JsonNode chunk : other.path("chunks")) {
-                String id = chunk.path("chunkId").asString();
-                JsonNode previous = candidates.putIfAbsent(id, chunk);
+        for (Run other : fixture.runs()) {
+            if (!Objects.equals(other.questionId(), run.questionId())
+                    || !Objects.equals(other.chunking(), run.chunking())) continue;
+            if (!Objects.equals(other.snapshotHash(), run.snapshotHash())) return unavailable(SNAPSHOT_MISMATCH);
+            for (Candidate chunk : other.chunks()) {
+                Long id = chunk.chunkId();
+                Candidate previous = candidates.putIfAbsent(id, chunk);
                 if (previous != null
                         && (!identity(previous).equals(identity(chunk))
-                                || !previous.path("content").equals(chunk.path("content"))))
+                                || !Objects.equals(previous.content(), chunk.content())))
                     return unavailable(IDENTITY_CONFLICT);
             }
         }
-        Map<String, Integer> grades = new HashMap<>();
-        for (JsonNode judgment : fixture.path("pool").path("judgments")) {
-            if (!judgment.path("questionId").equals(run.path("questionId"))
-                    || !judgment.path("chunking").equals(run.path("chunking"))) continue;
-            String id = judgment.path("chunkId").asString();
-            String label = judgment.path("relevance").asString();
-            if (!label.matches("[0-3]")
-                    || judgment.path("reviewer").isNull()
-                    || judgment.path("reviewer").asString().isBlank()) return unavailable(NOT_READY);
+        Map<Long, Integer> grades = new HashMap<>();
+        for (RetrievalFixturePoolJudgmentsItem judgment : fixture.pool().judgments()) {
+            if (!Objects.equals(judgment.questionId(), run.questionId())
+                    || !Objects.equals(judgment.chunking(), run.chunking())) continue;
+            Long id = judgment.chunkId();
+            String label = judgment.relevance();
+            if ((label == null || !label.matches("[0-3]"))
+                    || judgment.reviewer() == null
+                    || judgment.reviewer().isBlank()) return unavailable(NOT_READY);
             if (!candidates.containsKey(id) || grades.putIfAbsent(id, Integer.parseInt(label)) != null)
                 return unavailable(INVALID_POOL);
         }
-        if (!fixture.path("pool").path("status").asString().equals(COMPLETE) || grades.isEmpty())
-            return unavailable(NOT_READY);
+        if (!fixture.pool().status().equals(COMPLETE) || grades.isEmpty()) return unavailable(NOT_READY);
         if (!grades.keySet().equals(candidates.keySet())) return unavailable(OUTSIDE_POOL);
         List<Integer> ranked = new ArrayList<>();
-        Set<String> seen = new HashSet<>();
-        for (JsonNode chunk : run.path("chunks")) {
-            String id = chunk.path("chunkId").asString();
+        Set<Long> seen = new HashSet<>();
+        for (Candidate chunk : run.chunks()) {
+            Long id = chunk.chunkId();
             if (!grades.containsKey(id) || !identity(chunk).equals(identity(candidates.get(id))))
                 return unavailable(OUTSIDE_POOL);
-            if (!seen.add(id) || chunk.path("finalRank").asInt() != ranked.size() + 1)
-                return unavailable(INVALID_RANKING);
+            if (!seen.add(id) || chunk.finalRank() != ranked.size() + 1) return unavailable(INVALID_RANKING);
             ranked.add(grades.get(id));
         }
         return score(

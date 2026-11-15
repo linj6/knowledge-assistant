@@ -35,7 +35,7 @@ class LiveEvaluationRunnerTests {
 
     private Map<Long, String> sources(FrozenRankingEvaluation.Frozen frozen) {
         Map<Long, String> sources = new LinkedHashMap<>();
-        for (JsonNode pool : frozen.manifest().path("pools"))
+        for (JsonNode pool : FrozenRankingEvaluation.manifestJson(frozen).path("pools"))
             for (JsonNode label : pool.path("judgments"))
                 sources.put(
                         label.path("documentId").asLong(),
@@ -70,7 +70,12 @@ class LiveEvaluationRunnerTests {
     @Test
     void scoreOnlyVerifiedSourcesAndFrozenPool() throws Exception {
         FrozenRankingEvaluation.Frozen frozen = LiveEvaluationRunner.load();
-        ObjectNode run = (ObjectNode) frozen.fixture().path("runs").get(0).deepCopy();
+        ObjectNode run = (ObjectNode)
+                FrozenRankingEvaluation.fixtureJson(frozen).path("runs").get(0).deepCopy();
+        run.put(
+                "query",
+                LiveEvaluationRunner.questions(frozen)
+                        .get(run.path("questionId").asString()));
         Map<Long, String> sources = sources(frozen);
         ObjectNode score = LiveEvaluationRunner.score(frozen, run, sources);
         assertThat(score.path("evidenceStatus").asString()).isEqualTo("SCORED");
@@ -126,8 +131,10 @@ class LiveEvaluationRunnerTests {
             List<RetrievalResult> results = new ArrayList<>();
             for (RetrievalStrategy strategy : strategies) {
                 JsonNode reference = null;
-                for (JsonNode run : frozen.fixture().path("runs"))
-                    if (run.path("query").asString().equals(query)
+                for (JsonNode run : FrozenRankingEvaluation.fixtureJson(frozen).path("runs"))
+                    if (LiveEvaluationRunner.questions(frozen)
+                                    .get(run.path("questionId").asString())
+                                    .equals(query)
                             && run.path("chunking").asString().equals("FIXED_CODE_POINT")
                             && run.path("strategy").asString().equals(strategy.name())) reference = run;
                 List<RankedChunk> chunks = new ArrayList<>();
@@ -216,6 +223,29 @@ class LiveEvaluationRunnerTests {
             }
         } finally {
             cleanup(output);
+        }
+    }
+
+    @Test
+    void historicalArtifactsRetainScoresAndProtocol() throws Exception {
+        FrozenRankingEvaluation.Frozen frozen = LiveEvaluationRunner.load();
+        for (String name : List.of("m4-c02-live-bm25-v1", "m4-c02-live-vector-rrf-v1")) {
+            Path root = Path.of("target/evaluation", name);
+            org.junit.jupiter.api.Assumptions.assumeTrue(
+                    Files.isRegularFile(root.resolve("manifest.json")), "本地历史归档不存在");
+            com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RetrievalRunManifest manifest =
+                    LiveEvaluationRunner.JSON.readValue(
+                            Files.readString(root.resolve("manifest.json")),
+                            com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RetrievalRunManifest.class);
+            assertThat(manifest.mode()).isEqualTo("LIVE");
+            JsonNode expected = LiveEvaluationRunner.JSON.readTree(Files.readString(root.resolve("metrics.json")));
+            int index = 0;
+            for (String line : Files.readAllLines(root.resolve("retrieval-results.jsonl"))) {
+                ObjectNode run = (ObjectNode) LiveEvaluationRunner.JSON.readTree(line);
+                JsonNode actual = LiveEvaluationRunner.score(frozen, run, sources(frozen));
+                assertThat(actual).isEqualTo(expected.path("runs").get(index++));
+            }
+            assertThat(index).isEqualTo(expected.path("runs").size());
         }
     }
 

@@ -48,7 +48,12 @@ class AnswerMetricsTests {
     }
 
     private AnswerMetrics.Result score(JsonNode d, int index, JsonNode r) {
-        return AnswerMetrics.calculate(d, d.path("cases").get(index), r);
+        return AnswerMetrics.calculate(
+                AnswerMetrics.readDataset(d),
+                json.treeToValue(
+                        d.path("cases").get(index),
+                        com.lnjecit.knowledge.assistant.evaluation.AnswerEvaluationDataset.Case.class),
+                AnswerMetrics.readReview(r));
     }
 
     private ObjectNode claim(ObjectNode r) {

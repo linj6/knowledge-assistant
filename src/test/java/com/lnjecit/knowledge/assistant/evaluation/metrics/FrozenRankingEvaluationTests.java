@@ -39,8 +39,13 @@ class FrozenRankingEvaluationTests {
         String original = f.toString();
         FrozenRankingEvaluation.Frozen frozen = FrozenRankingEvaluation.freeze(f, m, j);
         assertThat(f.toString()).isEqualTo(original);
-        assertThat(frozen.fixture().path("pool").path("judgments").size()).isEqualTo(186);
-        assertThat(frozen.manifest().path("pools").size()).isEqualTo(24);
+        assertThat(FrozenRankingEvaluation.fixtureJson(frozen)
+                        .path("pool")
+                        .path("judgments")
+                        .size())
+                .isEqualTo(186);
+        assertThat(FrozenRankingEvaluation.manifestJson(frozen).path("pools").size())
+                .isEqualTo(24);
         ObjectNode result = FrozenRankingEvaluation.evaluate(frozen);
         assertThat(result).isEqualTo(read("docs/engineering/m4-b03-frozen-ranking-evaluation.json"));
         assertThat(result).isEqualTo(FrozenRankingEvaluation.evaluate(FrozenRankingEvaluation.freeze(f, m, j)));

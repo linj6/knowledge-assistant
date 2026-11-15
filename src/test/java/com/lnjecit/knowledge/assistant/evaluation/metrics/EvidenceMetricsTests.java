@@ -215,4 +215,15 @@ class EvidenceMetricsTests {
         assertThat(summary.recall5()).isEqualTo(new EvidenceMetrics.Metric(0, 1));
         assertThat(EvidenceMetrics.summarize(List.of()).mrr5().value()).isNull();
     }
+
+    @org.junit.jupiter.api.Test
+    void missingGoldFieldsKeepLegacyExclusions() {
+        JsonNode empty = run("SUCCESS");
+        assertThat(EvidenceMetrics.calculate(JSON.readTree("{}"), empty, SOURCES, 5)
+                        .qualityStatus())
+                .isEqualTo("REJECTED_GOLD");
+        assertThat(EvidenceMetrics.calculate(JSON.readTree("{\"reviewStatus\":\"CONFIRMED\"}"), empty, SOURCES, 5)
+                        .qualityStatus())
+                .isEqualTo("MISSING_GOLD");
+    }
 }

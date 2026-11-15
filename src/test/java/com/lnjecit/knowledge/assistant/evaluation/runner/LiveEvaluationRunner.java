@@ -1,10 +1,22 @@
 package com.lnjecit.knowledge.assistant.evaluation.runner;
 
 import com.lnjecit.knowledge.assistant.KnowledgeAssistantApplication;
+import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.FrozenPool;
+import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.GoldQuestion;
+import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.GoldQuestionIdentity;
+import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.LiveConfiguration;
+import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.LiveMetricsReportSummariesValue;
+import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.LiveMetricsReportSummariesValueRecall3;
+import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.LiveRetrievalRunResult;
+import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.LiveRetrievalRunResultDiagnostics;
+import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.OfflineRetrievalRunResult;
+import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RelevanceJudgment;
+import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RetrievalRunManifest;
 import com.lnjecit.knowledge.assistant.evaluation.metrics.EvidenceMetrics;
 import com.lnjecit.knowledge.assistant.evaluation.metrics.FrozenRankingEvaluation;
 import com.lnjecit.knowledge.assistant.evaluation.metrics.RankingMetrics;
 import com.lnjecit.knowledge.assistant.retrieval.RetrievalService;
+import com.lnjecit.knowledge.assistant.retrieval.model.RankedChunk;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalParameters;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalResult;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStrategy;
@@ -20,14 +32,25 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
-import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.json.JsonMapper;
-import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /** C02 只读 LIVE 检索入口；费用授权在创建 Spring 上下文之前检查。 */
 public final class LiveEvaluationRunner {
-    static final JsonMapper JSON = JsonMapper.builder().build();
+    static final JsonMapper JSON = JsonMapper.builder()
+            .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+            .addMixIn(LiveRetrievalRunResult.class, RunJson.class)
+            .build();
+
+    // 异常运行没有 diagnostics/snapshot 字段，保留历史协议中的缺失与显式 null 差别。
+    abstract static class RunJson {
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        abstract LiveRetrievalRunResultDiagnostics diagnostics();
+
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        abstract String snapshotHash();
+    }
 
     private LiveEvaluationRunner() {}
 
@@ -129,29 +152,60 @@ public final class LiveEvaluationRunner {
                 JSON.readTree(Files.readString(Path.of("src/test/resources/retrieval-metrics-v1.json"))),
                 JSON.readTree(Files.readString(Path.of("docs/engineering/m4-b03-review-materials.json"))),
                 JSON.readTree(Files.readString(Path.of("docs/engineering/m4-b03-relevance-judgments.json"))));
-        if (!frozen.manifest()
-                .path("fingerprint")
-                .asString()
-                .equals("4100bec441b6dde69c893246af86313c95e6aa28e8cff789cf4aff6b724e388c"))
+        if (!frozen.manifest().fingerprint().equals("4100bec441b6dde69c893246af86313c95e6aa28e8cff789cf4aff6b724e388c"))
             throw new IllegalArgumentException("INPUT_ERROR: 非冻结 v1 输入");
-        JsonNode questions = JSON.readTree(Files.readString(Path.of("docs/engineering/m4-01-gold-evidence.json")));
-        for (JsonNode run : frozen.fixture().path("runs")) {
-            for (JsonNode question : questions)
-                if (question.path("questionId").equals(run.path("questionId"))) {
-                    String query = question.path("question").asString();
-                    JsonNode gold = null;
-                    for (JsonNode candidate : frozen.fixture().path("gold").path("questions"))
-                        if (candidate.path("questionId").equals(run.path("questionId"))) gold = candidate;
-                    if (gold == null
-                            || !gold.path("querySha256")
-                                    .asString()
-                                    .equals(hash(query.getBytes(java.nio.charset.StandardCharsets.UTF_8))))
-                        throw new IllegalArgumentException("INPUT_ERROR: 问题原文 Hash 不一致");
-                    ((ObjectNode) run).put("query", query);
-                }
-            if (run.path("query").asString().isBlank()) throw new IllegalArgumentException("INPUT_ERROR: 缺少问题原文");
-        }
+        questions(frozen);
         return frozen;
+    }
+
+    static Map<String, String> questions(FrozenRankingEvaluation.Frozen frozen) throws Exception {
+        List<GoldQuestion> questions = JSON.readValue(
+                Files.readString(Path.of("docs/engineering/m4-01-gold-evidence.json")),
+                JSON.getTypeFactory().constructCollectionType(List.class, GoldQuestion.class));
+        Map<String, String> queries = new LinkedHashMap<>();
+        for (OfflineRetrievalRunResult run : frozen.fixture().runs()) {
+            for (GoldQuestion question : questions) {
+                if (!question.questionId().equals(run.questionId())) continue;
+                GoldQuestionIdentity gold = frozen.fixture().gold().questions().stream()
+                        .filter(q -> q.questionId().equals(run.questionId()))
+                        .findFirst()
+                        .orElse(null);
+                if (gold == null
+                        || !gold.querySha256()
+                                .equals(hash(question.question().getBytes(java.nio.charset.StandardCharsets.UTF_8))))
+                    throw new IllegalArgumentException("INPUT_ERROR: 问题原文 Hash 不一致");
+                queries.put(run.questionId(), question.question());
+            }
+            if (!queries.containsKey(run.questionId())
+                    || queries.get(run.questionId()).isBlank())
+                throw new IllegalArgumentException("INPUT_ERROR: 缺少问题原文");
+        }
+        return queries;
+    }
+
+    record Metrics(List<Score> runs, Map<String, LiveMetricsReportSummariesValue> summaries) {}
+
+    private static LiveMetricsReportSummariesValueRecall3 mean(
+            List<Score> scores, String strategy, int k, String metric) {
+        List<Double> values = new ArrayList<>();
+        for (Score score : scores) {
+            if (!score.strategy().equals(strategy)) continue;
+            EvidenceValues e = k == 3 ? score.evidence3() : score.evidence5();
+            RankingMetrics.Result r = k == 3 ? score.ranking3() : score.ranking5();
+            Double value =
+                    switch (metric) {
+                        case "recall" -> e == null ? null : e.recall();
+                        case "cec" -> e == null ? null : (double) e.cec();
+                        case "hit" -> e == null ? null : (double) e.hit();
+                        case "mrr" -> e == null ? null : e.mrr();
+                        case "precision" -> r == null ? null : r.precision();
+                        case "ndcg" -> r == null ? null : r.ndcg();
+                        default -> throw new IllegalArgumentException("未知指标");
+                    };
+            values.add(value);
+        }
+        FrozenRankingEvaluation.Mean mean = FrozenRankingEvaluation.mean(values);
+        return new LiveMetricsReportSummariesValueRecall3(mean.numerator(), (long) mean.denominator(), mean.value());
     }
 
     static void execute(
@@ -161,26 +215,34 @@ public final class LiveEvaluationRunner {
             Map<Long, String> sourceHashes)
             throws Exception {
         if (Files.exists(options.output())) throw new IllegalArgumentException("OUTPUT_ERROR: 目录已存在");
-        ObjectNode metrics = JSON.createObjectNode();
-        ArrayNode scores = metrics.putArray("runs");
-        ArrayNode results = JSON.createArrayNode();
-        Map<String, JsonNode> questions = new LinkedHashMap<>();
-        for (JsonNode run : frozen.fixture().path("runs"))
-            if (run.path("chunking").asString().equals(options.chunking()))
-                questions.putIfAbsent(run.path("questionId").asString(), run);
-        // 每题一次 search，三策略共享服务内部的 Embedding，不重试或补跑失败通道。
-        for (JsonNode question : questions.values()) {
-            String query = question.path("query").asString();
+        Map<String, String> queries = questions(frozen);
+        Map<String, OfflineRetrievalRunResult> questions = new LinkedHashMap<>();
+        for (OfflineRetrievalRunResult run : frozen.fixture().runs())
+            if (run.chunking().equals(options.chunking())) questions.putIfAbsent(run.questionId(), run);
+        List<LiveRetrievalRunResult> results = new ArrayList<>();
+        List<Score> scores = new ArrayList<>();
+        // 每题一次 search，多策略共享服务内部 Embedding，不重试失败通道。
+        for (OfflineRetrievalRunResult question : questions.values()) {
+            String query = queries.get(question.questionId());
             List<RetrievalResult> found;
             try {
                 found = service.search(options.knowledgeBaseId(), query, options.strategies(), options.parameters());
             } catch (RuntimeException failure) {
                 for (RetrievalStrategy strategy : options.strategies()) {
-                    ObjectNode run = base(question, options, strategy);
-                    run.put("status", "FAILED");
-                    run.put("error", "SEARCH_EXCEPTION");
-                    run.putNull("actualStrategy");
-                    run.putArray("chunks");
+                    LiveRetrievalRunResult run = new LiveRetrievalRunResult(
+                            question.questionId(),
+                            query,
+                            options.knowledgeBaseId(),
+                            options.chunking(),
+                            strategy.name(),
+                            strategy.name(),
+                            options.parameters(),
+                            null,
+                            "FAILED",
+                            null,
+                            "SEARCH_EXCEPTION",
+                            null,
+                            List.of());
                     results.add(run);
                     scores.add(unavailable(run, "EXECUTION_FAILED", "EXECUTION_FAILED"));
                 }
@@ -193,216 +255,307 @@ public final class LiveEvaluationRunner {
                 RetrievalStrategy strategy = options.strategies().get(i);
                 if (result.diagnostics().requestedStrategy() != strategy)
                     throw new IllegalStateException("RETRIEVAL_PROTOCOL_ERROR: 策略不一致");
-                ObjectNode run = base(question, options, strategy);
-                run.set("diagnostics", JSON.valueToTree(result.diagnostics()));
-                run.put("status", result.diagnostics().status().name());
-                run.set("actualStrategy", JSON.valueToTree(result.diagnostics().actualStrategy()));
-                run.set("error", JSON.valueToTree(result.diagnostics().error()));
-                run.put("snapshotHash", result.diagnostics().snapshotHash());
-                run.set("chunks", JSON.valueToTree(result.chunks()));
+                LiveRetrievalRunResultDiagnostics diagnostics = JSON.treeToValue(
+                        JSON.valueToTree(result.diagnostics()), LiveRetrievalRunResultDiagnostics.class);
+                LiveRetrievalRunResult run = new LiveRetrievalRunResult(
+                        question.questionId(),
+                        query,
+                        options.knowledgeBaseId(),
+                        options.chunking(),
+                        strategy.name(),
+                        strategy.name(),
+                        options.parameters(),
+                        diagnostics,
+                        diagnostics.status(),
+                        diagnostics.actualStrategy(),
+                        diagnostics.error(),
+                        diagnostics.snapshotHash(),
+                        result.chunks());
                 results.add(run);
-                scores.add(score(frozen, run, sourceHashes));
+                scores.add(scoreTyped(frozen, run, sourceHashes));
             }
         }
-        ObjectNode summaries = metrics.putObject("summaries");
+        Map<String, LiveMetricsReportSummariesValue> summaries = new LinkedHashMap<>();
         for (RetrievalStrategy strategy : options.strategies()) {
-            ObjectNode summary = summaries.putObject(strategy.name());
-            for (int k : List.of(3, 5))
-                for (String metric : List.of("recall", "cec", "hit", "mrr", "precision", "ndcg")) {
-                    List<Double> values = new ArrayList<>();
-                    String type = List.of("precision", "ndcg").contains(metric) ? "ranking" : "evidence";
-                    for (JsonNode score : scores)
-                        if (score.path("strategy").asString().equals(strategy.name())) {
-                            JsonNode value = score.path(type + k).path(metric);
-                            values.add(value.isNumber() ? value.asDouble() : null);
-                        }
-                    FrozenRankingEvaluation.Mean mean = FrozenRankingEvaluation.mean(values);
-                    ObjectNode value = summary.putObject(metric + k);
-                    value.put("numerator", mean.numerator());
-                    value.put("denominator", mean.denominator());
-                    if (mean.value() == null) value.putNull("value");
-                    else value.put("value", mean.value());
-                }
+            String name = strategy.name();
+            summaries.put(
+                    name,
+                    new LiveMetricsReportSummariesValue(
+                            mean(scores, name, 3, "recall"),
+                            mean(scores, name, 3, "cec"),
+                            mean(scores, name, 3, "hit"),
+                            mean(scores, name, 3, "mrr"),
+                            mean(scores, name, 3, "precision"),
+                            mean(scores, name, 3, "ndcg"),
+                            mean(scores, name, 5, "recall"),
+                            mean(scores, name, 5, "cec"),
+                            mean(scores, name, 5, "hit"),
+                            mean(scores, name, 5, "mrr"),
+                            mean(scores, name, 5, "precision"),
+                            mean(scores, name, 5, "ndcg")));
         }
-        ObjectNode manifest = JSON.createObjectNode();
-        manifest.put("schemaVersion", 1);
-        manifest.put("runnerVersion", "m4-c02-live-v1");
-        manifest.put("mode", "LIVE");
-        manifest.put("dataset", "retrieval-metrics-v1");
-        manifest.set("configuration", JSON.valueToTree(options));
-        manifest.set("frozenInputs", frozen.manifest());
-        manifest.put("questionSource", "docs/engineering/m4-01-gold-evidence.json");
-        manifest.put(
-                "questionSourceSha256", hash(Files.readAllBytes(Path.of("docs/engineering/m4-01-gold-evidence.json"))));
-        manifest.set("sourceContentHashes", JSON.valueToTree(sourceHashes));
-        ObjectNode statuses = manifest.putObject("retrievalStatuses");
-        for (JsonNode run : results) {
-            String status = run.path("status").asString();
-            statuses.put(status, statuses.path(status).asInt() + 1);
+        Metrics metrics = new Metrics(scores, summaries);
+        Map<String, Long> statuses = new LinkedHashMap<>(), metricStatuses = new LinkedHashMap<>();
+        for (LiveRetrievalRunResult run : results) statuses.merge(run.status(), 1L, Long::sum);
+        for (Score score : scores) {
+            metricStatuses.merge("evidenceStatus:" + score.evidenceStatus(), 1L, Long::sum);
+            metricStatuses.merge("rankingStatus:" + score.rankingStatus(), 1L, Long::sum);
         }
-        manifest.put(
-                "status",
-                statuses.path("FAILED").asInt() == results.size()
-                        ? "FAILED"
-                        : statuses.path("FAILED").asInt() > 0 ? "PARTIAL_FAILURE" : "COMPLETED");
-        manifest.set(
-                "snapshots",
-                JSON.valueToTree(java.util.stream.StreamSupport.stream(results.spliterator(), false)
-                        .map(r -> r.path("snapshotHash").asString())
+        long failures = statuses.getOrDefault("FAILED", 0L);
+        String status = failures == results.size() ? "FAILED" : failures > 0 ? "PARTIAL_FAILURE" : "COMPLETED";
+        Map<String, String> hashes = new LinkedHashMap<>();
+        sourceHashes.forEach((id, value) -> hashes.put(id.toString(), value));
+        RetrievalRunManifest manifest = new RetrievalRunManifest(
+                1L,
+                "m4-c02-live-v1",
+                "retrieval-metrics-v1",
+                "LIVE",
+                status,
+                null,
+                null,
+                new LinkedHashMap<>(),
+                new LiveConfiguration(
+                        options.knowledgeBaseId(),
+                        options.chunking(),
+                        options.strategies().stream().map(Enum::name).toList(),
+                        options.parameters(),
+                        options.authorizeEmbedding(),
+                        options.output().toUri().toString()),
+                frozen.manifest(),
+                "docs/engineering/m4-01-gold-evidence.json",
+                hash(Files.readAllBytes(Path.of("docs/engineering/m4-01-gold-evidence.json"))),
+                hashes,
+                statuses,
+                results.stream()
+                        .map(r -> r.snapshotHash() == null ? "" : r.snapshotHash())
                         .distinct()
-                        .toList()));
-        ObjectNode metricStatuses = manifest.putObject("metricStatuses");
-        for (JsonNode score : scores)
-            for (String type : List.of("evidenceStatus", "rankingStatus")) {
-                String key = type + ":" + score.path(type).asString();
-                metricStatuses.put(key, metricStatuses.path(key).asInt() + 1);
-            }
-        StringBuilder report = new StringBuilder("# C02 LIVE Retrieval Evaluation\n\n执行状态："
-                + manifest.path("status").asString()
-                + "\n\n来源：retrieval-metrics-v1 / B03 确认池。Snapshot 仅为版本身份，评分另核验来源 Hash、Chunk 字节及区间。\n\n检索状态：" + statuses
-                + "\n\n指标状态：" + metricStatuses + "\n\n|Question / Strategy|Evidence|Ranking|\n|---|---|---|\n");
-        for (JsonNode score : scores)
+                        .toList(),
+                metricStatuses);
+        StringBuilder report = new StringBuilder("# C02 LIVE Retrieval Evaluation\n\n执行状态：" + status
+                + "\n\n来源：retrieval-metrics-v1 / B03 确认池。Snapshot 仅为版本身份，评分另核验来源 Hash、Chunk 字节及区间。\n\n检索状态："
+                + JSON.writeValueAsString(statuses) + "\n\n指标状态：" + JSON.writeValueAsString(metricStatuses)
+                + "\n\n|Question / Strategy|Evidence|Ranking|\n|---|---|---|\n");
+        for (Score score : scores)
             report.append('|')
-                    .append(score.path("questionId").asString())
+                    .append(score.questionId())
                     .append(" / ")
-                    .append(score.path("strategy").asString())
+                    .append(score.strategy())
                     .append('|')
-                    .append(score.path("evidenceStatus").asString())
+                    .append(score.evidenceStatus())
                     .append('|')
-                    .append(score.path("rankingStatus").asString())
+                    .append(score.rankingStatus())
                     .append("|\n");
         report.append("\n|Strategy|Recall@5|CEC@5|MRR@5|Precision@5|nDCG@5|\n|---|---|---|---|---|---|\n");
         for (RetrievalStrategy strategy : options.strategies()) {
             report.append('|').append(strategy.name());
-            for (String metric : List.of("recall5", "cec5", "mrr5", "precision5", "ndcg5")) {
-                JsonNode summary = summaries.path(strategy.name()).path(metric);
-                JsonNode value = summary.path("value");
+            LiveMetricsReportSummariesValue summary = summaries.get(strategy.name());
+            for (LiveMetricsReportSummariesValueRecall3 value :
+                    List.of(summary.recall5(), summary.cec5(), summary.mrr5(), summary.precision5(), summary.ndcg5()))
                 report.append('|')
                         .append(
-                                value.isNumber()
-                                        ? java.math.BigDecimal.valueOf(value.asDouble())
+                                value.value() == null
+                                        ? "UNDEFINED"
+                                        : java.math.BigDecimal.valueOf(value.value())
                                                 .setScale(3, java.math.RoundingMode.HALF_EVEN)
-                                                .toPlainString()
-                                        : "UNDEFINED")
+                                                .toPlainString())
                         .append(" (n=")
-                        .append(summary.path("denominator").asInt())
+                        .append(value.denominator())
                         .append(')');
-            }
             report.append("|\n");
         }
         report.append("\n完整数值、分母、逐题 @3/@5 见 metrics.json。不可评分不记零，不代表质量通过。未执行 Chat/Rerank 或答案评估。\n");
         publish(options.output(), manifest, results, metrics, report.toString());
-        System.out.println(
-                "LIVE " + manifest.path("status").asString() + ": " + results.size() + " runs; " + options.output());
+        System.out.println("LIVE " + status + ": " + results.size() + " runs; " + options.output());
     }
 
-    private static ObjectNode base(JsonNode question, Options options, RetrievalStrategy strategy) {
-        ObjectNode run = JSON.createObjectNode();
-        run.set("questionId", question.path("questionId"));
-        run.set("query", question.path("query"));
-        run.put("knowledgeBaseId", options.knowledgeBaseId());
-        run.put("chunking", options.chunking());
-        run.put("strategy", strategy.name());
-        run.put("requestedStrategy", strategy.name());
-        run.set("parameters", JSON.valueToTree(options.parameters()));
-        return run;
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    record Score(
+            String questionId,
+            String strategy,
+            String evidenceStatus,
+            String rankingStatus,
+            int evidenceDenominator,
+            int rankingDenominator,
+            EvidenceValues evidence3,
+            RankingMetrics.Result ranking3,
+            EvidenceValues evidence5,
+            RankingMetrics.Result ranking5) {}
+
+    record EvidenceValues(
+            String executionStatus,
+            String qualityStatus,
+            int depth,
+            int covered,
+            int evidenceCount,
+            Integer firstRank,
+            Integer completeRank,
+            double recall,
+            int cec,
+            int hit,
+            double mrr) {
+        static EvidenceValues of(EvidenceMetrics.Result e) {
+            return new EvidenceValues(
+                    e.executionStatus(),
+                    e.qualityStatus(),
+                    e.depth(),
+                    e.covered(),
+                    e.evidenceCount(),
+                    e.firstRank(),
+                    e.completeRank(),
+                    e.recall(),
+                    e.cec(),
+                    e.hit(),
+                    e.mrr());
+        }
     }
 
-    static ObjectNode score(FrozenRankingEvaluation.Frozen frozen, ObjectNode run, Map<Long, String> sourceHashes) {
-        if (run.path("status").asString().equals("FAILED"))
-            return unavailable(run, "EXECUTION_FAILED", "EXECUTION_FAILED");
-        JsonNode reference = null, gold = null;
-        for (JsonNode candidate : frozen.fixture().path("runs"))
-            if (candidate.path("questionId").equals(run.path("questionId"))
-                    && candidate.path("chunking").equals(run.path("chunking"))) {
-                reference = candidate;
-                break;
-            }
-        for (JsonNode candidate : frozen.fixture().path("gold").path("questions"))
-            if (candidate.path("questionId").equals(run.path("questionId"))) gold = candidate;
-        if (reference == null || !reference.path("snapshotHash").equals(run.path("snapshotHash")))
+    static ObjectNode score(FrozenRankingEvaluation.Frozen frozen, ObjectNode run, Map<Long, String> sources) {
+        return (ObjectNode) JSON.readTree(JSON.writeValueAsString(
+                scoreTyped(frozen, JSON.treeToValue(run, LiveRetrievalRunResult.class), sources)));
+    }
+
+    private static Score unavailable(LiveRetrievalRunResult run, String evidence, String ranking) {
+        return new Score(
+                run.questionId(),
+                run.strategy(),
+                evidence,
+                ranking,
+                evidence.equals("SCORED") ? 1 : 0,
+                ranking.equals("SCORED") ? 1 : 0,
+                null,
+                null,
+                null,
+                null);
+    }
+
+    static Score scoreTyped(
+            FrozenRankingEvaluation.Frozen frozen, LiveRetrievalRunResult run, Map<Long, String> sourceHashes) {
+        if ("FAILED".equals(run.status())) return unavailable(run, "EXECUTION_FAILED", "EXECUTION_FAILED");
+        OfflineRetrievalRunResult reference = frozen.fixture().runs().stream()
+                .filter(c ->
+                        c.questionId().equals(run.questionId()) && c.chunking().equals(run.chunking()))
+                .findFirst()
+                .orElse(null);
+        GoldQuestionIdentity gold = frozen.fixture().gold().questions().stream()
+                .filter(c -> c.questionId().equals(run.questionId()))
+                .findFirst()
+                .orElse(null);
+        if (reference == null || !java.util.Objects.equals(reference.snapshotHash(), run.snapshotHash()))
             return unavailable(run, "GOLD_SNAPSHOT_MISMATCH", "INVALID_POOL");
         List<EvidenceMetrics.Source> sources = new ArrayList<>();
-        Map<String, JsonNode> known = new LinkedHashMap<>();
+        Map<Long, RankedChunk> known = new LinkedHashMap<>();
         boolean sourceMatch = true;
-        for (JsonNode pool : frozen.manifest().path("pools"))
-            if (pool.path("questionId").equals(run.path("questionId"))
-                    && pool.path("chunking").equals(run.path("chunking")))
-                for (JsonNode label : pool.path("judgments")) {
-                    sourceMatch &= label.path("sourceSha256")
-                            .asString()
-                            .equals(sourceHashes.get(label.path("documentId").asLong()));
+        for (FrozenPool pool : frozen.manifest().pools())
+            if (pool.questionId().equals(run.questionId()) && pool.chunking().equals(run.chunking()))
+                for (RelevanceJudgment label : pool.judgments()) {
+                    sourceMatch &= label.sourceSha256().equals(sourceHashes.get(label.documentId()));
                     sources.add(new EvidenceMetrics.Source(
-                            label.path("documentId").asLong(),
-                            label.path("indexVersionId").asLong(),
-                            label.path("documentPath").asString(),
-                            label.path("sourceSha256").asString()));
+                            label.documentId(), label.indexVersionId(), label.documentPath(), label.sourceSha256()));
                 }
-        for (JsonNode candidate : frozen.fixture().path("runs"))
-            if (candidate.path("questionId").equals(run.path("questionId"))
-                    && candidate.path("chunking").equals(run.path("chunking")))
-                for (JsonNode chunk : candidate.path("chunks"))
-                    known.put(chunk.path("chunkId").asString(), chunk);
+        for (OfflineRetrievalRunResult candidate : frozen.fixture().runs())
+            if (candidate.questionId().equals(run.questionId())
+                    && candidate.chunking().equals(run.chunking()))
+                for (RankedChunk chunk : candidate.chunks()) known.put(chunk.chunkId(), chunk);
         if (!sourceMatch) return unavailable(run, "GOLD_SOURCE_MISMATCH", "INVALID_POOL");
         String rankingStatus = "SCORED";
-        for (JsonNode chunk : run.path("chunks")) {
-            JsonNode prior = known.get(chunk.path("chunkId").asString());
+        for (RankedChunk chunk : run.chunks()) {
+            RankedChunk prior = known.get(chunk.chunkId());
             if (prior == null) {
                 rankingStatus = "PENDING_REVIEW";
                 if (!verifiedSourceSpan(chunk, sources))
                     return unavailable(run, "GOLD_CHUNK_UNVERIFIED", rankingStatus);
                 continue;
             }
-            for (String field :
-                    List.of("documentId", "indexVersionId", "knowledgeBaseId", "content", "sourceStart", "sourceEnd"))
-                if (!prior.path(field).equals(chunk.path(field)))
-                    return unavailable(run, "GOLD_CHUNK_MISMATCH", "INVALID_POOL");
+            if (!prior.documentId().equals(chunk.documentId())
+                    || !prior.indexVersionId().equals(chunk.indexVersionId())
+                    || !prior.knowledgeBaseId().equals(chunk.knowledgeBaseId())
+                    || !prior.content().equals(chunk.content())
+                    || prior.sourceStart() != chunk.sourceStart()
+                    || prior.sourceEnd() != chunk.sourceEnd())
+                return unavailable(run, "GOLD_CHUNK_MISMATCH", "INVALID_POOL");
         }
         if (gold == null
-                || !gold.path("querySha256")
-                        .asString()
-                        .equals(hash(run.path("query").asString().getBytes(java.nio.charset.StandardCharsets.UTF_8))))
+                || !gold.querySha256()
+                        .equals(hash((run.query() == null ? "" : run.query())
+                                .getBytes(java.nio.charset.StandardCharsets.UTF_8))))
             return unavailable(run, "GOLD_QUERY_MISMATCH", "INVALID_POOL");
-        ObjectNode adapted = run.deepCopy();
-        // Evidence/Ranking 的 SUCCESS 包含空结果；原始 LIVE EMPTY_RESULT 保留在运行产物。
-        adapted.put("status", "SUCCESS");
-        ObjectNode result = unavailable(run, "SCORED", rankingStatus);
+        // 空结果按成功计算零贡献，原始运行状态不修改。
         try {
-            for (int k : List.of(3, 5)) {
-                EvidenceMetrics.Result evidence = EvidenceMetrics.calculate(gold, adapted, sources, k);
-                ObjectNode values = JSON.valueToTree(evidence);
-                values.put("recall", evidence.recall());
-                values.put("cec", evidence.cec());
-                values.put("hit", evidence.hit());
-                values.put("mrr", evidence.mrr());
-                result.set("evidence" + k, values);
-                if (rankingStatus.equals("SCORED"))
-                    result.set("ranking" + k, JSON.valueToTree(RankingMetrics.calculate(frozen.fixture(), adapted, k)));
-            }
+            EvidenceMetrics.Gold g = new EvidenceMetrics.Gold(
+                    null,
+                    gold.reviewStatus(),
+                    gold.relation(),
+                    gold.documentPath(),
+                    gold.sourceSha256(),
+                    gold.evidence());
+            EvidenceMetrics.Run e = new EvidenceMetrics.Run(
+                    "SUCCESS",
+                    run.chunks().stream()
+                            .map(c -> new EvidenceMetrics.Candidate(
+                                    c.documentId(), c.indexVersionId(), c.finalRank(), c.sourceStart(), c.sourceEnd()))
+                            .toList());
+            RankingMetrics.Fixture f = new RankingMetrics.Fixture(
+                    frozen.fixture().pool(),
+                    frozen.fixture().runs().stream()
+                            .map(c -> new RankingMetrics.Run(
+                                    c.questionId(),
+                                    c.chunking(),
+                                    c.snapshotHash(),
+                                    c.status(),
+                                    c.chunks().stream()
+                                            .map(x -> new RankingMetrics.Candidate(
+                                                    x.documentId(),
+                                                    x.indexVersionId(),
+                                                    x.chunkId(),
+                                                    x.content(),
+                                                    x.finalRank()))
+                                            .toList()))
+                            .toList());
+            RankingMetrics.Run r = new RankingMetrics.Run(
+                    run.questionId(),
+                    run.chunking(),
+                    run.snapshotHash(),
+                    "SUCCESS",
+                    run.chunks().stream()
+                            .map(c -> new RankingMetrics.Candidate(
+                                    c.documentId(), c.indexVersionId(), c.chunkId(), c.content(), c.finalRank()))
+                            .toList());
+            EvidenceValues three = EvidenceValues.of(EvidenceMetrics.calculate(g, e, sources, 3));
+            RankingMetrics.Result ranking3 = rankingStatus.equals("SCORED") ? RankingMetrics.calculate(f, r, 3) : null;
+            EvidenceValues five = EvidenceValues.of(EvidenceMetrics.calculate(g, e, sources, 5));
+            RankingMetrics.Result ranking5 = rankingStatus.equals("SCORED") ? RankingMetrics.calculate(f, r, 5) : null;
+            return new Score(
+                    run.questionId(),
+                    run.strategy(),
+                    "SCORED",
+                    rankingStatus,
+                    1,
+                    rankingStatus.equals("SCORED") ? 1 : 0,
+                    three,
+                    ranking3,
+                    five,
+                    ranking5);
         } catch (RuntimeException failure) {
             return unavailable(run, "METRIC_ERROR", "INVALID_POOL");
         }
-        return result;
     }
 
     // 新 Chunk 不能借用旧等级；正文确实是已核验来源区间时，Evidence 仍可独立评分。
-    private static boolean verifiedSourceSpan(JsonNode chunk, List<EvidenceMetrics.Source> sources) {
+    private static boolean verifiedSourceSpan(RankedChunk chunk, List<EvidenceMetrics.Source> sources) {
         try {
             for (EvidenceMetrics.Source source : sources) {
-                if (source.documentId() != chunk.path("documentId").asLong()
-                        || source.versionId() != chunk.path("indexVersionId").asLong()) continue;
+                if (source.documentId() != chunk.documentId() || source.versionId() != chunk.indexVersionId()) continue;
                 byte[] bytes = Files.readAllBytes(Path.of(source.path()));
                 if (!hash(bytes).equals(source.sha256())) return false;
                 String text = new com.lnjecit.knowledge.assistant.ingestion.parser.DocumentParserFactory()
                         .parse(source.path(), bytes)
                         .source();
-                int start = chunk.path("sourceStart").asInt(),
-                        end = chunk.path("sourceEnd").asInt();
+                int start = chunk.sourceStart(), end = chunk.sourceEnd();
                 return start >= 0
                         && end > start
                         && end <= text.codePointCount(0, text.length())
                         && text.substring(text.offsetByCodePoints(0, start), text.offsetByCodePoints(0, end))
-                                .equals(chunk.path("content").asString());
+                                .equals(chunk.content());
             }
         } catch (Exception unavailable) {
             return false;
@@ -410,31 +563,26 @@ public final class LiveEvaluationRunner {
         return false;
     }
 
-    private static ObjectNode unavailable(JsonNode run, String evidence, String ranking) {
-        ObjectNode score = JSON.createObjectNode();
-        score.set("questionId", run.path("questionId"));
-        score.set("strategy", run.path("strategy"));
-        score.put("evidenceStatus", evidence);
-        score.put("rankingStatus", ranking);
-        score.put("evidenceDenominator", evidence.equals("SCORED") ? 1 : 0);
-        score.put("rankingDenominator", ranking.equals("SCORED") ? 1 : 0);
-        return score;
-    }
-
-    private static void publish(Path output, ObjectNode manifest, ArrayNode runs, ObjectNode metrics, String report)
+    private static void publish(
+            Path output,
+            RetrievalRunManifest manifest,
+            List<LiveRetrievalRunResult> runs,
+            Metrics metrics,
+            String report)
             throws Exception {
         Path staging = null;
         try {
             Files.createDirectories(output.toAbsolutePath().getParent());
             staging = Files.createTempDirectory(output.toAbsolutePath().getParent(), ".live-");
             StringBuilder lines = new StringBuilder();
-            for (JsonNode run : runs) lines.append(run).append('\n');
+            for (LiveRetrievalRunResult run : runs)
+                lines.append(JSON.writeValueAsString(run)).append('\n');
             Files.writeString(staging.resolve("retrieval-results.jsonl"), lines.toString());
             Files.writeString(
                     staging.resolve("metrics.json"),
                     JSON.writerWithDefaultPrettyPrinter().writeValueAsString(metrics) + "\n");
             Files.writeString(staging.resolve("report.md"), report);
-            ObjectNode hashes = manifest.putObject("artifactSha256");
+            Map<String, String> hashes = manifest.artifactSha256();
             for (String file : List.of("retrieval-results.jsonl", "metrics.json", "report.md"))
                 hashes.put(file, hash(Files.readAllBytes(staging.resolve(file))));
             Files.writeString(

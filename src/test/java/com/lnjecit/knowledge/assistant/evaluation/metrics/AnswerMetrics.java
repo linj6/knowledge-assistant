@@ -16,13 +16,18 @@ import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProto
 import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProtocol.PENDING;
 import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProtocol.UNDEFINED;
 
+import com.lnjecit.knowledge.assistant.evaluation.AnswerEvaluationDataset;
+import com.lnjecit.knowledge.assistant.evaluation.AnswerEvaluationDataset.Case;
+import com.lnjecit.knowledge.assistant.evaluation.AnswerEvaluationDataset.Fact;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 /** D01 冻结 Gold 上的纯离线人工标签计算，不推断语义。 */
@@ -64,9 +69,91 @@ public final class AnswerMetrics {
             Map<String, Metric> metrics,
             List<Result> cases) {}
 
-    private static State judgment(JsonNode node) {
-        String value = node.asString("");
-        return value.equals(PASS) ? State.PASS : value.equals(FAIL) ? State.FAIL : State.PENDING;
+    public record DatasetInput(AnswerEvaluationDataset dataset, String payloadFingerprint) {}
+
+    public record Claim(String claimId, String text, String correctness, String support, List<String> citationIds) {}
+
+    public record Review(
+            String caseId,
+            Integer datasetVersion,
+            String freezeFingerprint,
+            String executionStatus,
+            String ragStatus,
+            String answer,
+            boolean answerExplicitNull,
+            List<String> citations,
+            String error,
+            String reviewStatus,
+            String reviewer,
+            String basis,
+            Boolean knowledgeAnswerable,
+            Boolean contextAnswerable,
+            String appropriateness,
+            String citationValidity,
+            boolean claimsComplete,
+            Map<String, String> factCoverage,
+            List<Claim> claims) {}
+
+    private static final JsonMapper JSON = JsonMapper.builder()
+            .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+            .build();
+
+    public static DatasetInput readDataset(JsonNode dataset) {
+        String fingerprint = null;
+        try {
+            ObjectNode payload = (ObjectNode) dataset.deepCopy();
+            payload.remove("freezeFingerprint");
+            fingerprint = FrozenRankingEvaluation.fingerprint(payload);
+        } catch (Exception invalid) {
+            /* 无法规范化的输入保持 NOT_READY。 */
+        }
+        return new DatasetInput(JSON.treeToValue(dataset, AnswerEvaluationDataset.class), fingerprint);
+    }
+
+    public static Review readReview(JsonNode review) {
+        if (review == null || review.isMissingNode() || review.isNull()) return null;
+        List<Claim> claims = new ArrayList<>();
+        for (JsonNode claim : review.path("claims"))
+            claims.add(new Claim(
+                    claim.path("claimId").asString(),
+                    claim.path("text").asString(),
+                    claim.path("correctness").asString(),
+                    claim.path("support").asString(),
+                    new ArrayList<>(strings(claim.path("citationIds")))));
+        Map<String, String> coverage = new java.util.LinkedHashMap<>();
+        review.path("factCoverage")
+                .properties()
+                .forEach(e -> coverage.put(e.getKey(), e.getValue().asString()));
+        return new Review(
+                review.path("caseId").asString(),
+                review.path("datasetVersion").isIntegralNumber()
+                        ? review.path("datasetVersion").asInt()
+                        : null,
+                review.path("freezeFingerprint").asString(),
+                review.path("executionStatus").asString(NOT_RUN),
+                review.path("ragStatus").asString(),
+                review.path("answer").asString(),
+                review.path("answer").isNull(),
+                review.path("citations").isArray() ? new ArrayList<>(strings(review.path("citations"))) : null,
+                review.path("error").asString(),
+                review.path("reviewStatus").asString(),
+                review.path("reviewer").asString(),
+                review.path("basis").asString(),
+                review.path("knowledgeAnswerable").isBoolean()
+                        ? review.path("knowledgeAnswerable").asBoolean()
+                        : null,
+                review.path("contextAnswerable").isBoolean()
+                        ? review.path("contextAnswerable").asBoolean()
+                        : null,
+                review.path("appropriateness").asString(),
+                review.path("citationValidity").asString(),
+                review.path("claimsComplete").asBoolean(false),
+                coverage,
+                claims);
+    }
+
+    private static State judgment(String value) {
+        return PASS.equals(value) ? State.PASS : FAIL.equals(value) ? State.FAIL : State.PENDING;
     }
 
     private static State all(List<State> values) {
@@ -78,54 +165,46 @@ public final class AnswerMetrics {
         return new Result(id, execution, false, state, state, state, state, state, state, 0, 0);
     }
 
-    private static boolean confirmed(JsonNode gold) {
-        if (!gold.path("reviewStatus").asString().equals(CONFIRMED)) return false;
-        for (String key : List.of("requiredFacts", "optionalFacts"))
-            for (JsonNode fact : gold.path(key))
-                if (!fact.path("reviewStatus").asString().equals(CONFIRMED)) return false;
-        return true;
+    private static boolean confirmed(Case gold) {
+        return gold.confirmed();
     }
 
-    private static boolean ready(JsonNode dataset) {
-        try {
-            ObjectNode payload = (ObjectNode) dataset.deepCopy();
-            String expected = payload.path("freezeFingerprint").asString();
-            payload.remove("freezeFingerprint");
-            if (!expected.equals(GOLD_V1_FINGERPRINT)
-                    || dataset.path("datasetVersion").asInt() != ANSWER_GOLD_VERSION
-                    || !dataset.path("freezeStatus").asString().equals(FROZEN)
-                    || !dataset.path("protocol").asString().equals(ANSWER_PROTOCOL)
-                    || !FrozenRankingEvaluation.fingerprint(payload).equals(expected)) return false;
-            for (JsonNode gold : dataset.path("cases")) if (!confirmed(gold)) return false;
-            return true;
-        } catch (Exception invalid) {
-            return false;
-        }
+    private static boolean ready(DatasetInput input) {
+        AnswerEvaluationDataset dataset = input.dataset();
+        return GOLD_V1_FINGERPRINT.equals(dataset.freezeFingerprint())
+                && dataset.datasetVersion() == ANSWER_GOLD_VERSION
+                && FROZEN.equals(dataset.freezeStatus())
+                && ANSWER_PROTOCOL.equals(dataset.protocol())
+                && dataset.freezeFingerprint().equals(input.payloadFingerprint())
+                && dataset.cases().stream().allMatch(AnswerMetrics::confirmed);
     }
 
     public static Result calculate(JsonNode dataset, JsonNode gold, JsonNode review) {
-        String id = gold.path("caseId").asString();
-        String execution =
-                review == null ? NOT_RUN : review.path("executionStatus").asString(NOT_RUN);
+        return calculate(readDataset(dataset), JSON.treeToValue(gold, Case.class), readReview(review));
+    }
+
+    public static Result calculate(DatasetInput input, Case gold, Review review) {
+        AnswerEvaluationDataset dataset = input.dataset();
+        String id = gold.caseId();
+        String execution = review == null ? NOT_RUN : review.executionStatus();
         // 缺少评审不等于身份错误；已提供但不匹配的评审不得进入分母。
-        if (!ready(dataset) || !confirmed(gold) || !containsCase(dataset, gold))
+        if (!ready(input) || !confirmed(gold) || !dataset.cases().contains(gold))
             return unavailable(id, execution, State.NOT_READY);
-        if (review == null || review.isMissingNode() || review.isNull()) return unavailable(id, NOT_RUN, State.PENDING);
-        if (!id.equals(review.path("caseId").asString())
-                || !dataset.path("datasetVersion").equals(review.path("datasetVersion"))
-                || !dataset.path("freezeFingerprint").equals(review.path("freezeFingerprint"))
-                || (!review.path("reviewStatus").asString().equals(CONFIRMED)
-                        && !review.path("reviewStatus").asString().equals(PENDING)))
-            return unavailable(id, execution, State.NOT_READY);
+        if (review == null) return unavailable(id, NOT_RUN, State.PENDING);
+        if (!id.equals(review.caseId())
+                || !Integer.valueOf(dataset.datasetVersion()).equals(review.datasetVersion())
+                || !dataset.freezeFingerprint().equals(review.freezeFingerprint())
+                || (!review.reviewStatus().equals(CONFIRMED)
+                        && !review.reviewStatus().equals(PENDING))) return unavailable(id, execution, State.NOT_READY);
         if (execution.equals(NOT_RUN)) return unavailable(id, execution, State.PENDING);
-        String rag = review.path("ragStatus").asString();
+        String rag = review.ragStatus();
         if (execution.equals(FAILED)) {
             if (!rag.equals(FAILED)
-                    || !review.path("answer").isNull()
-                    || !review.path("citations").isArray()
-                    || !review.path("citations").isEmpty()
-                    || review.path("error").asString().isBlank()) return unavailable(id, execution, State.NOT_READY);
-            State validity = review.path("error").asString().equals(CITATION_INVALID) ? State.FAIL : State.NA;
+                    || !review.answerExplicitNull()
+                    || review.citations() == null
+                    || !review.citations().isEmpty()
+                    || review.error().isBlank()) return unavailable(id, execution, State.NOT_READY);
+            State validity = review.error().equals(CITATION_INVALID) ? State.FAIL : State.NA;
             return new Result(
                     id,
                     execution,
@@ -136,18 +215,17 @@ public final class AnswerMetrics {
                     validity,
                     State.NA,
                     State.FAIL,
-                    gold.path("requiredFacts").size(),
+                    (gold.requiredFacts() == null ? 0 : gold.requiredFacts().size()),
                     0);
         }
         if (!execution.equals(COMPLETED) || !(rag.equals(ANSWERED) || rag.equals(INSUFFICIENT_EVIDENCE)))
             return unavailable(id, execution, State.NOT_READY);
-        boolean reviewed = review.path("reviewStatus").asString().equals(CONFIRMED)
-                && !review.path("reviewer").asString().isBlank()
-                && !review.path("basis").asString().isBlank();
+        boolean reviewed = review.reviewStatus().equals(CONFIRMED)
+                && !review.reviewer().isBlank()
+                && !review.basis().isBlank();
         if (!reviewed) return unavailable(id, execution, State.PENDING);
-        boolean knowledge = gold.path("knowledgeAnswerable").asBoolean();
-        if (!review.path("knowledgeAnswerable").isBoolean()
-                || review.path("knowledgeAnswerable").asBoolean() != knowledge)
+        boolean knowledge = gold.knowledgeAnswerable();
+        if (review.knowledgeAnswerable() == null || review.knowledgeAnswerable() != knowledge)
             return unavailable(id, execution, State.NOT_READY);
         return calculateReviewed(id, execution, knowledge, toReview(gold, review));
     }
@@ -167,30 +245,28 @@ public final class AnswerMetrics {
 
     // 缺失的人工判断继续映射为 PENDING；不根据答案原文推断语义。
     // claimsComplete 缺失按既有协议视为清单未完成，contextAnswerable 缺失使用 null 保留未知状态。
-    private static AnswerReview toReview(JsonNode gold, JsonNode review) {
+    private static AnswerReview toReview(Case gold, Review review) {
         List<State> coverage = new ArrayList<>();
-        for (JsonNode fact : gold.path("requiredFacts"))
-            coverage.add(judgment(
-                    review.path("factCoverage").path(fact.path("factId").asString())));
+        for (Fact fact : gold.requiredFacts() == null ? List.<Fact>of() : gold.requiredFacts())
+            coverage.add(judgment(review.factCoverage().get(fact.factId())));
         List<ClaimJudgment> claims = new ArrayList<>();
-        for (JsonNode claim : review.path("claims"))
+        for (Claim claim : review.claims())
             claims.add(new ClaimJudgment(
-                    claim.path("claimId").asString(),
-                    claim.path("text").asString(),
-                    judgment(claim.path("correctness")),
-                    judgment(claim.path("support")),
-                    strings(claim.path("citationIds"))));
-        JsonNode context = review.path("contextAnswerable");
+                    claim.claimId(),
+                    claim.text(),
+                    judgment(claim.correctness()),
+                    judgment(claim.support()),
+                    new HashSet<>(claim.citationIds())));
         return new AnswerReview(
-                review.path("ragStatus").asString().equals(ANSWERED),
-                context.isBoolean() ? context.asBoolean() : null,
-                judgment(review.path("appropriateness")),
+                ANSWERED.equals(review.ragStatus()),
+                review.contextAnswerable(),
+                judgment(review.appropriateness()),
                 coverage,
-                strings(review.path("citations")),
-                review.path("claimsComplete").asBoolean(false),
+                review.citations() == null ? Set.of() : new HashSet<>(review.citations()),
+                review.claimsComplete(),
                 claims,
-                judgment(review.path("citationValidity")),
-                review.path("answer").asString());
+                judgment(review.citationValidity()),
+                review.answer() == null ? "" : review.answer());
     }
 
     private static Set<String> strings(JsonNode array) {
@@ -274,27 +350,27 @@ public final class AnswerMetrics {
                 covered);
     }
 
-    private static boolean containsCase(JsonNode dataset, JsonNode gold) {
-        for (JsonNode item : dataset.path("cases")) if (item.equals(gold)) return true;
-        return false;
+    public static Summary summarize(JsonNode dataset, List<JsonNode> reviews) {
+        return summarize(
+                readDataset(dataset),
+                reviews.stream().map(AnswerMetrics::readReview).toList());
     }
 
-    public static Summary summarize(JsonNode dataset, List<JsonNode> reviews) {
+    public static Summary summarize(DatasetInput input, List<Review> reviews) {
+        AnswerEvaluationDataset dataset = input.dataset();
         Set<String> ids = new HashSet<>();
-        for (JsonNode review : reviews) {
-            String id = review.path("caseId").asString();
+        for (Review review : reviews) {
+            String id = review.caseId();
             boolean known = false;
-            for (JsonNode gold : dataset.path("cases"))
-                if (gold.path("caseId").asString().equals(id)) known = true;
+            for (Case gold : dataset.cases()) if (gold.caseId().equals(id)) known = true;
             if (!known || !ids.add(id)) throw new IllegalArgumentException("未知或重复 caseId");
         }
         List<Result> results = new ArrayList<>();
         int executed = 0, failed = 0, reviewed = 0, pending = 0, notReady = 0;
-        for (JsonNode gold : dataset.path("cases")) {
-            JsonNode review = null;
-            for (JsonNode candidate : reviews)
-                if (candidate.path("caseId").equals(gold.path("caseId"))) review = candidate;
-            Result result = calculate(dataset, gold, review);
+        for (Case gold : dataset.cases()) {
+            Review review = null;
+            for (Review candidate : reviews) if (candidate.caseId().equals(gold.caseId())) review = candidate;
+            Result result = calculate(input, gold, review);
             results.add(result);
             if (result.executionStatus().equals(COMPLETED)
                     || result.executionStatus().equals(FAILED)) executed++;
