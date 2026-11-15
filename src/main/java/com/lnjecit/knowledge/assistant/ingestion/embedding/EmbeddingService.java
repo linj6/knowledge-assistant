@@ -78,7 +78,9 @@ public class EmbeddingService {
                 List<String> texts =
                         batch.stream().map(DocumentChunk::getContent).toList();
                 for (String text : texts)
-                    if (text == null || text.isBlank() || text.codePointCount(0, text.length()) > 800)
+                    if (text == null
+                            || text.isBlank()
+                            || text.codePointCount(0, text.length()) > properties.getMaxInputCodePoints())
                         throw new IllegalStateException("Embedding input limit exceeded");
                 List<String> vectors = new ArrayList<>(Collections.nCopies(batch.size(), null));
                 try {

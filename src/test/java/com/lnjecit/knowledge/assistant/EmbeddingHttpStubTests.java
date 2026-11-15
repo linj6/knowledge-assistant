@@ -55,8 +55,7 @@ class EmbeddingHttpStubTests {
             complete.setContent("hello");
             complete.setEmbedding(vector);
             when(repository.read(2L, 3L)).thenReturn(List.of(pending), List.of(complete));
-            new EmbeddingService(
-                            new ModelConfiguration().embeddingModel(properties), repository, new EmbeddingProperties())
+            new EmbeddingService(new ModelConfiguration().embeddingModel(properties), repository, embeddingProperties())
                     .embed(2L, 3L);
             verify(repository).write(eq(2L), eq(3L), eq(List.of(pending)), anyList());
             assertThat(complete.getEmbedding()).isNotNull();
@@ -66,7 +65,7 @@ class EmbeddingHttpStubTests {
             org.assertj.core.api.Assertions.assertThatThrownBy(() -> new EmbeddingService(
                                     new ModelConfiguration().embeddingModel(properties),
                                     repository,
-                                    new EmbeddingProperties())
+                                    embeddingProperties())
                             .embed(2L, 3L, () -> {
                                 if (checks.incrementAndGet() == 3)
                                     throw new com.lnjecit.knowledge.assistant.ingestion.task.TaskExecutionException(
@@ -79,5 +78,11 @@ class EmbeddingHttpStubTests {
         } finally {
             server.stop(0);
         }
+    }
+
+    private static EmbeddingProperties embeddingProperties() {
+        EmbeddingProperties properties = new EmbeddingProperties();
+        properties.setMaxInputCodePoints(800);
+        return properties;
     }
 }

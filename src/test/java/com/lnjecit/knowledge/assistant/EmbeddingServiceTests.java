@@ -43,7 +43,7 @@ class EmbeddingServiceTests {
                             .model(scenario == 0 ? "other" : "text-embedding-v4")
                             .dimensions(scenario == 1 ? 512 : version.getEmbeddingDimension())
                             .build());
-            assertThatThrownBy(() -> new EmbeddingService(model, repository, new EmbeddingProperties()).embed(2L, 3L))
+            assertThatThrownBy(() -> new EmbeddingService(model, repository, embeddingProperties()).embed(2L, 3L))
                     .hasMessageContaining(scenario == 2 ? "schema" : "mismatch");
             verify(model, never()).call(any(EmbeddingRequest.class));
         }
@@ -73,7 +73,7 @@ class EmbeddingServiceTests {
                     ? List.of(new Embedding(vector, 0))
                     : List.of(new Embedding(vector, 0), new Embedding(vector, mode == 1 ? 0 : 1));
             when(model.call(any(EmbeddingRequest.class))).thenReturn(new EmbeddingResponse(results));
-            assertThatThrownBy(() -> new EmbeddingService(model, repository, new EmbeddingProperties()).embed(2L, 3L))
+            assertThatThrownBy(() -> new EmbeddingService(model, repository, embeddingProperties()).embed(2L, 3L))
                     .hasMessageContaining("INVALID_RESPONSE");
             verify(repository, never()).write(anyLong(), anyLong(), anyList(), anyList());
         }
@@ -125,7 +125,7 @@ class EmbeddingServiceTests {
             }
             return new EmbeddingResponse(results);
         });
-        EmbeddingService service = new EmbeddingService(model, repository, new EmbeddingProperties());
+        EmbeddingService service = new EmbeddingService(model, repository, embeddingProperties());
         assertThatThrownBy(() -> service.embed(2L, 3L)).hasMessageNotContaining("secret body");
         assertThat(chunks.subList(0, 10)).allMatch(c -> c.getEmbedding() != null);
         service.embed(2L, 3L);
@@ -137,10 +137,16 @@ class EmbeddingServiceTests {
 
     @Test
     void batchConfigurationIsBounded() {
-        EmbeddingProperties properties = new EmbeddingProperties();
+        EmbeddingProperties properties = embeddingProperties();
         for (int size : new int[] {0, -1, 17, Integer.MAX_VALUE}) {
             properties.setBatchSize(size);
             assertThatThrownBy(properties::afterPropertiesSet).isInstanceOf(IllegalStateException.class);
         }
+    }
+
+    private static EmbeddingProperties embeddingProperties() {
+        EmbeddingProperties properties = new EmbeddingProperties();
+        properties.setMaxInputCodePoints(800);
+        return properties;
     }
 }

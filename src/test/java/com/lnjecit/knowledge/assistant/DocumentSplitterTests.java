@@ -13,6 +13,24 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class DocumentSplitterTests {
     @org.junit.jupiter.api.Test
+    void skipsBlankWindowsWithoutMovingSourceOffsets() {
+        String source = "a" + " ".repeat(2000) + "b";
+        DocumentSplitter splitter = new FixedCodePointSplitter();
+        ChunkingConfig config = new ChunkingConfig(
+                1, com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy.FIXED_CODE_POINT, 800, 120);
+        ParsedDocument parsed = new DocumentParserFactory().parse("a.txt", source.getBytes(StandardCharsets.UTF_8));
+        java.util.List<DocumentSplitter.Chunk> chunks = splitter.split(parsed, config);
+        assertThat(chunks).hasSize(2).allMatch(c -> !c.content().isBlank());
+        assertThat(chunks).extracting(DocumentSplitter.Chunk::chunkOrder).containsExactly(0, 1);
+        assertThat(chunks).extracting(c -> c.span().start()).containsExactly(0, 1360);
+        assertThat(chunks).extracting(c -> c.span().end()).containsExactly(800, 2002);
+        assertThat(chunks).allMatch(c -> c.content().equals(c.span().extract(source)));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new DocumentParserFactory()
+                        .parse("a.txt", " ".repeat(2000).getBytes(StandardCharsets.UTF_8)))
+                .hasMessageContaining("NO_CONTENT");
+    }
+
+    @org.junit.jupiter.api.Test
     void headingJsonRoundTrip() {
         ParsedDocument parsed = new DocumentParserFactory()
                 .parse("a.md", ("\uFEFF# 一级\r\n## 二级😀\n" + "正文".repeat(900)).getBytes(StandardCharsets.UTF_8));

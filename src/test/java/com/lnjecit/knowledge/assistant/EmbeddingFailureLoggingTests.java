@@ -76,7 +76,7 @@ class EmbeddingFailureLoggingTests {
                         .when(repository)
                         .write(eq(2L), eq(3L), anyList(), anyList());
             EmbeddingService service = new EmbeddingService(
-                    new ModelConfiguration().embeddingModel(properties), repository, new EmbeddingProperties());
+                    new ModelConfiguration().embeddingModel(properties), repository, embeddingProperties());
             TaskService tasks = mock(TaskService.class);
             ClaimedTask claim = new ClaimedTask(1L, 2L, 3L, "owner", 1);
             new TaskWorker(tasks, (task, context) -> service.embed(2L, 3L)).execute(claim);
@@ -99,5 +99,11 @@ class EmbeddingFailureLoggingTests {
             events.stop();
             server.stop(0);
         }
+    }
+
+    private static EmbeddingProperties embeddingProperties() {
+        EmbeddingProperties properties = new EmbeddingProperties();
+        properties.setMaxInputCodePoints(800);
+        return properties;
     }
 }

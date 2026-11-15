@@ -11,13 +11,18 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConfigurationProperties("assistant.chunking")
 public class ChunkingProperties implements InitializingBean {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingProperties embeddingProperties;
+
     private int version;
     private com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy strategy;
     private int chunkSize;
     private int chunkOverlap;
 
     public ChunkingConfig snapshot() {
-        return new ChunkingConfig(version, strategy, chunkSize, chunkOverlap);
+        ChunkingConfig config = new ChunkingConfig(version, strategy, chunkSize, chunkOverlap);
+        config.validateMaxCodePoints(embeddingProperties.getMaxInputCodePoints());
+        return config;
     }
 
     @Override

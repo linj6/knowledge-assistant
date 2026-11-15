@@ -16,6 +16,7 @@ public class EmbeddingProperties implements InitializingBean {
     // 应用与持久化批次保护范围，不代表任意供应商模型的输入上限。
     public static final int DEFAULT_BATCH_SIZE = 16;
     public static final int MAX_BATCH_SIZE = 16;
+    private int maxInputCodePoints;
     private int batchSize = DEFAULT_BATCH_SIZE;
     private Map<String, Integer> modelMaxBatchSizes = new LinkedHashMap<>();
 
@@ -34,6 +35,8 @@ public class EmbeddingProperties implements InitializingBean {
     }
 
     public void afterPropertiesSet() {
+        if (maxInputCodePoints <= 0)
+            throw new IllegalStateException("Embedding max input code points must be positive");
         if (batchSize < 1 || batchSize > MAX_BATCH_SIZE)
             throw new IllegalStateException("Embedding batch size must be between 1 and 16");
         if (modelMaxBatchSizes == null

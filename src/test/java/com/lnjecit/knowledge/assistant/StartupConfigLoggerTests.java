@@ -40,7 +40,7 @@ class StartupConfigLoggerTests {
                 env,
                 new ModelProperties(),
                 new RerankProperties(),
-                new EmbeddingProperties(),
+                embeddingProperties(),
                 new UploadProperties(),
                 new ChunkingProperties(),
                 new ContextProperties(),
@@ -138,7 +138,7 @@ class StartupConfigLoggerTests {
                 env,
                 model,
                 rerank,
-                new EmbeddingProperties(),
+                embeddingProperties(),
                 binder.bindOrCreate("assistant.upload", UploadProperties.class),
                 binder.bindOrCreate("assistant.chunking", ChunkingProperties.class),
                 binder.bindOrCreate("assistant.rag.context", ContextProperties.class),
@@ -211,7 +211,7 @@ class StartupConfigLoggerTests {
                 env,
                 new ModelProperties(),
                 new RerankProperties(),
-                new EmbeddingProperties(),
+                embeddingProperties(),
                 new UploadProperties(),
                 new ChunkingProperties(),
                 new ContextProperties(),
@@ -220,5 +220,11 @@ class StartupConfigLoggerTests {
         assertThat(StartupConfigLogger.safeUrl("not a URL password=fixture-secret"))
                 .isEqualTo("INVALID_URL");
         assertThat(StartupConfigLogger.safeUrl(null)).isEqualTo("UNSET");
+    }
+
+    private static EmbeddingProperties embeddingProperties() {
+        EmbeddingProperties properties = new EmbeddingProperties();
+        properties.setMaxInputCodePoints(800);
+        return properties;
     }
 }

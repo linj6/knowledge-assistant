@@ -34,6 +34,18 @@ class ChunkingStrategyTests {
                 "assistant:\n  chunking:\n    version: 1\n    strategy: FIXED_CODE_POINT\n    chunk-size: 800\n    chunk-overlap: 120\n";
         ChunkingProperties properties = bind(yaml);
         properties.afterPropertiesSet();
+        properties.getEmbeddingProperties().setMaxInputCodePoints(900);
+        properties.setChunkSize(900);
+        assertThat(properties.snapshot().chunkSize()).isEqualTo(900);
+        properties.getEmbeddingProperties().setMaxInputCodePoints(800);
+        properties.setChunkSize(800);
+        ChunkingProperties invalid = bind(yaml.replace("800", "801"));
+        assertThatThrownBy(invalid::afterPropertiesSet).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(invalid::snapshot).isInstanceOf(IllegalArgumentException.class);
+        for (int overlap : new int[] {-1, 800, 801}) {
+            assertThatThrownBy(() -> new ChunkingConfig(1, ChunkingStrategy.FIXED_CODE_POINT, 800, overlap))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
         assertThat(properties.snapshot()).isEqualTo(new ChunkingConfig(1, ChunkingStrategy.FIXED_CODE_POINT, 800, 120));
         assertThatThrownBy(() -> bind(yaml.replace("FIXED_CODE_POINT", "UNKNOWN")))
                 .isInstanceOf(org.springframework.boot.context.properties.bind.BindException.class);
@@ -46,8 +58,13 @@ class ChunkingStrategyTests {
                 .addFirst(new YamlPropertySourceLoader()
                         .load("test", new ByteArrayResource(yaml.getBytes(StandardCharsets.UTF_8)))
                         .getFirst());
-        return Binder.get(environment)
+        ChunkingProperties result = Binder.get(environment)
                 .bind("assistant.chunking", ChunkingProperties.class)
                 .get();
+        com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingProperties limits =
+                new com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingProperties();
+        limits.setMaxInputCodePoints(800);
+        result.setEmbeddingProperties(limits);
+        return result;
     }
 }

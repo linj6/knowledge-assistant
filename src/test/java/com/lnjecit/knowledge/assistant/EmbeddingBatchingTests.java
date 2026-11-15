@@ -42,7 +42,7 @@ import tools.jackson.databind.json.JsonMapper;
 class EmbeddingBatchingTests {
     @Test
     void limitsAreModelSpecificAndFailClosed() {
-        EmbeddingProperties p = new EmbeddingProperties();
+        EmbeddingProperties p = embeddingProperties();
         assertThat(p.effectiveBatchSize("text-embedding-v4")).isEqualTo(10);
         p.setBatchSize(4);
         assertThat(p.effectiveBatchSize("text-embedding-v4")).isEqualTo(4);
@@ -72,7 +72,7 @@ class EmbeddingBatchingTests {
                         .model("unknown")
                         .dimensions(1024)
                         .build());
-        assertThatThrownBy(() -> new EmbeddingService(model, repository, new EmbeddingProperties()).embed(2L, 3L))
+        assertThatThrownBy(() -> new EmbeddingService(model, repository, embeddingProperties()).embed(2L, 3L))
                 .hasMessageContaining("explicitly configured");
         verify(model, never()).call(any(EmbeddingRequest.class));
     }
@@ -158,7 +158,7 @@ class EmbeddingBatchingTests {
                     })
                     .when(repository)
                     .write(eq(2L), eq(3L), anyList(), anyList());
-            EmbeddingProperties properties = new EmbeddingProperties();
+            EmbeddingProperties properties = embeddingProperties();
             properties.setBatchSize(configured);
             EmbeddingService service = new EmbeddingService(client, repository, properties);
             if (!failure.equals("none")) {
@@ -198,5 +198,11 @@ class EmbeddingBatchingTests {
         } finally {
             server.stop(0);
         }
+    }
+
+    private static EmbeddingProperties embeddingProperties() {
+        EmbeddingProperties properties = new EmbeddingProperties();
+        properties.setMaxInputCodePoints(800);
+        return properties;
     }
 }

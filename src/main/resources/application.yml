@@ -44,6 +44,7 @@ assistant:
     api-key: ""
     timeout-seconds: 30
   embedding:
+    max-input-code-points: 800
     baseline-authorized: false
   rerank:
     enabled: false

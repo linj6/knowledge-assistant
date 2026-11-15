@@ -20,13 +20,17 @@ public final class FixedCodePointSplitter implements DocumentSplitter {
         for (int start = 0; start < length; start += config.chunkSize() - config.chunkOverlap()) {
             int end = start + Math.min(config.chunkSize(), length - start);
             while (document.fragments().get(fragment).span().end() <= start) fragment++;
-            chunks.add(new Chunk(
-                    chunks.size(),
-                    source.substring(boundaries[start], boundaries[end]),
-                    new SourceSpan(start, end),
-                    document.fragments().get(fragment).headingPath()));
+            String content = source.substring(boundaries[start], boundaries[end]);
+            // 跳过空白窗口，保留原文偏移；有效块按结果数量连续编号。
+            if (!content.isBlank())
+                chunks.add(new Chunk(
+                        chunks.size(),
+                        content,
+                        new SourceSpan(start, end),
+                        document.fragments().get(fragment).headingPath()));
             if (end == length) break;
         }
+        if (chunks.isEmpty()) throw new IllegalArgumentException("Document contains no non-blank chunks");
         return List.copyOf(chunks);
     }
 }

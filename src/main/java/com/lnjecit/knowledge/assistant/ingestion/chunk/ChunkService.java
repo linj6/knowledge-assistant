@@ -16,10 +16,15 @@ import tools.jackson.databind.json.JsonMapper;
 public class ChunkService {
     private final ChunkRepository repository;
     private final JsonMapper json;
+    private final com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingProperties embeddingProperties;
 
-    public ChunkService(ChunkRepository repository, JsonMapper json) {
+    public ChunkService(
+            ChunkRepository repository,
+            JsonMapper json,
+            com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingProperties embeddingProperties) {
         this.repository = repository;
         this.json = json;
+        this.embeddingProperties = embeddingProperties;
     }
     /** v1 标题路径保存完整 Heading 数组，字段为 text、level、span(start/end)。 */
     public record HeadingPath(int version, List<ParsedDocument.Heading> headings) {
@@ -40,6 +45,7 @@ public class ChunkService {
                 || version.getPublishedAt() != null
                 || version.getStatus() != IndexVersionStatus.BUILDING) fail();
         ChunkingConfig config = json.readValue(version.getChunkingConfig(), ChunkingConfig.class);
+        config.validateMaxCodePoints(embeddingProperties.getMaxInputCodePoints());
         List<DocumentSplitter.Chunk> split = new FixedCodePointSplitter().split(parsed, config);
         List<DocumentChunk> existing = repository.find(versionId);
         int expected = version.getExpectedChunkCount();

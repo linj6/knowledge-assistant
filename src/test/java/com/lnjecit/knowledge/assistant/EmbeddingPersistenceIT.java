@@ -196,7 +196,8 @@ class EmbeddingPersistenceIT {
                     new com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingService(
                             model,
                             embeddings,
-                            new com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingProperties());
+                            context.getBean(
+                                    com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingProperties.class));
             assertThatThrownBy(() -> embeddingService.embed(2L, 5L)).isInstanceOf(IllegalStateException.class);
             assertThat(jdbc.queryForObject(
                             "SELECT count(*) FROM document_chunk WHERE index_version_id=5 AND embedding IS NOT NULL",
@@ -233,11 +234,19 @@ class EmbeddingPersistenceIT {
                             7L,
                             new TxtDocumentParser()
                                     .parse(("a" + " ".repeat(2000) + "b").getBytes(StandardCharsets.UTF_8)));
-            assertThat(whitespace).anyMatch(c -> c.getContent().isBlank());
+            assertThat(whitespace).hasSize(2).allMatch(c -> !c.getContent().isBlank());
+            assertThat(whitespace).extracting(c -> c.getChunkOrder()).containsExactly(0, 1);
+            assertThat(jdbc.queryForObject(
+                            "SELECT expected_chunk_count FROM document_index_version WHERE id=7", Integer.class))
+                    .isEqualTo(2);
             org.mockito.Mockito.clearInvocations(model);
-            assertThatThrownBy(() -> embeddingService.embed(2L, 7L)).hasMessageContaining("input limit");
-            org.mockito.Mockito.verify(model, org.mockito.Mockito.never())
-                    .call(org.mockito.ArgumentMatchers.any(org.springframework.ai.embedding.EmbeddingRequest.class));
+            org.mockito.Mockito.when(model.call(
+                            org.mockito.ArgumentMatchers.any(org.springframework.ai.embedding.EmbeddingRequest.class)))
+                    .thenAnswer(call -> new org.springframework.ai.embedding.EmbeddingResponse(java.util.List.of(
+                            new org.springframework.ai.embedding.Embedding(new float[1024], 0),
+                            new org.springframework.ai.embedding.Embedding(new float[1024], 1))));
+            embeddingService.embed(2L, 7L);
+            assertThat(embeddings.read(2L, 7L)).allMatch(c -> c.getEmbedding() != null);
             jdbc.update("INSERT INTO document_index_version(id,document_id,chunking_config) VALUES(8,2,?)", config);
             java.util.List<com.lnjecit.knowledge.assistant.document.entity.DocumentChunk> locked =
                     service.initialize(2L, 8L, new TxtDocumentParser().parse("lock".getBytes(StandardCharsets.UTF_8)));
