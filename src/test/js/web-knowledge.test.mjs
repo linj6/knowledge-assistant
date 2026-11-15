@@ -7,6 +7,7 @@ class Element {
     constructor(tag = 'div') { this.tag = tag; this.children = []; this.events = {}; this.value = ''; this.disabled = false; this.hidden = false; this.text = ''; }
     set textContent(value) { this.text = String(value); this.children = []; }
     get textContent() { return this.text + this.children.map(child => child.textContent).join(''); }
+    insertBefore(child) { this.children.unshift(child); }
     append(...children) { this.children.push(...children); }
     replaceChildren(...children) { this.text = ''; this.children = children; }
     addEventListener(type, callback) { (this.events[type] ??= []).push(callback); }
@@ -19,9 +20,9 @@ class Element {
 }
 const tick = async () => { for (let i = 0; i < 15; i++) await Promise.resolve(); };
 async function setup() {
-    const elements = Object.fromEntries(['knowledge','chat','retrieval','kb','status','reload'].map(id => [id,new Element()]));
+    const elements = Object.fromEntries(['evaluation','eval-load','eval-run','eval-content','knowledge','chat','retrieval','kb','status','reload'].map(id => [id,new Element()]));
     const calls = [], timers = [], listeners = {};
-    const document = { createElement: tag => new Element(tag), querySelector: selector => elements[selector.slice(1)], getElementById: id => elements[id], querySelectorAll: () => [] };
+    const document = { createTextNode: text => { const el = new Element('#text'); el.textContent = text; return el; }, createElement: tag => new Element(tag), querySelector: selector => elements[selector.slice(1)], getElementById: id => elements[id], querySelectorAll: () => [] };
     const context = vm.createContext({ document, URL, AbortController, FormData, console: { warn() {} }, performance, setTimeout: callback => (timers.push(callback), timers.length), clearTimeout() {}, location: { href: 'http://localhost/api/index.html', origin: 'http://localhost', hash: '#knowledge', replace(value) { this.hash = value; } }, window: { addEventListener(type, callback) { listeners[type] = callback; } }, fetch: (url, options) => new Promise((resolve,reject) => calls.push({ url: String(url), options, resolve, reject })) });
     const modules = {};
     async function module(name) { if (!modules[name]) { const mod = new vm.SourceTextModule(fs.readFileSync(base + name,'utf8'), { context }); modules[name] = mod; await mod.link(specifier => module(specifier.replace('./',''))); } return modules[name]; }

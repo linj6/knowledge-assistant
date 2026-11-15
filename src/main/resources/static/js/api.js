@@ -24,7 +24,8 @@ export class ApiError extends Error {
 export async function request(path, {
     method = 'GET',
     body,
-    signal
+    signal,
+    raw = false
 } = {}) {
     const url = new URL(path, location.href);
     if (url.origin !== location.origin) throw new TypeError('仅允许同源请求');
@@ -61,6 +62,10 @@ export async function request(path, {
         elapsedMillis: performance.now() - start
     };
     if (!response.ok) throw new ApiError('http', meta);
+    if (raw) {
+        if (envelope == null) throw new ApiError('protocol', meta);
+        return { data: envelope, ...meta };
+    }
     if (!envelope || typeof envelope.code !== 'number') throw new ApiError('protocol', meta);
     if (envelope.code !== 0) throw new ApiError('business', meta);
     return {
