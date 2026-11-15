@@ -19,6 +19,8 @@ public class KnowledgeBase {
     private String name;
     /** 知识库用途说明，允许为空。 */
     private String description;
+    /** 所有者标识；历史知识库允许为空，权限校验尚未实现。 */
+    private Long ownerUserId;
     /** 记录创建时刻，使用 Instant 表达 UTC 时间线上的瞬时。 */
     private Instant createdAt;
 }
