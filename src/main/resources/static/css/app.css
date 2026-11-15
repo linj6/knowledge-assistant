@@ -312,3 +312,13 @@ details[open] > summary { margin-bottom: 8px; }
 .eval-help[open] { min-width: 260px; max-width: 420px; }
 .eval-help p { text-align: left; margin: 8px 0; }
 .eval-metric-guide { display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; }
+
+/* 人工评审沿用现有卡片与表单，不默认展开长证据。 */
+.evaluation-review { border-top: 2px solid #d7dce2; margin-top: 28px; padding-top: 20px; }
+.evaluation-review label { display: block; margin: 12px 0; }
+.evaluation-review textarea { display: block; width: 100%; min-height: 90px; box-sizing: border-box; }
+.evaluation-review input:not([type=checkbox]), .evaluation-review select { margin: 6px 10px; max-width: 100%; }
+.evaluation-review button { margin: 8px 10px 8px 0; }
+.evaluation-review details { margin: 12px 0; padding: 10px; background: #F1F3F5; }
+.evaluation-review pre { max-height: 360px; overflow: auto; }
+.evaluation-review [role=status] { white-space: pre-wrap; overflow-wrap: anywhere; }

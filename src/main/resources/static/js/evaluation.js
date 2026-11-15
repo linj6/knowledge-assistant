@@ -1,3 +1,4 @@
+import { mountAnswerReview } from './evaluation-review.js';
 import { initializeAnswerEvaluation, renderAnswerRun } from './evaluation-answer.js';
 const select = document.querySelector('#eval-run');
 const content = document.querySelector('#eval-content');
@@ -54,7 +55,7 @@ async function render() {
         const response = await fetch('/api/v1/evaluation/runs/' + encodeURIComponent(select.value));
         if (!response.ok) throw new Error(); const run = await response.json(); if (current !== revision) return;
         content.replaceChildren(); const m = run.manifest;
-        if (m.runnerVersion === 'm4-d03-answer-v1') { renderAnswerRun(run, content); return; }
+        if (m.runnerVersion === 'm4-d03-answer-v1') { renderAnswerRun(run, content); mountAnswerReview(run.runId, content, () => current === revision); return; }
         fields({Run:run.runId,模式:m.mode,状态:m.status,数据集:m.dataset,创建时间:m.createdAt ?? '未记录',冻结身份:(m.frozenPool ?? m.frozenInputs)?.fingerprint,Gold来源:run.gold.status},content);
         el('p','仅比较当前 Run 内同一切分方式。不同快照、Gold、参数或知识库版本不可默认比较；逐条覆盖未记录时显示未知。',content);
         const chunking = picker('切分方式', [...new Set(run.results.map(r=>r.chunking))], content);
@@ -107,7 +108,7 @@ async function render() {
 }
 select.onchange=render;
 document.querySelector('#eval-load').onclick=async()=>{
-    content.textContent='正在读取…'; select.disabled=true;
+    ++revision; content.textContent='正在读取…'; select.disabled=true;
     try { const response=await fetch('/api/v1/evaluation/runs'); if(!response.ok) throw new Error(); runs=await response.json(); select.replaceChildren();
         for(const run of runs) { const option=el('option',`${run.runId} · ${run.manifest.mode ?? 'ANSWER'} · ${run.manifest.status} · ${run.manifest.dataset}`,select); option.value=run.runId; }
         if(runs.length) await render(); else content.textContent='暂无有效 Run；损坏或不完整记录不会列出。';

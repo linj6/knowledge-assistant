@@ -2,6 +2,7 @@ export class ApiError extends Error {
     constructor(kind, {
         status = null,
         code = null,
+        detail = null,
         requestId = null,
         elapsedMillis = 0
     } = {}) {
@@ -16,6 +17,7 @@ export class ApiError extends Error {
             kind,
             status,
             code,
+            detail,
             requestId,
             elapsedMillis
         });
@@ -58,6 +60,7 @@ export async function request(path, {
     const meta = {
         status: response.status,
         code: envelope?.code,
+        detail: envelope?.detail ?? envelope?.reason,
         requestId: envelope?.requestId ?? response.headers.get('X-Request-Id'),
         elapsedMillis: performance.now() - start
     };
