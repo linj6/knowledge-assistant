@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.lnjecit.knowledge.assistant.evaluation.metrics.FrozenRankingEvaluation;
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData;
 import com.lnjecit.knowledge.assistant.retrieval.RetrievalService;
 import com.lnjecit.knowledge.assistant.retrieval.model.RankedChunk;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalDiagnostics;
@@ -233,10 +234,8 @@ class LiveEvaluationRunnerTests {
             Path root = Path.of("target/evaluation", name);
             org.junit.jupiter.api.Assumptions.assumeTrue(
                     Files.isRegularFile(root.resolve("manifest.json")), "本地历史归档不存在");
-            com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RetrievalRunManifest manifest =
-                    LiveEvaluationRunner.JSON.readValue(
-                            Files.readString(root.resolve("manifest.json")),
-                            com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RetrievalRunManifest.class);
+            RetrievalRunData.RetrievalRunManifest manifest = LiveEvaluationRunner.JSON.readValue(
+                    Files.readString(root.resolve("manifest.json")), RetrievalRunData.RetrievalRunManifest.class);
             assertThat(manifest.mode()).isEqualTo("LIVE");
             JsonNode expected = LiveEvaluationRunner.JSON.readTree(Files.readString(root.resolve("metrics.json")));
             int index = 0;

@@ -33,8 +33,8 @@ for(const status of ['COMPLETED','NOT_READY','FAILED'])test(status+' 自动读�
  const text=h.elements['eval-content'].textContent;assert.ok(text.includes(status));assert.equal(h.auth.checked,false);
  if(status==='COMPLETED'){for(const marker of ['candidate-only','selected-only','citation-only','<script>实际上下文','<img onerror=alert(1)>回答'])assert.ok(text.includes(marker));assert.equal(h.nodes().some(e=>['script','img'].includes(e.tag)),false);}else assert.match(text,/未产生/);
 });
-test('网络失败不重试，提醒历史核查；关闭开关提示',async()=>{
- const h=await fixture();void h.load.fire('click');await tick();await h.respond(h.calls.length-1,{},404);assert.match(h.elements.evaluation.textContent,/app.evaluation.enabled=true/);
+test('网络失败不重试，提醒历史核查；服务不可用提示',async()=>{
+ const h=await fixture();void h.load.fire('click');await tick();await h.respond(h.calls.length-1,{},404);assert.match(h.elements.evaluation.textContent,/请检查本地服务/);
  await h.loadData();await h.authorize();const i=await h.send();h.calls[i].reject(new Error('network'));await tick();assert.equal(h.calls.length,i+1);assert.match(h.elements.evaluation.textContent,/可能已经产生结果.*历史/);assert.equal(h.auth.checked,false);
 });
 for(const protocol of ['m4-c01-offline-v1','m4-c02-live-v1'])test(protocol+' 指标视图与刷新重开',async()=>{

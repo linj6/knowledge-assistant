@@ -12,8 +12,8 @@ import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProto
 import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProtocol.SUCCESS;
 import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProtocol.UNDEFINED;
 
-import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RetrievalFixturePool;
-import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RetrievalFixturePoolJudgmentsItem;
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData.RetrievalFixturePool;
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData.RetrievalFixturePoolJudgmentsItem;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;

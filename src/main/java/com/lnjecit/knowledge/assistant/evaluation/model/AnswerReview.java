@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.evaluation;
+package com.lnjecit.knowledge.assistant.evaluation.model;
 
 import com.lnjecit.knowledge.assistant.evaluation.metrics.AnswerMetrics;
 import java.time.Instant;

@@ -1,7 +1,13 @@
-package com.lnjecit.knowledge.assistant.evaluation;
+package com.lnjecit.knowledge.assistant.evaluation.service;
 
 import com.lnjecit.knowledge.assistant.document.entity.Document;
 import com.lnjecit.knowledge.assistant.document.mapper.DocumentMapper;
+import com.lnjecit.knowledge.assistant.evaluation.dataset.EvaluationDatasetLoader;
+import com.lnjecit.knowledge.assistant.evaluation.dataset.Sha256;
+import com.lnjecit.knowledge.assistant.evaluation.model.AnswerEvaluationRun;
+import com.lnjecit.knowledge.assistant.evaluation.model.RunStatus;
+import com.lnjecit.knowledge.assistant.evaluation.store.EvaluationFiles;
+import com.lnjecit.knowledge.assistant.evaluation.store.EvaluationRunStore;
 import com.lnjecit.knowledge.assistant.rag.RagService;
 import com.lnjecit.knowledge.assistant.rag.model.RagStatus;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalParameters;
@@ -15,7 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -23,7 +28,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 /** 本地单题评估编排；不计算质量分数。 */
 @Service
-@ConditionalOnProperty(name = "app.evaluation.enabled", havingValue = "true")
 public class EvaluationService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(EvaluationService.class);
 

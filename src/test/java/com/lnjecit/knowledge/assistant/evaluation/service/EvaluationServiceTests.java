@@ -1,9 +1,13 @@
-package com.lnjecit.knowledge.assistant.evaluation;
+package com.lnjecit.knowledge.assistant.evaluation.service;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import com.lnjecit.knowledge.assistant.document.mapper.DocumentMapper;
+import com.lnjecit.knowledge.assistant.evaluation.controller.EvaluationController;
+import com.lnjecit.knowledge.assistant.evaluation.controller.EvaluationRunController;
+import com.lnjecit.knowledge.assistant.evaluation.model.AnswerEvaluationRun;
+import com.lnjecit.knowledge.assistant.evaluation.store.EvaluationRunStore;
 import com.lnjecit.knowledge.assistant.rag.RagService;
 import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshot;
 import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshotService;
@@ -30,7 +34,7 @@ class EvaluationServiceTests {
         assertEquals("NOT_READY", outcome.status());
         assertEquals("KB_NOT_PUBLISHED", outcome.errorCode());
         verifyNoInteractions(rag, documents);
-        EvaluationController reader = new EvaluationController(root);
+        EvaluationController reader = new EvaluationController(new EvaluationRunStore(root));
         assertEquals(outcome.runId(), ((AnswerEvaluationRun.Response) reader.read(outcome.runId())).runId());
         assertEquals(1, reader.list().size());
         Files.writeString(root.resolve(outcome.runId()).resolve("results.json"), "{}");
@@ -96,7 +100,8 @@ class EvaluationServiceTests {
         EvaluationService service = new EvaluationService(rag, snapshots, documents, env, root);
         org.springframework.test.web.servlet.MockMvc mvc =
                 org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
-                                new EvaluationRunController(service), new EvaluationController(root))
+                                new EvaluationRunController(service),
+                                new EvaluationController(new EvaluationRunStore(root)))
                         .build();
         String response = mvc.perform(
                         org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/v1/evaluation/runs")
@@ -126,7 +131,8 @@ class EvaluationServiceTests {
         tools.jackson.databind.json.JsonMapper mapper =
                 tools.jackson.databind.json.JsonMapper.builder().build();
         String id = outcome.path("runId").asString();
-        AnswerEvaluationRun.Response typed = (AnswerEvaluationRun.Response) new EvaluationController(root).read(id);
+        AnswerEvaluationRun.Response typed =
+                (AnswerEvaluationRun.Response) new EvaluationController(new EvaluationRunStore(root)).read(id);
         assertEquals(
                 mapper.readTree(Files.readString(root.resolve(id).resolve("manifest.json"))),
                 mapper.readTree(mapper.writeValueAsString(typed.manifest())));

@@ -1,5 +1,6 @@
-package com.lnjecit.knowledge.assistant.evaluation;
+package com.lnjecit.knowledge.assistant.evaluation.model;
 
+import com.lnjecit.knowledge.assistant.evaluation.service.EvaluationService;
 import com.lnjecit.knowledge.assistant.rag.RagService.RagExecutionResult;
 import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshot;
 import java.util.Map;

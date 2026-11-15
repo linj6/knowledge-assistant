@@ -1,17 +1,19 @@
-package com.lnjecit.knowledge.assistant.evaluation;
+package com.lnjecit.knowledge.assistant.evaluation.dataset;
 
-import com.lnjecit.knowledge.assistant.evaluation.EvaluationService.Dataset;
+import com.lnjecit.knowledge.assistant.evaluation.model.AnswerEvaluationDataset;
+import com.lnjecit.knowledge.assistant.evaluation.service.EvaluationService.Dataset;
+import com.lnjecit.knowledge.assistant.evaluation.store.EvaluationFiles;
 import org.springframework.core.io.ClassPathResource;
 import tools.jackson.databind.json.JsonMapper;
 
 /** JSON 仅在加载边界使用，业务层消费已验证的类型化数据。 */
-final class EvaluationDatasetLoader {
+public final class EvaluationDatasetLoader {
     private final JsonMapper json = JsonMapper.builder().build();
     private final ClassPathResource resource = new ClassPathResource("evaluation/answer-evaluation-v1.json");
 
-    record Loaded(Dataset dataset, String fingerprint, String error, String sha256) {}
+    public record Loaded(Dataset dataset, String fingerprint, String error, String sha256) {}
 
-    Loaded load() throws Exception {
+    public Loaded load() throws Exception {
         byte[] bytes = resource.getContentAsByteArray();
         tools.jackson.databind.JsonNode frozen = json.readTree(bytes);
         String fingerprint = FrozenFingerprint.answer(frozen);
@@ -33,15 +35,15 @@ final class EvaluationDatasetLoader {
         return new Loaded(dataset, fingerprint, null, Sha256.digest(bytes));
     }
 
-    AnswerEvaluationDataset full() throws Exception {
+    public AnswerEvaluationDataset full() throws Exception {
         Loaded loaded = load();
         if (loaded.error() != null) throw new IllegalStateException(loaded.error());
         return json.readValue(resource.getContentAsByteArray(), AnswerEvaluationDataset.class);
     }
 
-    record Description(Dataset dataset, String sha256) {}
+    public record Description(Dataset dataset, String sha256) {}
 
-    Description describe() throws Exception {
+    public Description describe() throws Exception {
         Loaded loaded = load();
         if (loaded.error() != null) throw new IllegalStateException(loaded.error());
         return new Description(loaded.dataset(), loaded.sha256());

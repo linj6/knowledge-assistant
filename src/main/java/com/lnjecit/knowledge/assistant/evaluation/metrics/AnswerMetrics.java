@@ -16,9 +16,10 @@ import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProto
 import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProtocol.PENDING;
 import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProtocol.UNDEFINED;
 
-import com.lnjecit.knowledge.assistant.evaluation.AnswerEvaluationDataset;
-import com.lnjecit.knowledge.assistant.evaluation.AnswerEvaluationDataset.Case;
-import com.lnjecit.knowledge.assistant.evaluation.AnswerEvaluationDataset.Fact;
+import com.lnjecit.knowledge.assistant.evaluation.dataset.FrozenFingerprint;
+import com.lnjecit.knowledge.assistant.evaluation.model.AnswerEvaluationDataset;
+import com.lnjecit.knowledge.assistant.evaluation.model.AnswerEvaluationDataset.Case;
+import com.lnjecit.knowledge.assistant.evaluation.model.AnswerEvaluationDataset.Fact;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashSet;
@@ -103,7 +104,7 @@ public final class AnswerMetrics {
         try {
             ObjectNode payload = (ObjectNode) dataset.deepCopy();
             payload.remove("freezeFingerprint");
-            fingerprint = com.lnjecit.knowledge.assistant.evaluation.FrozenFingerprint.fingerprint(payload);
+            fingerprint = FrozenFingerprint.fingerprint(payload);
         } catch (Exception invalid) {
             /* 无法规范化的输入保持 NOT_READY。 */
         }

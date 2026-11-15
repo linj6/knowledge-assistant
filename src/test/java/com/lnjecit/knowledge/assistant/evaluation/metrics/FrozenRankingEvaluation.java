@@ -1,14 +1,15 @@
 package com.lnjecit.knowledge.assistant.evaluation.metrics;
 
-import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.FrozenPool;
-import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.FrozenPools;
-import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.GoldQuestionIdentity;
-import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.OfflineRetrievalRunResult;
-import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RelevanceJudgment;
-import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RetrievalFixture;
-import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RetrievalFixturePool;
-import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RetrievalFixturePoolJudgmentsItem;
-import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RetrievalFixtureSource;
+import com.lnjecit.knowledge.assistant.evaluation.dataset.FrozenFingerprint;
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData.FrozenPool;
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData.FrozenPools;
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData.GoldQuestionIdentity;
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData.OfflineRetrievalRunResult;
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData.RelevanceJudgment;
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData.RetrievalFixture;
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData.RetrievalFixturePool;
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData.RetrievalFixturePoolJudgmentsItem;
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData.RetrievalFixtureSource;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -53,7 +54,7 @@ public final class FrozenRankingEvaluation {
     }
 
     static String fingerprint(JsonNode node) throws Exception {
-        return com.lnjecit.knowledge.assistant.evaluation.FrozenFingerprint.fingerprint(node);
+        return FrozenFingerprint.fingerprint(node);
     }
 
     private static String poolKey(String questionId, String chunking) {

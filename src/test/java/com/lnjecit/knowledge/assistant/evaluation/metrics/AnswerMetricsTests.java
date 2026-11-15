@@ -3,6 +3,7 @@ package com.lnjecit.knowledge.assistant.evaluation.metrics;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.lnjecit.knowledge.assistant.evaluation.model.AnswerEvaluationDataset;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
@@ -50,9 +51,7 @@ class AnswerMetricsTests {
     private AnswerMetrics.Result score(JsonNode d, int index, JsonNode r) {
         return AnswerMetrics.calculate(
                 AnswerMetrics.readDataset(d),
-                json.treeToValue(
-                        d.path("cases").get(index),
-                        com.lnjecit.knowledge.assistant.evaluation.AnswerEvaluationDataset.Case.class),
+                json.treeToValue(d.path("cases").get(index), AnswerEvaluationDataset.Case.class),
                 AnswerMetrics.readReview(r));
     }
 

@@ -1,11 +1,11 @@
-package com.lnjecit.knowledge.assistant.evaluation;
+package com.lnjecit.knowledge.assistant.evaluation.controller;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import com.lnjecit.knowledge.assistant.evaluation.dataset.EvaluationDatasetLoader;
+import com.lnjecit.knowledge.assistant.evaluation.service.EvaluationService;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/v1/evaluation")
-@ConditionalOnProperty(name = "app.evaluation.enabled", havingValue = "true")
 public class EvaluationRunController {
     private final EvaluationService service;
 

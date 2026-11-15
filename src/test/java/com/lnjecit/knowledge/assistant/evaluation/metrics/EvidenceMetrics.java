@@ -13,6 +13,7 @@ import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProto
 import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProtocol.SUCCESS;
 import static com.lnjecit.knowledge.assistant.evaluation.metrics.EvaluationProtocol.UNANSWERABLE;
 
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -69,7 +70,7 @@ public final class EvidenceMetrics {
             String relation,
             String documentPath,
             String sourceSha256,
-            List<com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.GoldEvidence> evidence) {}
+            List<RetrievalRunData.GoldEvidence> evidence) {}
 
     public record Run(String status, List<Candidate> chunks) {}
 
@@ -200,7 +201,7 @@ public final class EvidenceMetrics {
                         .count()
                 > 1) throw new IllegalArgumentException("同一证据来源存在多个文档版本，不能联合覆盖");
         List<SourceSpan> evidence = new ArrayList<>();
-        for (com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.GoldEvidence item : gold.evidence()) {
+        for (RetrievalRunData.GoldEvidence item : gold.evidence()) {
             evidence.add(new SourceSpan(
                     item.sourceSpan().start().intValue(),
                     item.sourceSpan().end().intValue()));

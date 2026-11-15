@@ -1,17 +1,17 @@
 package com.lnjecit.knowledge.assistant.evaluation.runner;
 
-import com.lnjecit.knowledge.assistant.evaluation.FrozenFingerprint;
-import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.FrozenPool;
-import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.FrozenPools;
-import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.GoldQuestionIdentity;
-import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.OfflineMetricsReportGroupsItemEvidence;
-import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.OfflineMetricsReportGroupsItemPrecision3;
-import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.OfflineRetrievalRunResult;
-import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RelevanceJudgment;
-import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RetrievalFixture;
-import com.lnjecit.knowledge.assistant.evaluation.RetrievalRunData.RetrievalRunManifest;
+import com.lnjecit.knowledge.assistant.evaluation.dataset.FrozenFingerprint;
 import com.lnjecit.knowledge.assistant.evaluation.metrics.EvidenceMetrics;
 import com.lnjecit.knowledge.assistant.evaluation.metrics.FrozenRankingEvaluation;
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData.FrozenPool;
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData.FrozenPools;
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData.GoldQuestionIdentity;
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData.OfflineMetricsReportGroupsItemEvidence;
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData.OfflineMetricsReportGroupsItemPrecision3;
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData.OfflineRetrievalRunResult;
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData.RelevanceJudgment;
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData.RetrievalFixture;
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData.RetrievalRunManifest;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;

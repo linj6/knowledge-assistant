@@ -1,7 +1,9 @@
-package com.lnjecit.knowledge.assistant.evaluation;
+package com.lnjecit.knowledge.assistant.evaluation.controller;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.lnjecit.knowledge.assistant.evaluation.model.EvaluationRunResponse;
+import com.lnjecit.knowledge.assistant.evaluation.store.EvaluationRunStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
@@ -14,7 +16,7 @@ class EvaluationControllerTests {
 
     @Test
     void rejectsInvalidIdAndMissingFiles() throws Exception {
-        EvaluationController controller = new EvaluationController(root);
+        EvaluationController controller = new EvaluationController(new EvaluationRunStore(root));
         assertEquals(
                 400,
                 assertThrows(ResponseStatusException.class, () -> controller.read("../secret"))
@@ -35,7 +37,7 @@ class EvaluationControllerTests {
         Path run = Files.createDirectory(root.resolve("history"));
         for (String name : java.util.List.of("manifest.json", "metrics.json", "retrieval-results.jsonl", "report.md"))
             Files.copy(source.resolve(name), run.resolve(name));
-        EvaluationController controller = new EvaluationController(root);
+        EvaluationController controller = new EvaluationController(new EvaluationRunStore(root));
         assertEquals("history", ((EvaluationRunStore.OfflineResponse) controller.read("history")).runId());
         assertEquals(1, controller.list().size());
         Files.writeString(run.resolve("metrics.json"), "{}");

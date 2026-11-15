@@ -112,7 +112,7 @@ document.querySelector('#eval-load').onclick=async()=>{
     try { const response=await fetch('/api/v1/evaluation/runs'); if(!response.ok) throw new Error(); runs=await response.json(); select.replaceChildren();
         for(const run of runs) { const option=el('option',`${run.runId} · ${run.manifest.mode ?? 'ANSWER'} · ${run.manifest.status} · ${run.manifest.dataset}`,select); option.value=run.runId; }
         if(runs.length) await render(); else content.textContent='暂无有效 Run；损坏或不完整记录不会列出。';
-    } catch {content.textContent='读取失败，请确认本地开关 app.evaluation.enabled=true。';} finally {select.disabled=false;}
+    } catch {content.textContent='读取失败，请检查本地服务和评估产物。';} finally {select.disabled=false;}
 };
 
 initializeAnswerEvaluation(async runId => {

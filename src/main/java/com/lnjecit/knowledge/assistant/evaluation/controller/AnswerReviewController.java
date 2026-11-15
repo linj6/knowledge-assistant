@@ -1,7 +1,8 @@
-package com.lnjecit.knowledge.assistant.evaluation;
+package com.lnjecit.knowledge.assistant.evaluation.controller;
 
 import com.lnjecit.knowledge.assistant.evaluation.metrics.AnswerMetrics;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import com.lnjecit.knowledge.assistant.evaluation.model.AnswerReview;
+import com.lnjecit.knowledge.assistant.evaluation.service.AnswerReviewService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -11,7 +12,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/v1/evaluation/runs/{runId}")
-@ConditionalOnProperty(name = "app.evaluation.enabled", havingValue = "true")
 public class AnswerReviewController {
     private final AnswerReviewService service;
 

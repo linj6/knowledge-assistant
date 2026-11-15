@@ -1,4 +1,4 @@
-package com.lnjecit.knowledge.assistant.evaluation;
+package com.lnjecit.knowledge.assistant.evaluation.model;
 
 import java.util.List;
 import java.util.Map;

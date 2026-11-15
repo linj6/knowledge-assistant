@@ -1,8 +1,9 @@
-package com.lnjecit.knowledge.assistant.evaluation;
+package com.lnjecit.knowledge.assistant.evaluation.controller;
 
+import com.lnjecit.knowledge.assistant.evaluation.model.EvaluationRunResponse;
+import com.lnjecit.knowledge.assistant.evaluation.store.EvaluationRunStore;
 import java.nio.file.Path;
 import java.util.List;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -10,7 +11,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/v1/evaluation/runs")
-@ConditionalOnProperty(name = "app.evaluation.enabled", havingValue = "true")
 public class EvaluationController {
     private final EvaluationRunStore store;
 

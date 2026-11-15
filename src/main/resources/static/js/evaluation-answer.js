@@ -82,7 +82,7 @@ export function initializeAnswerEvaluation(openRun) {
             question.replaceChildren();
             for (const item of cases) node('option', item.caseId, question).value = item.caseId;
             question.onchange(); status.textContent = '冻结数据集已加载';
-        } catch (error) { cases = []; question.replaceChildren(); preview.textContent = '数据集不可用'; status.textContent = '加载失败，请确认 app.evaluation.enabled=true。' + error.message; }
+        } catch (error) { cases = []; question.replaceChildren(); preview.textContent = '数据集不可用'; status.textContent = '加载失败，请检查本地服务和冻结数据集。' + error.message; }
         finally { update(); }
     };
     form.onsubmit = async event => {

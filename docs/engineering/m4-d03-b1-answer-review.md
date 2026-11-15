@@ -8,7 +8,7 @@
 - `PUT /api/v1/evaluation/runs/{runId}/review`
 - `GET /api/v1/evaluation/runs/{runId}/score`
 
-仅 app.evaluation.enabled=true 注册。GET review 返回 run（含 manifest 快照及完整实际 execution）、Loader 加载的完整 gold、review、reviewStatus、后端 citationValidity。execution.context 中保留 SelectedEvidence、evidenceMap 与模型上下文，retrieval 保留实际候选和诊断。C01/C02 返回 422 ANSWER_REVIEW_NOT_APPLICABLE。
+评估 API 默认注册，仅供受控本地使用，不适合直接公网暴露。GET review 返回 run（含 manifest 快照及完整实际 execution）、Loader 加载的完整 gold、review、reviewStatus、后端 citationValidity。execution.context 中保留 SelectedEvidence、evidenceMap 与模型上下文，retrieval 保留实际候选和诊断。C01/C02 返回 422 ANSWER_REVIEW_NOT_APPLICABLE。
 
 PUT 草稿示意（占位身份须替换为 GET 返回的真实值）：
 

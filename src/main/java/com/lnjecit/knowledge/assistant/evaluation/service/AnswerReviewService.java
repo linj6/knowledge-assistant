@@ -1,6 +1,14 @@
-package com.lnjecit.knowledge.assistant.evaluation;
+package com.lnjecit.knowledge.assistant.evaluation.service;
 
+import com.lnjecit.knowledge.assistant.evaluation.dataset.EvaluationDatasetLoader;
 import com.lnjecit.knowledge.assistant.evaluation.metrics.AnswerMetrics;
+import com.lnjecit.knowledge.assistant.evaluation.model.AnswerEvaluationDataset;
+import com.lnjecit.knowledge.assistant.evaluation.model.AnswerEvaluationRun;
+import com.lnjecit.knowledge.assistant.evaluation.model.AnswerReview;
+import com.lnjecit.knowledge.assistant.evaluation.model.EvaluationRunResponse;
+import com.lnjecit.knowledge.assistant.evaluation.model.RunStatus;
+import com.lnjecit.knowledge.assistant.evaluation.store.AnswerReviewStore;
+import com.lnjecit.knowledge.assistant.evaluation.store.EvaluationRunStore;
 import com.lnjecit.knowledge.assistant.rag.model.RagAnswer;
 import com.lnjecit.knowledge.assistant.rag.model.RagCitation;
 import com.lnjecit.knowledge.assistant.rag.validation.CitationValidator;
@@ -12,13 +20,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
-@ConditionalOnProperty(name = "app.evaluation.enabled", havingValue = "true")
 public class AnswerReviewService {
     private final EvaluationRunStore runs;
     private final AnswerReviewStore reviews;

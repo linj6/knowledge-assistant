@@ -1,19 +1,21 @@
-package com.lnjecit.knowledge.assistant.evaluation;
+package com.lnjecit.knowledge.assistant.evaluation.store;
 
+import com.lnjecit.knowledge.assistant.evaluation.dataset.Sha256;
+import com.lnjecit.knowledge.assistant.evaluation.model.AnswerEvaluationRun;
+import com.lnjecit.knowledge.assistant.evaluation.model.EvaluationRunResponse;
+import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-/** 本地只读工作台；默认关闭，固定目录和文件白名单。 */
+/** 本地工作台；固定目录和文件白名单。 */
 @org.springframework.stereotype.Component
-@ConditionalOnProperty(name = "app.evaluation.enabled", havingValue = "true")
 public class EvaluationRunStore {
     private final Path root;
 
@@ -22,7 +24,7 @@ public class EvaluationRunStore {
         this(EvaluationFiles.ROOT);
     }
 
-    EvaluationRunStore(Path root) {
+    public EvaluationRunStore(Path root) {
         this.root = root.toAbsolutePath().normalize();
     }
 
@@ -130,9 +132,9 @@ public class EvaluationRunStore {
         }
     }
 
-    record GoldResponse(String status, List<RetrievalRunData.GoldQuestion> questions) {}
+    public record GoldResponse(String status, List<RetrievalRunData.GoldQuestion> questions) {}
 
-    record OfflineResponse(
+    public record OfflineResponse(
             String runId,
             RetrievalRunData.RetrievalRunManifest manifest,
             RetrievalRunData.OfflineMetricsReport metrics,
@@ -140,7 +142,7 @@ public class EvaluationRunStore {
             GoldResponse gold)
             implements EvaluationRunResponse {}
 
-    record LiveResponse(
+    public record LiveResponse(
             String runId,
             RetrievalRunData.RetrievalRunManifest manifest,
             RetrievalRunData.LiveMetricsReport metrics,
@@ -196,7 +198,7 @@ public class EvaluationRunStore {
         }
     }
     /** 只有完整产物目录才会发布为可读 Run。 */
-    void save(AnswerEvaluationRun.Manifest manifest, AnswerEvaluationRun.Results results) {
+    public void save(AnswerEvaluationRun.Manifest manifest, AnswerEvaluationRun.Results results) {
         try {
             Files.createDirectories(root);
             Path temporary = Files.createTempDirectory(root, ".pending-");

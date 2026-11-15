@@ -1,15 +1,14 @@
-package com.lnjecit.knowledge.assistant.evaluation;
+package com.lnjecit.knowledge.assistant.evaluation.store;
 
+import com.lnjecit.knowledge.assistant.evaluation.model.AnswerReview;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
 /** 补充产物独立保存，不改写 Run 的三个不可变产物。 */
 @Component
-@ConditionalOnProperty(name = "app.evaluation.enabled", havingValue = "true")
 public class AnswerReviewStore {
     private final Path root;
     private final JsonMapper json = JsonMapper.builder().build();
@@ -18,7 +17,7 @@ public class AnswerReviewStore {
         this(EvaluationFiles.ROOT);
     }
 
-    AnswerReviewStore(Path root) {
+    public AnswerReviewStore(Path root) {
         this.root = root.toAbsolutePath().normalize();
     }
 
