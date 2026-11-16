@@ -1,164 +1,95 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
- <head>
-  <meta charset="utf-8"/>
-  <meta content="width=device-width,initial-scale=1" name="viewport"/>
-  <title>
-   Knowledge Assistant
-  </title>
-  <link href="./css/app.css" rel="stylesheet"/>
- </head>
- <body>
-  <aside>
-   <strong>
-    Knowledge Assistant
-   </strong>
-   <p>
-    让知识，成为答案。
-   </p>
-   <details open="">
-    <summary>
-     功能导航
-    </summary>
-    <nav aria-label="主导航"><a href="#evaluation">评估工作台</a>
-     <a href="#chat">
-      AI 问答
-     </a>
-     <a href="#knowledge">
-      知识库
-     </a>
-     <a href="#retrieval">
-      检索实验室
-     </a>
-    </nav>
-   </details>
-   <small>
-    个人知识工作空间
-   </small>
-  </aside>
-  <main>
-   <header>
-    <label for="kb">
-     当前知识库
-    </label>
-    <select disabled="" id="kb">
-     <option>
-      正在加载…
-     </option>
-    </select>
-    <button id="reload">
-     重新加载
-    </button>
-    <p aria-live="polite" id="status" role="status">
-    </p>
-   </header>
-   <section id="evaluation" hidden><h1>评估工作台</h1><p>单题真实评估与历史记录 · 不同快照不默认可比。</p><button id="eval-load">加载运行记录</button><select id="eval-run"></select><div id="eval-content"></div></section><section id="chat">
-    <p class="eyebrow">
-     ASK YOUR KNOWLEDGE
-    </p>
-    <h1>
-     AI 问答
-    </h1>
-    <p class="context">
-    </p>
-    <div class="welcome">
-     <h2>
-      从一个好问题开始
-     </h2>
-     <p>
-      将零散的知识，连接成清晰的理解。
-     </p>
-    </div>
-    <label for="question">
-     你的问题
-    </label>
-    <textarea id="question" placeholder="想从知识库中了解什么？"></textarea>
-    <div class="actions">
-     <span>
-      检索策略 · HYBRID_RRF
-     </span>
-     <button disabled="">
-      发送 · WEB-04 接入
-     </button>
-    </div>
-   </section>
-   <section hidden="" id="knowledge">
-    <p class="eyebrow">
-     YOUR LIBRARY
-    </p>
-    <h1>
-     知识库
-    </h1>
-    <p class="context">
-    </p>
-    <p>
-     使用上方选择器切换知识库。
-    </p>
-    <div class="actions">
-     <h2>
-      文档
-     </h2>
-     <div>
-      <button disabled="">
-       创建知识库 · WEB-03
-      </button>
-      <button disabled="">
-       上传文件 · WEB-03
-      </button>
-     </div>
-    </div>
-    <div class="empty">
-     文档列表尚未接入，当前不查询文档。
-    </div>
-   </section>
-   <section hidden="" id="retrieval">
-    <p class="eyebrow">
-     RETRIEVAL LAB
-    </p>
-    <h1>
-     检索实验室
-    </h1>
-    <p class="context">
-    </p>
-    <label for="query">
-     检索问题
-    </label>
-    <textarea id="query" placeholder="比较不同策略如何找到相关知识"></textarea>
-    <fieldset>
-     <legend>
-      检索策略预览
-     </legend>
-     <p>
-      VECTOR · BM25 · HYBRID_RRF · HYBRID_RERANK
-     </p>
-    </fieldset>
-    <details>
-     <summary>
-      高级检索参数（预览）
-     </summary>
-     <p>
-      vectorTopK 20 · bm25TopK 20 · rrfK 60 · fusionTopK 20 · finalTopK 5
-     </p>
-    </details>
-    <p>
-     <button disabled="">
-      开始检索 · WEB-05 接入
-     </button>
-    </p>
-    <div class="empty">
-     检索结果将在这里展示
-    </div>
-    <details>
-     <summary>
-      诊断信息
-     </summary>
-     <p>
-      尚未执行检索。
-     </p>
-    </details>
-   </section>
-  </main>
-  <script src="./js/app.js" type="module">
-  </script>
- </body>
+    <head>
+        <meta charset="utf-8" />
+        <meta content="width=device-width,initial-scale=1" name="viewport" />
+        <title>Knowledge Assistant</title>
+        <link href="./css/app.css" rel="stylesheet" />
+    </head>
+    <body>
+        <aside>
+            <strong> Knowledge Assistant </strong>
+            <p>让知识，成为答案。</p>
+            <details open="">
+                <summary>功能导航</summary>
+                <nav aria-label="主导航">
+                    <a href="#evaluation">评估工作台</a>
+                    <a href="#chat"> AI 问答 </a>
+                    <a href="#knowledge"> 知识库 </a>
+                    <a href="#retrieval"> 检索实验室 </a>
+                </nav>
+            </details>
+            <small> 个人知识工作空间 </small>
+        </aside>
+        <main>
+            <header>
+                <label for="kb"> 当前知识库 </label>
+                <select disabled="" id="kb">
+                    <option>正在加载…</option>
+                </select>
+                <button id="reload">重新加载</button>
+                <p aria-live="polite" id="status" role="status"></p>
+            </header>
+            <section id="evaluation" hidden>
+                <h1>评估工作台</h1>
+                <p>单题真实评估与历史记录 · 不同快照不默认可比。</p>
+                <button id="eval-load">加载运行记录</button
+                ><select id="eval-run"></select>
+                <div id="eval-content"></div>
+            </section>
+            <section id="chat">
+                <p class="eyebrow">ASK YOUR KNOWLEDGE</p>
+                <h1>AI 问答</h1>
+                <p class="context"></p>
+                <div class="welcome">
+                    <h2>从一个好问题开始</h2>
+                    <p>将零散的知识，连接成清晰的理解。</p>
+                </div>
+                <label for="question"> 你的问题 </label>
+                <textarea id="question" placeholder="想从知识库中了解什么？"></textarea>
+                <div class="actions">
+                    <span> 检索策略 · HYBRID_RRF </span>
+                    <button disabled="">发送 · WEB-04 接入</button>
+                </div>
+            </section>
+            <section hidden="" id="knowledge">
+                <p class="eyebrow">YOUR LIBRARY</p>
+                <h1>知识库</h1>
+                <p class="context"></p>
+                <p>使用上方选择器切换知识库。</p>
+                <div class="actions">
+                    <h2>文档</h2>
+                    <div>
+                        <button disabled="">创建知识库 · WEB-03</button>
+                        <button disabled="">上传文件 · WEB-03</button>
+                    </div>
+                </div>
+                <div class="empty">文档列表尚未接入，当前不查询文档。</div>
+            </section>
+            <section hidden="" id="retrieval">
+                <p class="eyebrow">RETRIEVAL LAB</p>
+                <h1>检索实验室</h1>
+                <p class="context"></p>
+                <label for="query"> 检索问题 </label>
+                <textarea id="query" placeholder="比较不同策略如何找到相关知识"></textarea>
+                <fieldset>
+                    <legend>检索策略预览</legend>
+                    <p>VECTOR · BM25 · HYBRID_RRF · HYBRID_RERANK</p>
+                </fieldset>
+                <details>
+                    <summary>高级检索参数（预览）</summary>
+                    <p>vectorTopK 20 · bm25TopK 20 · rrfK 60 · fusionTopK 20 · finalTopK 5</p>
+                </details>
+                <p>
+                    <button disabled="">开始检索 · WEB-05 接入</button>
+                </p>
+                <div class="empty">检索结果将在这里展示</div>
+                <details>
+                    <summary>诊断信息</summary>
+                    <p>尚未执行检索。</p>
+                </details>
+            </section>
+        </main>
+        <script src="./js/app.js" type="module"></script>
+    </body>
 </html>

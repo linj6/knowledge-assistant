@@ -2,15 +2,8 @@ import './evaluation.js';
 import { initializeRetrieval } from './retrieval.js';
 import { initializeChat } from './chat.js';
 import { initializeKnowledge } from './knowledge.js';
-import {
-    ApiError,
-    request
-} from './api.js';
-import {
-    AppState,
-    subscribe,
-    updateState
-} from './state.js';
+import { ApiError, request } from './api.js';
+import { AppState, subscribe, updateState } from './state.js';
 const pages = ['chat', 'knowledge', 'retrieval', 'evaluation'];
 const selector = document.querySelector('#kb');
 const status = document.querySelector('#status');
@@ -23,19 +16,19 @@ function navigate() {
         return;
     }
     updateState({
-        activePage: page
+        activePage: page,
     });
 }
-subscribe(state => {
-    pages.forEach(page => {
+subscribe((state) => {
+    pages.forEach((page) => {
         document.getElementById(page).hidden = page !== state.activePage;
     });
-    document.querySelectorAll('nav a').forEach(link => {
+    document.querySelectorAll('nav a').forEach((link) => {
         if (link.hash === '#' + state.activePage) link.setAttribute('aria-current', 'page');
         else link.removeAttribute('aria-current');
     });
-    const selected = state.knowledgeBases.find(kb => kb.id === state.selectedKnowledgeBaseId);
-    document.querySelectorAll('.context').forEach(el => {
+    const selected = state.knowledgeBases.find((kb) => kb.id === state.selectedKnowledgeBaseId);
+    document.querySelectorAll('.context').forEach((el) => {
         el.textContent = '当前知识库 · ' + (selected?.name ?? '尚未选择');
     });
 });
@@ -54,14 +47,26 @@ async function loadKnowledgeBases(preferredId, expectedRevision = selectionRevis
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20000);
     try {
-        const {
-            data
-        } = await request('../api/v1/knowledge-bases', { signal: controller.signal });
+        const { data } = await request('../api/v1/knowledge-bases', { signal: controller.signal });
         if (current !== generation) return false;
         // 拒绝数值 ID，避免精度损失后悄悄绑定错误知识库。
-        if (!Array.isArray(data) || data.some(kb => !kb || typeof kb.id !== 'string' || !/^[1-9]\d*$/.test(kb.id) || typeof kb.name !== 'string' || (kb.description !== null && typeof kb.description !== 'string'))) throw new ApiError('protocol');
-        const candidate = typeof preferredId === 'string' && expectedRevision === selectionRevision && revision === selectionRevision ? preferredId : AppState.selectedKnowledgeBaseId;
-        const selected = data.some(kb => kb.id === candidate) ? candidate : (data[0]?.id ?? '');
+        if (
+            !Array.isArray(data) ||
+            data.some(
+                (kb) =>
+                    !kb ||
+                    typeof kb.id !== 'string' ||
+                    !/^[1-9]\d*$/.test(kb.id) ||
+                    typeof kb.name !== 'string' ||
+                    (kb.description !== null && typeof kb.description !== 'string'),
+            )
+        )
+            throw new ApiError('protocol');
+        const candidate =
+            typeof preferredId === 'string' && expectedRevision === selectionRevision && revision === selectionRevision
+                ? preferredId
+                : AppState.selectedKnowledgeBaseId;
+        const selected = data.some((kb) => kb.id === candidate) ? candidate : (data[0]?.id ?? '');
         selector.replaceChildren();
         for (const kb of data) {
             const option = document.createElement('option');
@@ -78,7 +83,7 @@ async function loadKnowledgeBases(preferredId, expectedRevision = selectionRevis
         updateState({
             knowledgeBases: data,
             selectedKnowledgeBaseId: selected,
-            initialized: true
+            initialized: true,
         });
         selector.disabled = !data.length;
         status.textContent = data.length ? '知识库已加载' : '暂无知识库，请在知识库页面创建。';
@@ -92,7 +97,7 @@ async function loadKnowledgeBases(preferredId, expectedRevision = selectionRevis
         updateState({
             knowledgeBases: [],
             selectedKnowledgeBaseId: '',
-            initialized: true
+            initialized: true,
         });
         const kind = error instanceof ApiError ? error.kind : 'protocol';
         const messages = {
@@ -100,14 +105,14 @@ async function loadKnowledgeBases(preferredId, expectedRevision = selectionRevis
             http: '服务暂时不可用，请稍后重试。',
             business: '知识库加载失败，请稍后重试。',
             protocol: '服务响应异常，请稍后重试。',
-            aborted: '加载已取消，请重试。'
+            aborted: '加载已取消，请重试。',
         };
         status.textContent = messages[kind];
         // 仅输出诊断元数据，不输出响应正文、异常对象或堆栈。
         console.warn('知识库加载失败', {
             kind,
             status: error.status ?? null,
-            requestId: error.requestId ?? null
+            requestId: error.requestId ?? null,
         });
     } finally {
         clearTimeout(timer);

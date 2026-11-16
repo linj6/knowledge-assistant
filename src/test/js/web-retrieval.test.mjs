@@ -1,51 +1,426 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setup } from './web-import-harness.mjs';
-for (const strategy of ['VECTOR','BM25','HYBRID_RRF','HYBRID_RERANK']) test('检索协议与空结果 '+strategy,async()=>{
- const h=await setup();h.state.updateState({activePage:'retrieval'});const nodes=[];const walk=e=>{nodes.push(e);e.children.forEach(walk);};walk(h.elements.retrieval);
- nodes.find(e=>e.tag==='textarea').value='问题';nodes.filter(e=>e.type==='checkbox').forEach(e=>e.checked=e.value===strategy);
- void nodes.find(e=>e.tag==='form').fire('submit');await h.tick();const i=h.calls.length-1;const body=JSON.parse(h.calls[i].options.body);assert.equal(body.knowledgeBaseId,'1');assert.deepEqual(body.strategies,[strategy]);assert.equal(h.calls[i].url,'http://localhost/api/v1/retrieval/search');
- await h.respond(i,{results:[{chunks:[],diagnostics:{requestedStrategy:strategy,actualStrategy:strategy,degraded:false,status:'EMPTY_RESULT',snapshotHash:'hash',parameters:body.parameters,stages:[],error:null}}]});assert.match(h.elements.retrieval.textContent,/没有找到匹配内容/);
-});
+for (const strategy of ['VECTOR', 'BM25', 'HYBRID_RRF', 'HYBRID_RERANK'])
+    test('检索协议与空结果 ' + strategy, async () => {
+        const h = await setup();
+        h.state.updateState({ activePage: 'retrieval' });
+        const nodes = [];
+        const walk = (e) => {
+            nodes.push(e);
+            e.children.forEach(walk);
+        };
+        walk(h.elements.retrieval);
+        nodes.find((e) => e.tag === 'textarea').value = '问题';
+        nodes.filter((e) => e.type === 'checkbox').forEach((e) => (e.checked = e.value === strategy));
+        void nodes.find((e) => e.tag === 'form').fire('submit');
+        await h.tick();
+        const i = h.calls.length - 1;
+        const body = JSON.parse(h.calls[i].options.body);
+        assert.equal(body.knowledgeBaseId, '1');
+        assert.deepEqual(body.strategies, [strategy]);
+        assert.equal(h.calls[i].url, 'http://localhost/api/v1/retrieval/search');
+        await h.respond(i, {
+            results: [
+                {
+                    chunks: [],
+                    diagnostics: {
+                        requestedStrategy: strategy,
+                        actualStrategy: strategy,
+                        degraded: false,
+                        status: 'EMPTY_RESULT',
+                        snapshotHash: 'hash',
+                        parameters: body.parameters,
+                        stages: [],
+                        error: null,
+                    },
+                },
+            ],
+        });
+        assert.match(h.elements.retrieval.textContent, /没有找到匹配内容/);
+    });
 
-const names = ['VECTOR','BM25','HYBRID_RRF','HYBRID_RERANK'];
-const parameters = {vectorTopK:20,bm25TopK:20,rrfK:60,fusionTopK:20,finalTopK:5};
-const chunk = () => ({chunkId:'9007199254740993',documentId:'9007199254740994',indexVersionId:'9007199254740995',knowledgeBaseId:'1',content:'<script>正文</script>',headingPath:'<img onerror=x>',sourceStart:0,sourceEnd:80,finalRank:2,vectorRank:1,vectorDistance:.125,bm25Rank:2,bm25Score:3.25,rrfScore:.03,rerankScore:.9});
-const result = (s='HYBRID_RRF',status='SUCCESS') => ({chunks:status==='SUCCESS'?[chunk()]:[],diagnostics:{requestedStrategy:s,actualStrategy:status==='FAILED'?null:s,degraded:false,status,snapshotHash:'<hash>',parameters:{...parameters},stages:[],error:status==='FAILED'?'RERANK_FAILED':null}});
-async function lab(selected=['HYBRID_RRF']) {
- const h=await setup();h.state.updateState({activePage:'retrieval'});
- h.nodes=()=>{const a=[];const walk=e=>{a.push(e);e.children.forEach(walk);};walk(h.elements.retrieval);return a;};
- h.form=h.nodes().find(e=>e.tag==='form');h.query=h.nodes().find(e=>e.tag==='textarea');h.checks=h.nodes().filter(e=>e.type==='checkbox');h.checks.forEach(e=>e.checked=selected.includes(e.value));h.inputs=h.nodes().filter(e=>e.type==='number');h.send=h.nodes().find(e=>e.textContent==='开始检索');h.text=()=>h.elements.retrieval.textContent;
- h.submit=async(q='问题')=>{h.query.value=q;void h.form.fire('submit');await h.tick();return h.calls.length-1;};h.finish=async(i,results=[result()])=>h.respond(i,{results});return h;
+const names = ['VECTOR', 'BM25', 'HYBRID_RRF', 'HYBRID_RERANK'];
+const parameters = { vectorTopK: 20, bm25TopK: 20, rrfK: 60, fusionTopK: 20, finalTopK: 5 };
+const chunk = () => ({
+    chunkId: '9007199254740993',
+    documentId: '9007199254740994',
+    indexVersionId: '9007199254740995',
+    knowledgeBaseId: '1',
+    content: '<script>正文</script>',
+    headingPath: '<img onerror=x>',
+    sourceStart: 0,
+    sourceEnd: 80,
+    finalRank: 2,
+    vectorRank: 1,
+    vectorDistance: 0.125,
+    bm25Rank: 2,
+    bm25Score: 3.25,
+    rrfScore: 0.03,
+    rerankScore: 0.9,
+});
+const result = (s = 'HYBRID_RRF', status = 'SUCCESS') => ({
+    chunks: status === 'SUCCESS' ? [chunk()] : [],
+    diagnostics: {
+        requestedStrategy: s,
+        actualStrategy: status === 'FAILED' ? null : s,
+        degraded: false,
+        status,
+        snapshotHash: '<hash>',
+        parameters: { ...parameters },
+        stages: [],
+        error: status === 'FAILED' ? 'RERANK_FAILED' : null,
+    },
+});
+async function lab(selected = ['HYBRID_RRF']) {
+    const h = await setup();
+    h.state.updateState({ activePage: 'retrieval' });
+    h.nodes = () => {
+        const a = [];
+        const walk = (e) => {
+            a.push(e);
+            e.children.forEach(walk);
+        };
+        walk(h.elements.retrieval);
+        return a;
+    };
+    h.form = h.nodes().find((e) => e.tag === 'form');
+    h.query = h.nodes().find((e) => e.tag === 'textarea');
+    h.checks = h.nodes().filter((e) => e.type === 'checkbox');
+    h.checks.forEach((e) => (e.checked = selected.includes(e.value)));
+    h.inputs = h.nodes().filter((e) => e.type === 'number');
+    h.send = h.nodes().find((e) => e.textContent === '开始检索');
+    h.text = () => h.elements.retrieval.textContent;
+    h.submit = async (q = '问题') => {
+        h.query.value = q;
+        void h.form.fire('submit');
+        await h.tick();
+        return h.calls.length - 1;
+    };
+    h.finish = async (i, results = [result()]) => h.respond(i, { results });
+    return h;
 }
-for(const s of names)test('SUCCESS '+s,async()=>{const h=await lab([s]);const i=await h.submit();await h.finish(i,[result(s)]);assert.match(h.text(),/SUCCESS/);assert.match(h.text(),/9007199254740993/);});
-for(const mode of ['all','partial','failed'])test('多策略 '+mode,async()=>{const h=await lab(names);const i=await h.submit();assert.deepEqual(JSON.parse(h.calls[i].options.body),{knowledgeBaseId:'1',query:'问题',strategies:names,parameters});const results=names.map((s,n)=>result(s,mode==='failed'||mode==='partial'&&n===1?'FAILED':'SUCCESS'));await h.finish(i,results);assert.equal(h.nodes().filter(e=>e.tag==='article').length,4);assert.equal(h.nodes().filter(e=>e.tag==='pre'&&e.textContent==='<script>正文</script>').length,mode==='all'?4:mode==='partial'?3:0);});
-test('原始字段、null、顺序及安全DOM',async()=>{const h=await lab();const i=await h.submit();const r=result();r.chunks.push({...chunk(),chunkId:'8',finalRank:1,vectorRank:null,vectorDistance:null,bm25Rank:null,bm25Score:null,rrfScore:null,rerankScore:null});await h.finish(i,[r]);for(const text of ['排名：2','documentId：9007199254740994','indexVersionId：9007199254740995','sourceStart：0','sourceEnd：80','vectorDistance：0.125','bm25Score：3.25','rrfScore：0.03','rerankScore：0.9','rerankScore：不适用','<img onerror=x>'])assert.ok(h.text().includes(text),text);const ranks=h.nodes().filter(e=>e.tag==='h3').map(e=>e.textContent);assert.deepEqual(ranks,['排名：2','排名：1']);assert.equal(h.nodes().some(e=>['script','img'].includes(e.tag)),false);});
-const stage=()=>({phase:'VECTOR',elapsedMillis:'9007199254740993',candidateCount:1,candidates:[{chunkId:'9007199254740993',rank:1,score:null}]});
-test('完整Diagnostics、空候选、失败阶段与折叠无请求',async()=>{const h=await lab(names);const i=await h.submit();const rs=names.map(s=>result(s));rs[0].diagnostics.stages=[stage(),{phase:'EMBEDDING',elapsedMillis:'0',candidateCount:0,candidates:[]}];rs[1]=result('BM25','FAILED');rs[1].diagnostics.stages=[stage()];await h.finish(i,rs);for(const t of ['requestedStrategy：VECTOR','actualStrategy：VECTOR','degraded：false','status：FAILED','snapshotHash：<hash>','9007199254740993 ms','0 候选','rank 1 · score 不适用','error：RERANK_FAILED','未提供阶段数据','"rrfK": 60'])assert.ok(h.text().includes(t),t);const n=h.calls.length;for(const d of h.nodes().filter(e=>e.tag==='details')){d.open=true;await d.fire('toggle');d.open=false;await d.fire('toggle');}assert.equal(h.calls.length,n);});
-const invalid=[['missing strategy',r=>delete r.diagnostics.requestedStrategy],['mismatch',r=>r.diagnostics.requestedStrategy='VECTOR'],['degraded',r=>r.diagnostics.degraded=true],['actual mismatch',r=>r.diagnostics.actualStrategy='VECTOR'],['score string',r=>r.chunks[0].rrfScore='0.2'],['rank zero',r=>r.chunks[0].finalRank=0],['numeric ID',r=>r.chunks[0].chunkId=9007199254740992],['content type',r=>r.chunks[0].content={}],['heading type',r=>r.chunks[0].headingPath=[]],['chunks',r=>r.chunks=null],['negative elapsed',r=>{r.diagnostics.stages=[{...stage(),elapsedMillis:'-1'}];}],['unsafe elapsed',r=>{r.diagnostics.stages=[{...stage(),elapsedMillis:9007199254740992}];}],['overflow elapsed',r=>{r.diagnostics.stages=[{...stage(),elapsedMillis:'9223372036854775808'}];}],['candidate score',r=>{r.diagnostics.stages=[{...stage(),candidates:[{chunkId:'1',rank:1,score:'bad'}]}];}],['count mismatch',r=>{r.diagnostics.stages=[{...stage(),candidateCount:2}];}]];
-for(const [name,mutate]of invalid)test('协议拒绝 '+name,async()=>{const h=await lab();const i=await h.submit();const r=result();mutate(r);await h.finish(i,[r]);assert.match(h.text(),/响应格式异常/);assert.equal(h.nodes().filter(e=>e.tag==='article').length,0);});
-test('重复策略拒绝',async()=>{const h=await lab(names);await h.finish(await h.submit(),names.map(()=>result('VECTOR')));assert.match(h.text(),/响应格式异常/);});
-for(const kind of ['http','envelope','business','network'])test('请求失败无重试 '+kind,async()=>{const h=await lab();const i=await h.submit();if(kind==='network')h.calls[i].reject(new Error('secret'));else h.calls[i].resolve({ok:kind!=='http',status:kind==='http'?500:200,headers:{get:()=>null},json:async()=>kind==='envelope'?{}:{code:50000,requestId:'trace'}});await h.tick();assert.match(h.text(),/请求失败/);assert.doesNotMatch(h.text(),/secret/);assert.equal(h.calls.length,i+1);assert.equal(h.send.disabled,false);});
-for(const action of ['kb','page','cancel','timeout'])test('迟到响应隔离 '+action,async()=>{const h=await lab();const a=await h.submit('Q1');await h.submit('Q2');assert.equal(h.calls.length,a+1);if(action==='kb')h.state.updateState({selectedKnowledgeBaseId:'2'});if(action==='page'){h.context.location.hash='#chat';h.listeners.hashchange();h.context.location.hash='#retrieval';h.listeners.hashchange();}if(action==='cancel')await h.nodes().find(e=>e.textContent==='取消等待').fire('click');if(action==='timeout'){[...h.pendingTimers.values()].find(t=>t.delay===60000).callback();assert.match(h.text(),/超时/);}assert.equal(h.calls[a].options.signal.aborted,true);assert.equal(h.send.disabled,false);assert.equal(h.calls.filter(c=>c.options.method==='POST').length,1);const b=await h.submit('Q2');const newer=result();newer.chunks[0].knowledgeBaseId=action==='kb'?'2':'1';newer.chunks[0].content='NEW';await h.finish(b,[newer]);const before=h.text();await h.finish(a);assert.equal(h.text(),before);assert.match(h.text(),/NEW/);});
-for(const [name,change]of [['no kb',h=>h.state.updateState({selectedKnowledgeBaseId:''})],['empty',h=>h.query.value=' '],['no strategy',h=>h.checks.forEach(c=>c.checked=false)],['duplicate',h=>{h.checks[0].checked=true;h.checks[0].value='HYBRID_RRF';}],...['1.5','-1','0','101','','NaN'].map(v=>['parameter '+v,h=>h.inputs[0].value=v]),['final pool',h=>h.inputs[4].value='21'],['fusion pool',h=>{h.inputs[0].value='1';h.inputs[1].value='1';}],['rrf upper',h=>h.inputs[2].value='1001']])test('输入阻止请求 '+name,async()=>{const h=await lab();h.query.value='问题';change(h);const n=h.calls.length;await h.form.fire('submit');assert.equal(h.calls.length,n);});
-test('参数恢复、修改和折叠不请求',async()=>{const h=await lab();const n=h.calls.length;h.inputs[0].value='100';await h.inputs[0].fire('input');const d=h.nodes().find(e=>e.tag==='details');d.open=true;await d.fire('toggle');await h.nodes().find(e=>e.textContent==='恢复默认参数').fire('click');assert.deepEqual(h.inputs.map(e=>e.value),['20','20','60','20','5']);assert.equal(h.calls.length,n);await h.finish(await h.submit());});
-
-test('失败快照必须为文本',async()=>{const h=await lab();const r=result('HYBRID_RRF','FAILED');r.diagnostics.snapshotHash={secret:'bad'};await h.finish(await h.submit(),[r]);assert.match(h.text(),/响应格式异常/);});
-test('无候选空结果不伪造Chunk',async()=>{const h=await lab();await h.finish(await h.submit(),[result('HYBRID_RRF','EMPTY_RESULT')]);assert.match(h.text(),/没有找到匹配内容/);assert.equal(h.nodes().filter(e=>e.tag==='section').length,0);});
-
-test('正文摘要展开收起保留完整文本且不请求',async()=>{
- const h=await lab();const r=result();const text='<script>不可信</script>\n'+'长正文'.repeat(2000);r.chunks[0].content=text;
- await h.finish(await h.submit(),[r]);const pre=h.nodes().find(e=>e.tag==='pre'&&e.textContent===text);assert.equal(pre.className,'chunk-preview');
- const toggle=h.nodes().find(e=>e.tag==='button'&&e.textContent==='展开全文');const count=h.calls.length;
- await toggle.fire('click');assert.equal(pre.className,'chunk-full');assert.equal(pre.textContent,text);assert.equal(toggle.textContent,'收起正文');
- await toggle.fire('click');assert.equal(pre.className,'chunk-preview');assert.equal(toggle.textContent,'展开全文');assert.equal(pre.textContent,text);assert.equal(h.calls.length,count);assert.equal(h.nodes().some(e=>e.tag==='script'),false);
+for (const s of names)
+    test('SUCCESS ' + s, async () => {
+        const h = await lab([s]);
+        const i = await h.submit();
+        await h.finish(i, [result(s)]);
+        assert.match(h.text(), /SUCCESS/);
+        assert.match(h.text(), /9007199254740993/);
+    });
+for (const mode of ['all', 'partial', 'failed'])
+    test('多策略 ' + mode, async () => {
+        const h = await lab(names);
+        const i = await h.submit();
+        assert.deepEqual(JSON.parse(h.calls[i].options.body), {
+            knowledgeBaseId: '1',
+            query: '问题',
+            strategies: names,
+            parameters,
+        });
+        const results = names.map((s, n) =>
+            result(s, mode === 'failed' || (mode === 'partial' && n === 1) ? 'FAILED' : 'SUCCESS'),
+        );
+        await h.finish(i, results);
+        assert.equal(h.nodes().filter((e) => e.tag === 'article').length, 4);
+        assert.equal(
+            h.nodes().filter((e) => e.tag === 'pre' && e.textContent === '<script>正文</script>').length,
+            mode === 'all' ? 4 : mode === 'partial' ? 3 : 0,
+        );
+    });
+test('原始字段、null、顺序及安全DOM', async () => {
+    const h = await lab();
+    const i = await h.submit();
+    const r = result();
+    r.chunks.push({
+        ...chunk(),
+        chunkId: '8',
+        finalRank: 1,
+        vectorRank: null,
+        vectorDistance: null,
+        bm25Rank: null,
+        bm25Score: null,
+        rrfScore: null,
+        rerankScore: null,
+    });
+    await h.finish(i, [r]);
+    for (const text of [
+        '排名：2',
+        'documentId：9007199254740994',
+        'indexVersionId：9007199254740995',
+        'sourceStart：0',
+        'sourceEnd：80',
+        'vectorDistance：0.125',
+        'bm25Score：3.25',
+        'rrfScore：0.03',
+        'rerankScore：0.9',
+        'rerankScore：不适用',
+        '<img onerror=x>',
+    ])
+        assert.ok(h.text().includes(text), text);
+    const ranks = h
+        .nodes()
+        .filter((e) => e.tag === 'h3')
+        .map((e) => e.textContent);
+    assert.deepEqual(ranks, ['排名：2', '排名：1']);
+    assert.equal(
+        h.nodes().some((e) => ['script', 'img'].includes(e.tag)),
+        false,
+    );
 });
-test('元数据与Diagnostics独立折叠且位于正文之前',async()=>{
- const h=await lab();await h.finish(await h.submit());const nodes=h.nodes();
- const diagnostics=nodes.find(e=>e.tag==='details'&&e.children[0].textContent==='Diagnostics');
- const metadata=nodes.find(e=>e.tag==='details'&&e.children[0].textContent==='技术元数据');
- assert.ok(!diagnostics.open);assert.ok(!metadata.open);assert.ok(nodes.indexOf(diagnostics)<nodes.findIndex(e=>e.className==='retrieval-chunk'));
- metadata.open=true;await metadata.fire('toggle');for(const k of ['chunkId','documentId','indexVersionId','knowledgeBaseId','sourceStart','sourceEnd'])assert.ok(metadata.textContent.includes(k+'：'));
- assert.ok(!diagnostics.open);diagnostics.open=true;await diagnostics.fire('toggle');assert.equal(metadata.open,true);
+const stage = () => ({
+    phase: 'VECTOR',
+    elapsedMillis: '9007199254740993',
+    candidateCount: 1,
+    candidates: [{ chunkId: '9007199254740993', rank: 1, score: null }],
+});
+test('完整Diagnostics、空候选、失败阶段与折叠无请求', async () => {
+    const h = await lab(names);
+    const i = await h.submit();
+    const rs = names.map((s) => result(s));
+    rs[0].diagnostics.stages = [stage(), { phase: 'EMBEDDING', elapsedMillis: '0', candidateCount: 0, candidates: [] }];
+    rs[1] = result('BM25', 'FAILED');
+    rs[1].diagnostics.stages = [stage()];
+    await h.finish(i, rs);
+    for (const t of [
+        'requestedStrategy：VECTOR',
+        'actualStrategy：VECTOR',
+        'degraded：false',
+        'status：FAILED',
+        'snapshotHash：<hash>',
+        '9007199254740993 ms',
+        '0 候选',
+        'rank 1 · score 不适用',
+        'error：RERANK_FAILED',
+        '未提供阶段数据',
+        '"rrfK": 60',
+    ])
+        assert.ok(h.text().includes(t), t);
+    const n = h.calls.length;
+    for (const d of h.nodes().filter((e) => e.tag === 'details')) {
+        d.open = true;
+        await d.fire('toggle');
+        d.open = false;
+        await d.fire('toggle');
+    }
+    assert.equal(h.calls.length, n);
+});
+const invalid = [
+    ['missing strategy', (r) => delete r.diagnostics.requestedStrategy],
+    ['mismatch', (r) => (r.diagnostics.requestedStrategy = 'VECTOR')],
+    ['degraded', (r) => (r.diagnostics.degraded = true)],
+    ['actual mismatch', (r) => (r.diagnostics.actualStrategy = 'VECTOR')],
+    ['score string', (r) => (r.chunks[0].rrfScore = '0.2')],
+    ['rank zero', (r) => (r.chunks[0].finalRank = 0)],
+    ['numeric ID', (r) => (r.chunks[0].chunkId = 9007199254740992)],
+    ['content type', (r) => (r.chunks[0].content = {})],
+    ['heading type', (r) => (r.chunks[0].headingPath = [])],
+    ['chunks', (r) => (r.chunks = null)],
+    [
+        'negative elapsed',
+        (r) => {
+            r.diagnostics.stages = [{ ...stage(), elapsedMillis: '-1' }];
+        },
+    ],
+    [
+        'unsafe elapsed',
+        (r) => {
+            r.diagnostics.stages = [{ ...stage(), elapsedMillis: 9007199254740992 }];
+        },
+    ],
+    [
+        'overflow elapsed',
+        (r) => {
+            r.diagnostics.stages = [{ ...stage(), elapsedMillis: '9223372036854775808' }];
+        },
+    ],
+    [
+        'candidate score',
+        (r) => {
+            r.diagnostics.stages = [{ ...stage(), candidates: [{ chunkId: '1', rank: 1, score: 'bad' }] }];
+        },
+    ],
+    [
+        'count mismatch',
+        (r) => {
+            r.diagnostics.stages = [{ ...stage(), candidateCount: 2 }];
+        },
+    ],
+];
+for (const [name, mutate] of invalid)
+    test('协议拒绝 ' + name, async () => {
+        const h = await lab();
+        const i = await h.submit();
+        const r = result();
+        mutate(r);
+        await h.finish(i, [r]);
+        assert.match(h.text(), /响应格式异常/);
+        assert.equal(h.nodes().filter((e) => e.tag === 'article').length, 0);
+    });
+test('重复策略拒绝', async () => {
+    const h = await lab(names);
+    await h.finish(
+        await h.submit(),
+        names.map(() => result('VECTOR')),
+    );
+    assert.match(h.text(), /响应格式异常/);
+});
+for (const kind of ['http', 'envelope', 'business', 'network'])
+    test('请求失败无重试 ' + kind, async () => {
+        const h = await lab();
+        const i = await h.submit();
+        if (kind === 'network') h.calls[i].reject(new Error('secret'));
+        else
+            h.calls[i].resolve({
+                ok: kind !== 'http',
+                status: kind === 'http' ? 500 : 200,
+                headers: { get: () => null },
+                json: async () => (kind === 'envelope' ? {} : { code: 50000, requestId: 'trace' }),
+            });
+        await h.tick();
+        assert.match(h.text(), /请求失败/);
+        assert.doesNotMatch(h.text(), /secret/);
+        assert.equal(h.calls.length, i + 1);
+        assert.equal(h.send.disabled, false);
+    });
+for (const action of ['kb', 'page', 'cancel', 'timeout'])
+    test('迟到响应隔离 ' + action, async () => {
+        const h = await lab();
+        const a = await h.submit('Q1');
+        await h.submit('Q2');
+        assert.equal(h.calls.length, a + 1);
+        if (action === 'kb') h.state.updateState({ selectedKnowledgeBaseId: '2' });
+        if (action === 'page') {
+            h.context.location.hash = '#chat';
+            h.listeners.hashchange();
+            h.context.location.hash = '#retrieval';
+            h.listeners.hashchange();
+        }
+        if (action === 'cancel')
+            await h
+                .nodes()
+                .find((e) => e.textContent === '取消等待')
+                .fire('click');
+        if (action === 'timeout') {
+            [...h.pendingTimers.values()].find((t) => t.delay === 60000).callback();
+            assert.match(h.text(), /超时/);
+        }
+        assert.equal(h.calls[a].options.signal.aborted, true);
+        assert.equal(h.send.disabled, false);
+        assert.equal(h.calls.filter((c) => c.options.method === 'POST').length, 1);
+        const b = await h.submit('Q2');
+        const newer = result();
+        newer.chunks[0].knowledgeBaseId = action === 'kb' ? '2' : '1';
+        newer.chunks[0].content = 'NEW';
+        await h.finish(b, [newer]);
+        const before = h.text();
+        await h.finish(a);
+        assert.equal(h.text(), before);
+        assert.match(h.text(), /NEW/);
+    });
+for (const [name, change] of [
+    ['no kb', (h) => h.state.updateState({ selectedKnowledgeBaseId: '' })],
+    ['empty', (h) => (h.query.value = ' ')],
+    ['no strategy', (h) => h.checks.forEach((c) => (c.checked = false))],
+    [
+        'duplicate',
+        (h) => {
+            h.checks[0].checked = true;
+            h.checks[0].value = 'HYBRID_RRF';
+        },
+    ],
+    ...['1.5', '-1', '0', '101', '', 'NaN'].map((v) => ['parameter ' + v, (h) => (h.inputs[0].value = v)]),
+    ['final pool', (h) => (h.inputs[4].value = '21')],
+    [
+        'fusion pool',
+        (h) => {
+            h.inputs[0].value = '1';
+            h.inputs[1].value = '1';
+        },
+    ],
+    ['rrf upper', (h) => (h.inputs[2].value = '1001')],
+])
+    test('输入阻止请求 ' + name, async () => {
+        const h = await lab();
+        h.query.value = '问题';
+        change(h);
+        const n = h.calls.length;
+        await h.form.fire('submit');
+        assert.equal(h.calls.length, n);
+    });
+test('参数恢复、修改和折叠不请求', async () => {
+    const h = await lab();
+    const n = h.calls.length;
+    h.inputs[0].value = '100';
+    await h.inputs[0].fire('input');
+    const d = h.nodes().find((e) => e.tag === 'details');
+    d.open = true;
+    await d.fire('toggle');
+    await h
+        .nodes()
+        .find((e) => e.textContent === '恢复默认参数')
+        .fire('click');
+    assert.deepEqual(
+        h.inputs.map((e) => e.value),
+        ['20', '20', '60', '20', '5'],
+    );
+    assert.equal(h.calls.length, n);
+    await h.finish(await h.submit());
+});
+
+test('失败快照必须为文本', async () => {
+    const h = await lab();
+    const r = result('HYBRID_RRF', 'FAILED');
+    r.diagnostics.snapshotHash = { secret: 'bad' };
+    await h.finish(await h.submit(), [r]);
+    assert.match(h.text(), /响应格式异常/);
+});
+test('无候选空结果不伪造Chunk', async () => {
+    const h = await lab();
+    await h.finish(await h.submit(), [result('HYBRID_RRF', 'EMPTY_RESULT')]);
+    assert.match(h.text(), /没有找到匹配内容/);
+    assert.equal(h.nodes().filter((e) => e.tag === 'section').length, 0);
+});
+
+test('正文摘要展开收起保留完整文本且不请求', async () => {
+    const h = await lab();
+    const r = result();
+    const text = '<script>不可信</script>\n' + '长正文'.repeat(2000);
+    r.chunks[0].content = text;
+    await h.finish(await h.submit(), [r]);
+    const pre = h.nodes().find((e) => e.tag === 'pre' && e.textContent === text);
+    assert.equal(pre.className, 'chunk-preview');
+    const toggle = h.nodes().find((e) => e.tag === 'button' && e.textContent === '展开全文');
+    const count = h.calls.length;
+    await toggle.fire('click');
+    assert.equal(pre.className, 'chunk-full');
+    assert.equal(pre.textContent, text);
+    assert.equal(toggle.textContent, '收起正文');
+    await toggle.fire('click');
+    assert.equal(pre.className, 'chunk-preview');
+    assert.equal(toggle.textContent, '展开全文');
+    assert.equal(pre.textContent, text);
+    assert.equal(h.calls.length, count);
+    assert.equal(
+        h.nodes().some((e) => e.tag === 'script'),
+        false,
+    );
+});
+test('元数据与Diagnostics独立折叠且位于正文之前', async () => {
+    const h = await lab();
+    await h.finish(await h.submit());
+    const nodes = h.nodes();
+    const diagnostics = nodes.find((e) => e.tag === 'details' && e.children[0].textContent === 'Diagnostics');
+    const metadata = nodes.find((e) => e.tag === 'details' && e.children[0].textContent === '技术元数据');
+    assert.ok(!diagnostics.open);
+    assert.ok(!metadata.open);
+    assert.ok(nodes.indexOf(diagnostics) < nodes.findIndex((e) => e.className === 'retrieval-chunk'));
+    metadata.open = true;
+    await metadata.fire('toggle');
+    for (const k of ['chunkId', 'documentId', 'indexVersionId', 'knowledgeBaseId', 'sourceStart', 'sourceEnd'])
+        assert.ok(metadata.textContent.includes(k + '：'));
+    assert.ok(!diagnostics.open);
+    diagnostics.open = true;
+    await diagnostics.fire('toggle');
+    assert.equal(metadata.open, true);
 });

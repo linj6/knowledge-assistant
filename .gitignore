@@ -14,3 +14,5 @@ application-secrets.properties
 # classpath local 仅保存非敏感默认值；外部同名文件仍被忽略。
 !/src/main/resources/application-local.yml
 data/evaluation/
+
+node_modules/

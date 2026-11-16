@@ -71,3 +71,18 @@ Git Commit Message 默认使用中文描述变更意图，保留 `feat`、`fix`�
 持久化实体优先使用 Lombok @Getter、@Setter，避免默认使用 @Data 或生成 equals/hashCode/toString；保留映射注解与明确的字段类型。Lombok 版本遵循 Spring Boot BOM，编译器显式配置注解处理器。
 
 业务 SQL 不写在 Java Mapper 注解中，统一使用 mapper.xml；参数使用安全的 `#{}` 绑定，禁止拼接业务输入。
+
+## 前端 Prettier 规范
+
+原生 HTML、CSS、JavaScript 使用固定版本 Prettier 3.6.2；通过 package-lock.json 固定依赖，使用 `npm ci` 安装。Java 继续使用 Maven Spotless，Maven 不安装 Node.js。
+
+格式化范围仅为 `src/main/resources/static/**/*.html`、`src/main/resources/static/**/*.css`、`src/main/resources/static/**/*.js` 和 `src/test/js/**/*.mjs`。排除 node_modules、target、dist、build。默认四空格缩进、JavaScript 单引号和分号、120 列宽、LF 行尾；格式化不得改变功能、API、断言或重要注释。
+
+```powershell
+npm ci
+npm run format:web
+npm run format:web:check
+node --experimental-vm-modules --test src/test/js/*.test.mjs
+```
+
+提交前必须通过 `npm run format:web:check`。首次引入允许指定范围的机械性 diff；审阅时特别检查 HTML 中内联 CSS/JavaScript，格式变更与业务修改分别评审。

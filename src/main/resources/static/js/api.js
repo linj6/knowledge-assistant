@@ -1,34 +1,25 @@
 export class ApiError extends Error {
-    constructor(kind, {
-        status = null,
-        code = null,
-        detail = null,
-        requestId = null,
-        elapsedMillis = 0
-    } = {}) {
-        super({
-            network: '网络连接失败',
-            aborted: '请求已取消',
-            http: '服务请求失败',
-            business: '业务请求失败',
-            protocol: '响应格式不正确'
-        } [kind]);
+    constructor(kind, { status = null, code = null, detail = null, requestId = null, elapsedMillis = 0 } = {}) {
+        super(
+            {
+                network: '网络连接失败',
+                aborted: '请求已取消',
+                http: '服务请求失败',
+                business: '业务请求失败',
+                protocol: '响应格式不正确',
+            }[kind],
+        );
         Object.assign(this, {
             kind,
             status,
             code,
             detail,
             requestId,
-            elapsedMillis
+            elapsedMillis,
         });
     }
 }
-export async function request(path, {
-    method = 'GET',
-    body,
-    signal,
-    raw = false
-} = {}) {
+export async function request(path, { method = 'GET', body, signal, raw = false } = {}) {
     const url = new URL(path, location.href);
     if (url.origin !== location.origin) throw new TypeError('仅允许同源请求');
     const start = performance.now();
@@ -39,30 +30,35 @@ export async function request(path, {
             signal,
             headers: {
                 Accept: 'application/json',
-                ...(body === undefined || (typeof FormData !== 'undefined' && body instanceof FormData) ? {} : {
-                    'Content-Type': 'application/json'
-                })
+                ...(body === undefined || (typeof FormData !== 'undefined' && body instanceof FormData)
+                    ? {}
+                    : {
+                          'Content-Type': 'application/json',
+                      }),
             },
-            ...(body === undefined ? {} : {
-                body: typeof FormData !== 'undefined' && body instanceof FormData ? body : JSON.stringify(body)
-            })
+            ...(body === undefined
+                ? {}
+                : {
+                      body: typeof FormData !== 'undefined' && body instanceof FormData ? body : JSON.stringify(body),
+                  }),
         });
     } catch (error) {
         throw new ApiError(error.name === 'AbortError' ? 'aborted' : 'network', {
-            elapsedMillis: performance.now() - start
+            elapsedMillis: performance.now() - start,
         });
     }
     let envelope;
     try {
         envelope = await response.json();
     } catch {
-        /* 非 JSON 响应也保留 HTTP 状态。 */ }
+        /* 非 JSON 响应也保留 HTTP 状态。 */
+    }
     const meta = {
         status: response.status,
         code: envelope?.code,
         detail: envelope?.detail ?? envelope?.reason,
         requestId: envelope?.requestId ?? response.headers.get('X-Request-Id'),
-        elapsedMillis: performance.now() - start
+        elapsedMillis: performance.now() - start,
     };
     if (!response.ok) throw new ApiError('http', meta);
     if (raw) {
@@ -73,6 +69,6 @@ export async function request(path, {
     if (envelope.code !== 0) throw new ApiError('business', meta);
     return {
         data: envelope.data,
-        ...meta
+        ...meta,
     };
 }
