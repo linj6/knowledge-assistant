@@ -13,7 +13,6 @@ import com.lnjecit.knowledge.assistant.knowledge.controller.KnowledgeBaseControl
 import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;
 import java.net.URI;
 import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -32,7 +31,12 @@ class WebStaticResourcesTests {
                 "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration",
                 "org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration"
             })
-    @Import({KnowledgeBaseController.class, DocumentQueryController.class, ApiJacksonConfiguration.class})
+    @Import({
+        KnowledgeBaseController.class,
+        DocumentQueryController.class,
+        ApiJacksonConfiguration.class,
+        BusinessHttpTestSecurity.class
+    })
     static class StaticApplication {
         @Bean
         KnowledgeBaseService knowledgeBases() {
@@ -70,7 +74,7 @@ class WebStaticResourcesTests {
                 "/api/js/retrieval.js"
             }) {
                 HttpResponse<String> response = client.send(
-                        HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                        BusinessHttpTestSecurity.request(context, URI.create("http://localhost:" + port + path))
                                 .build(),
                         HttpResponse.BodyHandlers.ofString());
                 assertEquals(200, response.statusCode(), path);
@@ -88,7 +92,7 @@ class WebStaticResourcesTests {
                     new String[] {"/api/v1/knowledge-bases", "/api/v1/knowledge-bases/1/documents?page=1&pageSize=20"
                     }) {
                 HttpResponse<String> response = client.send(
-                        HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                        BusinessHttpTestSecurity.request(context, URI.create("http://localhost:" + port + path))
                                 .build(),
                         HttpResponse.BodyHandlers.ofString());
                 assertEquals(200, response.statusCode(), path);
@@ -99,14 +103,15 @@ class WebStaticResourcesTests {
                 assertEquals(
                         404,
                         client.send(
-                                        HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                                        BusinessHttpTestSecurity.request(
+                                                        context, URI.create("http://localhost:" + port + path))
                                                 .build(),
                                         HttpResponse.BodyHandlers.discarding())
                                 .statusCode(),
                         path);
             }
             HttpResponse<String> welcome = client.send(
-                    HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/"))
+                    BusinessHttpTestSecurity.request(context, URI.create("http://localhost:" + port + "/api/"))
                             .build(),
                     HttpResponse.BodyHandlers.ofString());
             assertEquals(200, welcome.statusCode());

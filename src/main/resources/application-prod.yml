@@ -1,5 +1,13 @@
 # 不继承 local；部署必须提供数据库连接和密码。
+server:
+  servlet:
+    session:
+      cookie:
+        secure: true
 spring:
+  data:
+    redis:
+      host: ${KA_REDIS_HOST}
   datasource:
     url: ${KA_DB_URL}
     username: ${KA_DB_USERNAME}

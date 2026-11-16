@@ -1,5 +1,15 @@
 name: knowledge-assistant
 services:
+  redis:
+    image: redis:7.4.11
+    command: redis-server --appendonly yes
+    ports: ["127.0.0.1:6379:6379"]
+    volumes: ["redis-data:/data"]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 10s
+      timeout: 5s
+      retries: 12
   postgres:
     image: pgvector/pgvector:0.8.0-pg17@sha256:40b404964359299eefdd5f8518facf1886c562848cf4de13b6eaf91cb70c2b87
     environment:
@@ -42,6 +52,7 @@ services:
       timeout: 5s
       retries: 12
 volumes:
+  redis-data:
   postgres-data:
   es-data:
   minio-data:

@@ -80,7 +80,8 @@ class ImportPersistenceTests {
 
     @Test
     void realMultipartBoundariesAndConfiguredSnapshots() throws Exception {
-        SpringApplication app = new SpringApplication(KnowledgeAssistantApplication.class, StorageConfig.class);
+        SpringApplication app = new SpringApplication(
+                KnowledgeAssistantApplication.class, StorageConfig.class, BusinessHttpTestSecurity.class);
         try (ConfigurableApplicationContext context = app.run(
                 "--spring.datasource.url=" + postgres.getJdbcUrl(),
                 "--spring.datasource.username=" + postgres.getUsername(),
@@ -95,12 +96,14 @@ class ImportPersistenceTests {
                     .getWebServer()
                     .getPort();
             String url = "http://localhost:" + port + "/api/v1/knowledge-bases/" + kb + "/documents:import";
-            assertThat(upload(url, "limit.md", 2097152, 'a').statusCode()).isEqualTo(202);
-            assertThat(upload(url, "large.txt", 2097153, 'a').statusCode()).isEqualTo(413);
+            assertThat(upload(context, url, "limit.md", 2097152, 'a').statusCode())
+                    .isEqualTo(202);
+            assertThat(upload(context, url, "large.txt", 2097153, 'a').statusCode())
+                    .isEqualTo(413);
             context.getBean(com.lnjecit.knowledge.assistant.ingestion.upload.UploadProperties.class)
                     .setMaxFileBytes(16);
-            assertThat(upload(url, "small.txt", 17, 'b').statusCode()).isEqualTo(400);
-            java.net.http.HttpResponse<String> txt = upload(url, "small.txt", 16, 'b');
+            assertThat(upload(context, url, "small.txt", 17, 'b').statusCode()).isEqualTo(400);
+            java.net.http.HttpResponse<String> txt = upload(context, url, "small.txt", 16, 'b');
             assertThat(txt.statusCode()).isEqualTo(202);
             assertThat(txt.body()).contains("RECEIVED", "importTaskId", "documentId");
             JdbcTemplate jdbc = new JdbcTemplate(context.getBean(DataSource.class));
@@ -113,15 +116,15 @@ class ImportPersistenceTests {
         }
     }
 
-    private static java.net.http.HttpResponse<String> upload(String url, String name, int size, char content)
-            throws Exception {
+    private static java.net.http.HttpResponse<String> upload(
+            ConfigurableApplicationContext context, String url, String name, int size, char content) throws Exception {
         String boundary = "m103-boundary";
         String body = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"file\"; filename=\"" + name
                 + "\"\r\nContent-Type: text/plain\r\n\r\n"
                 + String.valueOf(content).repeat(size) + "\r\n--" + boundary + "--\r\n";
         return java.net.http.HttpClient.newHttpClient()
                 .send(
-                        java.net.http.HttpRequest.newBuilder(java.net.URI.create(url))
+                        BusinessHttpTestSecurity.request(context, java.net.URI.create(url))
                                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
                                 .POST(java.net.http.HttpRequest.BodyPublishers.ofString(body))
                                 .build(),
@@ -131,7 +134,8 @@ class ImportPersistenceTests {
     @Test
     void transactionDeduplicationAndCompensation(org.springframework.boot.test.system.CapturedOutput output)
             throws Exception {
-        SpringApplication app = new SpringApplication(KnowledgeAssistantApplication.class, StorageConfig.class);
+        SpringApplication app = new SpringApplication(
+                KnowledgeAssistantApplication.class, StorageConfig.class, BusinessHttpTestSecurity.class);
         try (ConfigurableApplicationContext context = app.run(
                 "--spring.datasource.url=" + postgres.getJdbcUrl(),
                 "--spring.datasource.username=" + postgres.getUsername(),

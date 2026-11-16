@@ -27,7 +27,8 @@ class KnowledgeBasePersistenceTests {
 
     @Test
     void persistenceOrderingAndTransactionBoundary() throws Exception {
-        SpringApplication application = new SpringApplication(KnowledgeAssistantApplication.class);
+        SpringApplication application =
+                new SpringApplication(KnowledgeAssistantApplication.class, BusinessHttpTestSecurity.class);
         application.setWebApplicationType(WebApplicationType.SERVLET);
         try (ConfigurableApplicationContext context = application.run(
                 "--spring.datasource.url=" + postgres.getJdbcUrl(),
@@ -79,7 +80,7 @@ class KnowledgeBasePersistenceTests {
             java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
             String base = "http://localhost:" + port;
             java.net.http.HttpResponse<String> created = client.send(
-                    java.net.http.HttpRequest.newBuilder(java.net.URI.create(base + "/api/v1/knowledge-bases"))
+                    BusinessHttpTestSecurity.request(context, java.net.URI.create(base + "/api/v1/knowledge-bases"))
                             .header("Content-Type", "application/json")
                             .header("X-Request-Id", "real-mvc")
                             .POST(java.net.http.HttpRequest.BodyPublishers.ofString("{\"name\":\"HTTP\"}"))
@@ -98,15 +99,15 @@ class KnowledgeBasePersistenceTests {
             String location = created.headers().firstValue("Location").orElseThrow();
             assertThat(location).startsWith("/api/v1/knowledge-bases/");
             assertThat(client.send(
-                                    java.net.http.HttpRequest.newBuilder(java.net.URI.create(base + location))
+                                    BusinessHttpTestSecurity.request(context, java.net.URI.create(base + location))
                                             .GET()
                                             .build(),
                                     java.net.http.HttpResponse.BodyHandlers.ofString())
                             .statusCode())
                     .isEqualTo(200);
             assertThat(client.send(
-                                    java.net.http.HttpRequest.newBuilder(
-                                                    java.net.URI.create(base + "/v1/knowledge-bases"))
+                                    BusinessHttpTestSecurity.request(
+                                                    context, java.net.URI.create(base + "/v1/knowledge-bases"))
                                             .GET()
                                             .build(),
                                     java.net.http.HttpResponse.BodyHandlers.ofString())

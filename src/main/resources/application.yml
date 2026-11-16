@@ -1,4 +1,28 @@
+server:
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        same-site: lax
 spring:
+  autoconfigure:
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+  data:
+    redis:
+      host: ${KA_REDIS_HOST:localhost}
+      port: ${KA_REDIS_PORT:6379}
+      username: ${KA_REDIS_USERNAME:}
+      password: ${KA_REDIS_PASSWORD:}
+      database: ${KA_REDIS_DATABASE:0}
+      connect-timeout: 2s
+      timeout: 2s
+      ssl:
+        enabled: ${KA_REDIS_SSL:false}
+  session:
+    timeout: ${KA_SESSION_TIMEOUT:30m}
+    data:
+      redis:
+        namespace: ${KA_SESSION_NAMESPACE:ka:session}
   servlet:
     multipart:
       max-file-size: 2MB

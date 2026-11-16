@@ -100,7 +100,8 @@ class ProfileConfigurationTests {
     @Test
     void testKeepsDatabaseOverridesAvailable() {
         StandardEnvironment environment = load("test", false);
-        assertThat(environment.getProperty("spring.autoconfigure.exclude")).isNull();
+        assertThat(environment.getProperty("spring.autoconfigure.exclude"))
+                .isEqualTo("org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration");
         environment
                 .getPropertySources()
                 .addFirst(new org.springframework.core.env.MapPropertySource(

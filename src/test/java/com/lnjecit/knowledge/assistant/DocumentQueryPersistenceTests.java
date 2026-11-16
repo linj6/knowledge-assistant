@@ -7,7 +7,6 @@ import com.lnjecit.knowledge.assistant.document.mapper.DocumentQueryMapper;
 import com.lnjecit.knowledge.assistant.document.repository.DocumentQueryRepository;
 import java.net.URI;
 import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -35,7 +34,8 @@ class DocumentQueryPersistenceTests {
             .withImagePullPolicy(image -> false);
 
     private ConfigurableApplicationContext start() {
-        return new SpringApplication(KnowledgeAssistantApplication.class, TransactionProbe.class)
+        return new SpringApplication(
+                        KnowledgeAssistantApplication.class, TransactionProbe.class, BusinessHttpTestSecurity.class)
                 .run(
                         "--spring.datasource.url=" + postgres.getJdbcUrl(),
                         "--spring.datasource.username=" + postgres.getUsername(),
@@ -50,7 +50,8 @@ class DocumentQueryPersistenceTests {
         int port = ((WebServerApplicationContext) context).getWebServer().getPort();
         HttpResponse<String> response = HttpClient.newHttpClient()
                 .send(
-                        HttpRequest.newBuilder(
+                        BusinessHttpTestSecurity.request(
+                                        context,
                                         URI.create("http://localhost:" + port + "/api/v1/knowledge-bases/" + path))
                                 .header("X-Request-Id", "web02-http")
                                 .GET()
