@@ -14,6 +14,11 @@ public class UserRepository {
         this.mapper = mapper;
     }
 
+    /** 新建用户，唯一约束冲突交给业务层处理。 */
+    public void insert(User user) {
+        mapper.insert(user);
+    }
+
     /** 按标识查询用户，不存在时返回空。 */
     public User find(Long id) {
         return mapper.selectById(id);
