@@ -54,12 +54,12 @@ class MybatisCompatibilityTests {
             assertThat(context.getBean(org.flywaydb.core.Flyway.class).migrate().migrationsExecuted)
                     .isZero();
             assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class))
-                    .isEqualTo(5);
-            // 成功记录必须覆盖当前 V1～V5，不能只凭总数判断迁移已完成。
+                    .isEqualTo(6);
+            // 成功记录必须覆盖当前 V1～V6，不能只凭总数判断迁移已完成。
             assertThat(jdbc.queryForList(
                             "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank",
                             String.class))
-                    .containsExactly("1", "2", "3", "4", "5");
+                    .containsExactly("1", "2", "3", "4", "5", "6");
             assertThat(jdbc.queryForObject(
                             "SELECT count(*) FROM pg_constraint WHERE contype='f' AND connamespace='public'::regnamespace",
                             Integer.class))
