@@ -43,6 +43,7 @@ class EmbeddingPersistenceIT {
         java.util.Map<String, Object> before = jdbc.queryForMap("SELECT * FROM document_chunk WHERE id=99");
         assertThat(org.flywaydb.core.Flyway.configure()
                         .dataSource(source)
+                        .target("5")
                         .load()
                         .migrate()
                         .migrationsExecuted)
@@ -63,7 +64,9 @@ class EmbeddingPersistenceIT {
                 "--assistant.model.enabled=false",
                 "--assistant.rerank.enabled=false")) {
             JdbcTemplate jdbc = context.getBean(JdbcTemplate.class);
-            jdbc.update("INSERT INTO knowledge_base(id,name) VALUES(1,'test')");
+            jdbc.update(
+                    "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'fixture-owner','test-only','ACTIVE')");
+            jdbc.update("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES(1,'test',1)");
             jdbc.update(
                     "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key) VALUES(2,1,'a.txt','hash','key')");
             String config = "{\"version\":1,\"strategy\":\"FIXED_CODE_POINT\",\"chunkSize\":800,\"chunkOverlap\":120}";

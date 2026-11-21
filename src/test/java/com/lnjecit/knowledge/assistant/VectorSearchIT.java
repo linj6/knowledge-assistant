@@ -39,7 +39,9 @@ class VectorSearchIT {
             JdbcTemplate j = c.getBean(JdbcTemplate.class);
             com.lnjecit.knowledge.assistant.retrieval.vector.VectorSearchRepository r =
                     c.getBean(com.lnjecit.knowledge.assistant.retrieval.vector.VectorSearchRepository.class);
-            j.update("INSERT INTO knowledge_base(id,name) VALUES(1,'a'),(2,'b')");
+            j.update(
+                    "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'fixture-owner','test-only','ACTIVE')");
+            j.update("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES(1,'a',1),(2,'b',1)");
             j.update(
                     "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key,active_version_id) VALUES(10,1,'a','a','k',20),(11,1,'b','b','k',NULL),(12,2,'c','c','k',22),(13,1,'d','d','k',NULL)");
             j.update(

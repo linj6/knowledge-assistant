@@ -54,17 +54,19 @@ class MybatisCompatibilityTests {
             assertThat(context.getBean(org.flywaydb.core.Flyway.class).migrate().migrationsExecuted)
                     .isZero();
             assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class))
-                    .isEqualTo(6);
-            // 成功记录必须覆盖当前 V1～V6，不能只凭总数判断迁移已完成。
+                    .isEqualTo(7);
+            // 成功记录必须覆盖当前 V1～V7，不能只凭总数判断迁移已完成。
             assertThat(jdbc.queryForList(
                             "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank",
                             String.class))
-                    .containsExactly("1", "2", "3", "4", "5", "6");
+                    .containsExactly("1", "2", "3", "4", "5", "6", "7");
             assertThat(jdbc.queryForObject(
                             "SELECT count(*) FROM pg_constraint WHERE contype='f' AND connamespace='public'::regnamespace",
                             Integer.class))
                     .isZero();
-            jdbc.execute("INSERT INTO knowledge_base(id,name) VALUES (1,'测试'),(2,'跨库')");
+            jdbc.execute(
+                    "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'compat-owner','test-only','ACTIVE')");
+            jdbc.execute("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES (1,'测试',1),(2,'跨库',1)");
             jdbc.execute(
                     "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key) VALUES (1,1,'a','hash','key'),(2,2,'a','hash','key')");
             org.assertj.core.api.Assertions.assertThatThrownBy(
@@ -117,6 +119,7 @@ class MybatisCompatibilityTests {
             com.lnjecit.knowledge.assistant.knowledge.entity.KnowledgeBase base =
                     new com.lnjecit.knowledge.assistant.knowledge.entity.KnowledgeBase();
             base.setName("模型持久化");
+            base.setOwnerUserId(1L);
             base.setCreatedAt(java.time.Instant.parse("2026-11-08T00:00:00Z"));
             assertThat(bases.insert(base)).isEqualTo(1);
             assertThat(base.getId()).isPositive();

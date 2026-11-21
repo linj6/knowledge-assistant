@@ -43,7 +43,9 @@ class KeywordSearchIT extends ElasticsearchIT {
                 "--spring.datasource.password=" + postgres.getPassword())) {
             org.springframework.jdbc.core.JdbcTemplate jdbc =
                     context.getBean(org.springframework.jdbc.core.JdbcTemplate.class);
-            jdbc.update("INSERT INTO knowledge_base(id,name) VALUES(301,'bm25')");
+            jdbc.update(
+                    "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'fixture-owner','test-only','ACTIVE')");
+            jdbc.update("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES(301,'bm25',1)");
             jdbc.update(
                     "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key) VALUES(302,301,'a.txt','hash','key')");
             jdbc.update(

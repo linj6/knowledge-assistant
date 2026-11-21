@@ -62,6 +62,8 @@ class IndexVerificationIT extends ElasticsearchIT {
                             .map(p -> p.version())
                             .toList())
                     .contains("8.18.0");
+            jdbc.update(
+                    "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'fixture-owner','test-only','ACTIVE')");
             long sequence = 100;
             for (String scenario : List.of(
                     "success",
@@ -77,7 +79,7 @@ class IndexVerificationIT extends ElasticsearchIT {
                 long versionId = sequence++;
                 long chunkId = sequence++;
                 String indexName = "m110c-" + UUID.randomUUID();
-                jdbc.update("INSERT INTO knowledge_base(id,name) VALUES(?,'test')", documentId);
+                jdbc.update("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES(?,'test',1)", documentId);
                 jdbc.update(
                         "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key) VALUES(?,?,'test','hash','key')",
                         documentId,

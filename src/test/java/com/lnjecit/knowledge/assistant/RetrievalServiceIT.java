@@ -62,7 +62,9 @@ class RetrievalServiceIT extends ElasticsearchIT {
                                 .build(),
                         new JacksonJsonpMapper())) {
             JdbcTemplate jdbc = context.getBean(JdbcTemplate.class);
-            jdbc.update("INSERT INTO knowledge_base(id,name) VALUES(601,'primary'),(611,'other')");
+            jdbc.update(
+                    "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'fixture-owner','test-only','ACTIVE')");
+            jdbc.update("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES(601,'primary',1),(611,'other',1)");
             jdbc.update(
                     "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key) VALUES(602,601,'a','a','a'),(605,601,'b','b','b'),(608,601,'unpublished','c','c'),(612,611,'other','d','d')");
             jdbc.update(

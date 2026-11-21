@@ -142,7 +142,9 @@ class AuthBusinessHttpTests {
         assertThat(jdbc.queryForObject(
                         "SELECT owner_user_id FROM knowledge_base WHERE id=?", Long.class, Long.valueOf(bobKb)))
                 .isEqualTo(bobId);
-        jdbc.update("INSERT INTO knowledge_base(id, name, created_at) VALUES (1, 'Legacy', CURRENT_TIMESTAMP)");
+        jdbc.update(
+                "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'legacy-owner','test-only','ACTIVE')");
+        jdbc.update("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES (1,'Legacy',1)");
 
         assertOwnedKnowledgeBases(app, aliceSession, aliceKb);
         assertOwnedKnowledgeBases(app, bobSession, bobKb);

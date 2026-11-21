@@ -59,6 +59,11 @@ class DocumentLifecycleMigrationTests {
                         versionOid,
                         taskOid))
                 .isZero();
+        // 升级到 V6 后补齐历史知识库的归属，再由应用执行 V7。
+        Flyway.configure().dataSource(source).target("6").load().migrate();
+        jdbc.update(
+                "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'fixture-owner','test-only','ACTIVE')");
+        jdbc.update("UPDATE knowledge_base SET owner_user_id=1 WHERE id=101");
         SpringApplication app = new SpringApplication(KnowledgeAssistantApplication.class);
         app.setWebApplicationType(WebApplicationType.NONE);
         try (ConfigurableApplicationContext context = app.run(

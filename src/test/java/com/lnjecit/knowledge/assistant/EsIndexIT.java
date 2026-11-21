@@ -74,7 +74,9 @@ class EsIndexIT extends ElasticsearchIT {
             ElasticsearchClient client = new ElasticsearchClient(transport);
             org.springframework.jdbc.core.JdbcTemplate jdbc =
                     context.getBean(org.springframework.jdbc.core.JdbcTemplate.class);
-            jdbc.update("INSERT INTO knowledge_base(id,name) VALUES(101,'test')");
+            jdbc.update(
+                    "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'fixture-owner','test-only','ACTIVE')");
+            jdbc.update("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES(101,'test',1)");
             jdbc.update(
                     "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key) VALUES(102,101,'a.txt','hash','key')");
             jdbc.update(

@@ -77,10 +77,12 @@ class RealRetrievalComparisonIT extends ElasticsearchIT {
             assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class))
                     .isGreaterThanOrEqualTo(5);
             EsIndexRepository writer = new EsIndexRepository(client);
+            jdbc.update(
+                    "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'fixture-owner','test-only','ACTIVE')");
             for (int group = 0; group < 2; group++) {
                 long kb = 800000L + group * 100000L;
                 String index = group == 0 ? "ka_chunk_eval_fixed" : "ka_chunk_eval_structure";
-                jdbc.update("INSERT INTO knowledge_base(id,name) VALUES(?,?)", kb, index);
+                jdbc.update("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES(?,?,1)", kb, index);
                 List<EsChunkDocument> corpus = new ArrayList<>();
                 for (int d = 0; d < documents.size(); d++) {
                     RetrievalExperimentCorpus.Document source = documents.get(d);

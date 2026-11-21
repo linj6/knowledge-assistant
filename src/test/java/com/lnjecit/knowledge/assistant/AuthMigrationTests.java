@@ -31,7 +31,7 @@ class AuthMigrationTests {
         jdbc.execute(
                 "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key) VALUES (201,101,'a.md','hash','originals/a')");
         java.util.List<java.util.Map<String, Object>> documents = jdbc.queryForList("SELECT * FROM document");
-        Flyway flyway = Flyway.configure().dataSource(source).load();
+        Flyway flyway = Flyway.configure().dataSource(source).target("6").load();
         assertThat(flyway.migrate().migrationsExecuted).isEqualTo(1);
         assertThat(jdbc.queryForList("SELECT * FROM document")).isEqualTo(documents);
         assertThat(jdbc.queryForObject("SELECT owner_user_id FROM knowledge_base WHERE id=101", Long.class))
@@ -46,6 +46,24 @@ class AuthMigrationTests {
                                 "INSERT INTO app_user(id,username,password_hash,status) VALUES (3,'other','test-only','INVALID')"))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
         assertThat(flyway.migrate().migrationsExecuted).isZero();
+
+        Flyway latest = Flyway.configure().dataSource(source).load();
+        java.util.List<java.util.Map<String, Object>> bases = jdbc.queryForList("SELECT * FROM knowledge_base");
+        assertThatThrownBy(latest::migrate)
+                .isInstanceOf(org.flywaydb.core.api.FlywayException.class)
+                .hasMessageContaining("knowledge_base contains rows with NULL owner_user_id");
+        assertThat(latest.info().current().getVersion().getVersion()).isEqualTo("6");
+        assertThat(jdbc.queryForList("SELECT * FROM knowledge_base")).isEqualTo(bases);
+        assertThat(jdbc.queryForList("SELECT * FROM document")).isEqualTo(documents);
+
+        // 模拟在 V6 完成人工归属绑定后重试，V7 保留既有映射。
+        jdbc.update("UPDATE knowledge_base SET owner_user_id=1 WHERE id=101");
+        java.util.List<java.util.Map<String, Object>> boundBases = jdbc.queryForList("SELECT * FROM knowledge_base");
+        assertThat(latest.migrate().migrationsExecuted).isEqualTo(1);
+        assertThat(latest.info().current().getVersion().getVersion()).isEqualTo("7");
+        assertThat(jdbc.queryForList("SELECT * FROM knowledge_base")).isEqualTo(boundBases);
+        assertThat(jdbc.queryForList("SELECT * FROM document")).isEqualTo(documents);
+        assertThat(latest.migrate().migrationsExecuted).isZero();
     }
 
     @Test
@@ -89,8 +107,10 @@ class AuthMigrationTests {
             assertThat(jdbc.queryForObject(
                             "SELECT owner_user_id FROM knowledge_base WHERE id=?", Long.class, owned.getId()))
                     .isEqualTo(user.getId());
-            jdbc.execute("INSERT INTO knowledge_base(id,name) VALUES (101,'historical')");
-            assertThat(bases.selectById(101L).getOwnerUserId()).isNull();
+            assertThatThrownBy(() -> jdbc.execute(
+                            "INSERT INTO knowledge_base(id,name,owner_user_id) VALUES (101,'unbound',NULL)"))
+                    .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class)
+                    .hasMessageContaining("owner_user_id");
         }
     }
 
@@ -98,7 +118,7 @@ class AuthMigrationTests {
     void documentedBindingRejectsInvalidBatchesWithoutChangingData() throws Exception {
         DriverManagerDataSource source =
                 new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
-        Flyway.configure().dataSource(source).load().migrate();
+        Flyway.configure().dataSource(source).target("6").load().migrate();
         JdbcTemplate jdbc = new JdbcTemplate(source);
         jdbc.execute(
                 "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'active','test','ACTIVE'),(2,'disabled','test','DISABLED'),(3,'other','test','ACTIVE')");

@@ -48,7 +48,9 @@ class RetrievalFoundationIT {
                     c.getBean(com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshotService.class);
             assertThatThrownBy(() -> s.read(1L))
                     .isInstanceOf(com.lnjecit.knowledge.assistant.common.error.BusinessException.class);
-            j.update("INSERT INTO knowledge_base(id,name) VALUES(1,'a'),(2,'b')");
+            j.update(
+                    "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'fixture-owner','test-only','ACTIVE')");
+            j.update("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES(1,'a',1),(2,'b',1)");
             assertThat(s.read(1L).documents()).isEmpty();
             j.update(
                     "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key) VALUES(10,1,'a','a','key'),(11,1,'b','b','key'),(12,2,'c','c','key')");
@@ -91,7 +93,9 @@ class RetrievalFoundationIT {
             com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportService service =
                     c.getBean(com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportService.class);
             ImportPersistenceTests.TestStore store = c.getBean(ImportPersistenceTests.TestStore.class);
-            j.update("INSERT INTO knowledge_base(id,name) VALUES(1,'a'),(2,'b')");
+            j.update(
+                    "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'fixture-owner','test-only','ACTIVE')");
+            j.update("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES(1,'a',1),(2,'b',1)");
             j.update(
                     "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key) SELECT n,1,'seed',n::text,'seed' FROM generate_series(1,999) n");
             store.barrier = new java.util.concurrent.CyclicBarrier(2);
