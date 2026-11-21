@@ -1,16 +1,21 @@
 package com.lnjecit.knowledge.assistant;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.web.server.context.WebServerApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -22,16 +27,22 @@ class AuthBusinessHttpTests {
     private final JsonMapper json = JsonMapper.builder().build();
 
     private ConfigurableApplicationContext start(PostgreSQLContainer pg, int redis, String namespace) {
-        return new SpringApplication(KnowledgeAssistantApplication.class)
-                .run(
-                        "--server.port=0",
-                        "--spring.datasource.url=" + pg.getJdbcUrl(),
-                        "--spring.datasource.username=" + pg.getUsername(),
-                        "--spring.datasource.password=" + pg.getPassword(),
-                        "--spring.data.redis.port=" + redis,
-                        "--spring.session.data.redis.namespace=" + namespace,
-                        "--assistant.model.enabled=false",
-                        "--assistant.rerank.enabled=false");
+        SpringApplication application = new SpringApplication(KnowledgeAssistantApplication.class);
+        application.addInitializers(context -> ((GenericApplicationContext) context)
+                .registerBean(
+                        "testOriginalFileStore",
+                        OriginalFileStore.class,
+                        () -> mock(OriginalFileStore.class),
+                        definition -> definition.setPrimary(true)));
+        return application.run(
+                "--server.port=0",
+                "--spring.datasource.url=" + pg.getJdbcUrl(),
+                "--spring.datasource.username=" + pg.getUsername(),
+                "--spring.datasource.password=" + pg.getPassword(),
+                "--spring.data.redis.port=" + redis,
+                "--spring.session.data.redis.namespace=" + namespace,
+                "--assistant.model.enabled=false",
+                "--assistant.rerank.enabled=false");
     }
 
     private HttpResponse<String> send(
@@ -121,6 +132,122 @@ class AuthBusinessHttpTests {
             assertThat(json.readTree(detail.body()).path("code").asInt()).isEqualTo(40401);
         }
         error(send(app, "GET", "knowledge-bases", anonymous, null, null), 401);
+        verifyResourceOwnership(app, jdbc, aliceSession, bobSession, aliceKb, bobKb);
+    }
+
+    private void verifyResourceOwnership(
+            ConfigurableApplicationContext app,
+            JdbcTemplate jdbc,
+            String aliceSession,
+            String bobSession,
+            String aliceKb,
+            String bobKb)
+            throws Exception {
+        seedDocument(jdbc, aliceKb, 101);
+        seedDocument(jdbc, bobKb, 102);
+        seedDocument(jdbc, "1", 103);
+
+        assertResources(app, aliceSession, aliceKb, 101, 200);
+        assertResources(app, bobSession, bobKb, 102, 200);
+        assertResources(app, aliceSession, bobKb, 102, 404);
+        assertResources(app, bobSession, aliceKb, 101, 404);
+        assertResources(app, aliceSession, "1", 103, 404);
+
+        HttpResponse<String> missingTask = send(app, "GET", "import-tasks/999", aliceSession, null, null);
+        error(missingTask, 404);
+        assertThat(send(app, "GET", "import-tasks/102", aliceSession, null, null)
+                        .body())
+                .isEqualTo(missingTask.body());
+        // 即使 URL 使用自有知识库，也不能读取其他知识库的 Chunk 或未发布版本。
+        error(
+                send(
+                        app,
+                        "GET",
+                        "knowledge-bases/" + aliceKb + "/documents/102/versions/102/chunks/102",
+                        aliceSession,
+                        null,
+                        null),
+                404);
+        jdbc.update("UPDATE document SET active_version_id=NULL WHERE id=101");
+        error(
+                send(
+                        app,
+                        "GET",
+                        "knowledge-bases/" + aliceKb + "/documents/101/versions/101/chunks/101",
+                        aliceSession,
+                        null,
+                        null),
+                404);
+
+        String csrf = token(send(app, "GET", "auth/csrf", aliceSession, null, null));
+        assertThat(upload(app, bobKb, aliceSession, csrf).statusCode()).isEqualTo(404);
+        assertThat(upload(app, "1", aliceSession, csrf).statusCode()).isEqualTo(404);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM document", Long.class))
+                .isEqualTo(3);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM document_import_task", Long.class))
+                .isEqualTo(3);
+        verifyNoInteractions(app.getBean(OriginalFileStore.class));
+
+        HttpResponse<String> accepted = upload(app, aliceKb, aliceSession, csrf);
+        assertThat(accepted.statusCode()).isEqualTo(202);
+        assertThat(json.readTree(accepted.body()).path("data").path("status").asString())
+                .isEqualTo("RECEIVED");
+        assertThat(upload(app, aliceKb, aliceSession, csrf).statusCode()).isEqualTo(200);
+    }
+
+    private void seedDocument(JdbcTemplate jdbc, String kb, int id) {
+        jdbc.update(
+                "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key) VALUES(?,?,'auth.md','seed','originals/seed')",
+                id,
+                Long.valueOf(kb));
+        jdbc.update(
+                "INSERT INTO document_index_version(id,document_id,chunking_config,status,expected_chunk_count,published_at) VALUES(?,?,'{}','PUBLISHED',1,CURRENT_TIMESTAMP)",
+                id,
+                id);
+        jdbc.update("UPDATE document SET active_version_id=? WHERE id=?", id, id);
+        jdbc.update(
+                "INSERT INTO document_chunk(id,knowledge_base_id,document_id,index_version_id,chunk_order,content,source_start,source_end) VALUES(?,?,?,?,0,'evidence',0,8)",
+                id,
+                Long.valueOf(kb),
+                id,
+                id);
+        jdbc.update(
+                "INSERT INTO document_import_task(id,document_id,index_version_id,status) VALUES(?,?,?,'SUCCEEDED')",
+                id,
+                id,
+                id);
+    }
+
+    private void assertResources(ConfigurableApplicationContext app, String session, String kb, int id, int status)
+            throws Exception {
+        String documents = "knowledge-bases/" + kb + "/documents";
+        HttpResponse<String> list = send(app, "GET", documents, session, null, null);
+        HttpResponse<String> task = send(app, "GET", "import-tasks/" + id, session, null, null);
+        HttpResponse<String> citation =
+                send(app, "GET", documents + "/" + id + "/versions/" + id + "/chunks/" + id, session, null, null);
+        for (HttpResponse<String> response : List.of(list, task, citation)) {
+            assertThat(response.statusCode()).isEqualTo(status);
+        }
+        if (status == 200) {
+            assertThat(list.body()).contains("auth.md");
+            assertThat(task.body()).contains("READY");
+            assertThat(citation.body()).contains("evidence");
+        }
+    }
+
+    private HttpResponse<String> upload(ConfigurableApplicationContext app, String kb, String session, String csrf)
+            throws Exception {
+        int port = ((WebServerApplicationContext) app).getWebServer().getPort();
+        HttpRequest request = HttpRequest.newBuilder(
+                        URI.create("http://localhost:" + port + "/api/v1/knowledge-bases/" + kb + "/documents:import"))
+                .header("Cookie", session)
+                .header("X-CSRF-TOKEN", csrf)
+                .header("Content-Type", "multipart/form-data; boundary=auth04")
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        "--auth04\r\nContent-Disposition: form-data; name=\"file\"; filename=\"upload.md\"\r\n"
+                                + "Content-Type: text/markdown\r\n\r\nowned upload\r\n--auth04--\r\n"))
+                .build();
+        return client.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     @Test

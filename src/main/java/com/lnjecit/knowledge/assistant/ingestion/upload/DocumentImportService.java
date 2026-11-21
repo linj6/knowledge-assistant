@@ -2,6 +2,7 @@ package com.lnjecit.knowledge.assistant.ingestion.upload;
 
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
+import com.lnjecit.knowledge.assistant.document.entity.Document;
 import com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.ObjectKeyPrefixes;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
@@ -59,6 +60,7 @@ public class DocumentImportService {
 
     public record Outcome(ImportTaskResponse task, boolean duplicate) {}
 
+    /** 由已完成授权的 HTTP 入口或可信内部调用接收导入。 */
     public Outcome receive(Long kbId, MultipartFile file) throws Exception {
         if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive())
             throw new IllegalStateException("Upload cannot execute inside transaction");
@@ -211,6 +213,22 @@ public class DocumentImportService {
         throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT);
     }
 
+    /** 用户查询按任务关联的文档校验知识库所有权。 */
+    public ImportTaskResponse getOwned(Long id, long userId) {
+        ImportTask task = repository.find(id);
+        if (task == null) throw new BusinessException(CommonErrorCode.NOT_FOUND);
+        Document document = repository.findDocument(task.getDocumentId());
+        if (document == null) throw new BusinessException(CommonErrorCode.NOT_FOUND);
+        try {
+            knowledge.requireOwned(document.getKnowledgeBaseId(), userId);
+        } catch (BusinessException ex) {
+            if (ex.getErrorCode() != CommonErrorCode.KNOWLEDGE_BASE_NOT_FOUND) throw ex;
+            throw new BusinessException(CommonErrorCode.NOT_FOUND);
+        }
+        return ImportTaskResponse.from(task);
+    }
+
+    /** 供可信内部调用按 ID 查询任务。 */
     public ImportTaskResponse get(Long id) {
         ImportTask task = repository.find(id);
         if (task == null) throw new BusinessException(CommonErrorCode.NOT_FOUND);

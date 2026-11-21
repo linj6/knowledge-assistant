@@ -68,6 +68,10 @@ public class DocumentImportRepository {
         return documents.selectCount(new LambdaQueryWrapper<Document>().eq(Document::getObjectKey, key)) > 0;
     }
 
+    public Document findDocument(Long id) {
+        return documents.selectById(id);
+    }
+
     public ImportTask find(Long id) {
         return tasks.selectById(id);
     }

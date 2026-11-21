@@ -66,11 +66,17 @@ class DocumentQueryPersistenceTests {
         return body.get("data");
     }
 
+    private void seedOwnedKnowledgeBases(JdbcTemplate jdbc, String secondName) {
+        jdbc.update(
+                "INSERT INTO app_user(id,username,password_hash,status) VALUES(42,'business-test-user','unused','ACTIVE')");
+        jdbc.update("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES(1,'a',42),(2,?,42)", secondName);
+    }
+
     @Test
     void realPaginationTasksAndHttp() throws Exception {
         try (ConfigurableApplicationContext c = start()) {
             JdbcTemplate j = c.getBean(JdbcTemplate.class);
-            j.update("INSERT INTO knowledge_base(id,name) VALUES(1,'a'),(2,'empty')");
+            seedOwnedKnowledgeBases(j, "empty");
             assertThat(get(c, "2/documents", 200, 0).get("items").size()).isZero();
             get(c, "9/documents", 404, 40401);
             j.update(
@@ -122,7 +128,7 @@ class DocumentQueryPersistenceTests {
     void realEvidenceOwnershipAndCorruption() throws Exception {
         try (ConfigurableApplicationContext c = start()) {
             JdbcTemplate j = c.getBean(JdbcTemplate.class);
-            j.update("INSERT INTO knowledge_base(id,name) VALUES(1,'a'),(2,'b')");
+            seedOwnedKnowledgeBases(j, "b");
             j.update(
                     "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key,active_version_id) VALUES(10,1,'notes.md','a','secret',20),(11,2,'other','b','secret',21),(12,1,'unpublished','c','secret',NULL)");
             j.update(

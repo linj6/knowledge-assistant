@@ -41,6 +41,12 @@ class IngestionPipelineIT extends ElasticsearchIT {
     @Container
     static final GenericContainer<?> minio = storage.minio;
 
+    private static final org.springframework.security.core.Authentication AUTHENTICATION =
+            org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated(
+                    new com.lnjecit.knowledge.assistant.auth.service.AuthPrincipal(42L, "pipeline-test-user"),
+                    null,
+                    java.util.List.of());
+
     @Test
     void markdownAndTextThroughProductionScheduler() throws Exception {
         runPipeline("normal");
@@ -316,7 +322,8 @@ class IngestionPipelineIT extends ElasticsearchIT {
                 byte[] bytes = source.getBytes(StandardCharsets.UTF_8);
                 MockMultipartFile file = new MockMultipartFile("file", "fixture." + extension, "text/plain", bytes);
                 JsonNode response = json.readTree(mvc.perform(multipart("/v1/knowledge-bases/{id}/documents:import", kb)
-                                        .file(file))
+                                        .file(file)
+                                        .principal(AUTHENTICATION))
                                 .andExpect(status().isAccepted())
                                 .andReturn()
                                 .getResponse()
@@ -335,7 +342,7 @@ class IngestionPipelineIT extends ElasticsearchIT {
                 assertThat(jdbc.queryForObject(
                                 "SELECT active_version_id FROM document WHERE id=?", Long.class, document))
                         .isNull();
-                mvc.perform(get("/v1/import-tasks/{id}", task))
+                mvc.perform(get("/v1/import-tasks/{id}", task).principal(AUTHENTICATION))
                         .andExpect(jsonPath("$.data.status").value("RECEIVED"));
                 String key = jdbc.queryForObject("SELECT object_key FROM document WHERE id=?", String.class, document);
                 assertThat(key).startsWith(ObjectKeyPrefixes.ORIGINALS);
@@ -564,7 +571,7 @@ class IngestionPipelineIT extends ElasticsearchIT {
                                 Integer.class,
                                 version))
                         .isEqualTo(1);
-                mvc.perform(get("/v1/import-tasks/{id}", task))
+                mvc.perform(get("/v1/import-tasks/{id}", task).principal(AUTHENTICATION))
                         .andExpect(jsonPath("$.data.status").value("READY"));
                 if (mode.equals("publish-confirm-fails") || mode.equals("publish-timeout")) {
                     assertThat(publishCalls.get()).isEqualTo(mode.equals("publish-confirm-fails") ? 2 : 1);
@@ -611,7 +618,8 @@ class IngestionPipelineIT extends ElasticsearchIT {
                         .isEqualTo(snapshot);
                 int before = jdbc.queryForObject("SELECT count(*) FROM document", Integer.class);
                 mvc.perform(multipart("/v1/knowledge-bases/{id}/documents:import", kb)
-                                .file(file))
+                                .file(file)
+                                .principal(AUTHENTICATION))
                         .andExpect(status().isOk())
                         .andExpect(jsonPath("$.data.importTaskId").value(task));
                 assertThat(jdbc.queryForObject("SELECT count(*) FROM document", Integer.class))
@@ -625,7 +633,8 @@ class IngestionPipelineIT extends ElasticsearchIT {
                         .create(42L, "isolated-" + extension, null)
                         .getId();
                 mvc.perform(multipart("/v1/knowledge-bases/{id}/documents:import", otherKb)
-                                .file(file))
+                                .file(file)
+                                .principal(AUTHENTICATION))
                         .andExpect(status().isAccepted());
                 assertThat(jdbc.queryForObject(
                                 "SELECT count(*) FROM document WHERE knowledge_base_id=?", Integer.class, otherKb))
@@ -669,7 +678,7 @@ class IngestionPipelineIT extends ElasticsearchIT {
                 .isNull();
         assertThat(jdbc.queryForObject("SELECT status FROM document_index_version WHERE id=?", String.class, version))
                 .isNotEqualTo("PUBLISHED");
-        mvc.perform(get("/v1/import-tasks/{id}", task))
+        mvc.perform(get("/v1/import-tasks/{id}", task).principal(AUTHENTICATION))
                 .andExpect(jsonPath("$.data.status").value("FAILED"));
     }
 }

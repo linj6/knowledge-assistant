@@ -19,12 +19,19 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import tools.jackson.databind.json.JsonMapper;
 
 class ImportApiTests {
+    private final org.springframework.security.core.Authentication authentication =
+            org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated(
+                    new com.lnjecit.knowledge.assistant.auth.service.AuthPrincipal(42L, "alice"),
+                    null,
+                    java.util.List.of());
+
     @Test
     void acceptedDuplicateLookupAndErrors() throws Exception {
         DocumentImportService service = mock(DocumentImportService.class);
         JsonMapper.Builder builder = JsonMapper.builder();
         new ApiJacksonConfiguration().longAsString().customize(builder);
-        MockMvc mvc = MockMvcBuilders.standaloneSetup(new DocumentImportController(service))
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new DocumentImportController(
+                        service, mock(com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService.class)))
                 .setMessageConverters(new JacksonJsonHttpMessageConverter(builder.build()))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .build();
@@ -34,24 +41,29 @@ class ImportApiTests {
                 .thenReturn(
                         new DocumentImportService.Outcome(response, false),
                         new DocumentImportService.Outcome(response, true));
-        mvc.perform(multipart("/v1/knowledge-bases/1/documents:import").file(file))
+        mvc.perform(multipart("/v1/knowledge-bases/1/documents:import")
+                        .file(file)
+                        .principal(authentication))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.data.status").value("RECEIVED"))
                 .andExpect(jsonPath("$.data.importTaskId").value("9007199254740993"));
-        mvc.perform(multipart("/v1/knowledge-bases/1/documents:import").file(file))
-                .andExpect(status().isOk());
-        when(service.get(9007199254740993L)).thenReturn(response);
-        mvc.perform(get("/v1/import-tasks/9007199254740993"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.documentId").value("2"));
-        when(service.get(99L))
-                .thenThrow(new com.lnjecit.knowledge.assistant.common.error.BusinessException(
-                        com.lnjecit.knowledge.assistant.common.error.CommonErrorCode.NOT_FOUND));
-        mvc.perform(get("/v1/import-tasks/99")).andExpect(status().isNotFound());
-        mvc.perform(get("/v1/import-tasks/0")).andExpect(status().isBadRequest());
         mvc.perform(multipart("/v1/knowledge-bases/1/documents:import")
                         .file(file)
-                        .file(file))
+                        .principal(authentication))
+                .andExpect(status().isOk());
+        when(service.getOwned(9007199254740993L, 42L)).thenReturn(response);
+        mvc.perform(get("/v1/import-tasks/9007199254740993").principal(authentication))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.documentId").value("2"));
+        when(service.getOwned(99L, 42L))
+                .thenThrow(new com.lnjecit.knowledge.assistant.common.error.BusinessException(
+                        com.lnjecit.knowledge.assistant.common.error.CommonErrorCode.NOT_FOUND));
+        mvc.perform(get("/v1/import-tasks/99").principal(authentication)).andExpect(status().isNotFound());
+        mvc.perform(get("/v1/import-tasks/0").principal(authentication)).andExpect(status().isBadRequest());
+        mvc.perform(multipart("/v1/knowledge-bases/1/documents:import")
+                        .file(file)
+                        .file(file)
+                        .principal(authentication))
                 .andExpect(status().isBadRequest());
     }
 }

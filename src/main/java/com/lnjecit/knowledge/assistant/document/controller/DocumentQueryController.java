@@ -1,11 +1,14 @@
 package com.lnjecit.knowledge.assistant.document.controller;
 
+import com.lnjecit.knowledge.assistant.auth.service.AuthPrincipal;
 import com.lnjecit.knowledge.assistant.common.api.Result;
 import com.lnjecit.knowledge.assistant.document.dto.CitationEvidenceResponse;
 import com.lnjecit.knowledge.assistant.document.dto.DocumentListResponse;
 import com.lnjecit.knowledge.assistant.document.service.DocumentQueryService;
+import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Positive;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -15,9 +18,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/v1/knowledge-bases/{kbId}/documents")
 public class DocumentQueryController {
+    private final KnowledgeBaseService knowledgeBases;
     private final DocumentQueryService service;
 
-    public DocumentQueryController(DocumentQueryService service) {
+    public DocumentQueryController(DocumentQueryService service, KnowledgeBaseService knowledgeBases) {
+        this.knowledgeBases = knowledgeBases;
         this.service = service;
     }
 
@@ -25,7 +30,9 @@ public class DocumentQueryController {
     public Result<DocumentListResponse> list(
             @PathVariable @Positive Long kbId,
             @RequestParam(defaultValue = "1") @Positive int page,
-            @RequestParam(defaultValue = "20") @Positive @Max(100) int pageSize) {
+            @RequestParam(defaultValue = "20") @Positive @Max(100) int pageSize,
+            Authentication authentication) {
+        knowledgeBases.requireOwned(kbId, AuthPrincipal.requireUserId(authentication));
         return Result.success(service.list(kbId, page, pageSize));
     }
 
@@ -34,7 +41,9 @@ public class DocumentQueryController {
             @PathVariable @Positive Long kbId,
             @PathVariable @Positive Long documentId,
             @PathVariable @Positive Long versionId,
-            @PathVariable @Positive Long chunkId) {
+            @PathVariable @Positive Long chunkId,
+            Authentication authentication) {
+        knowledgeBases.requireOwned(kbId, AuthPrincipal.requireUserId(authentication));
         return Result.success(service.evidence(kbId, documentId, versionId, chunkId));
     }
 }
