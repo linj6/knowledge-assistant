@@ -2,9 +2,15 @@ package com.lnjecit.knowledge.assistant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
+import com.lnjecit.knowledge.assistant.rag.RagService;
+import com.lnjecit.knowledge.assistant.retrieval.RetrievalService;
+import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalParameters;
+import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStrategy;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -34,6 +40,19 @@ class AuthBusinessHttpTests {
                         OriginalFileStore.class,
                         () -> mock(OriginalFileStore.class),
                         definition -> definition.setPrimary(true)));
+        application.addInitializers(context -> {
+            GenericApplicationContext beans = (GenericApplicationContext) context;
+            beans.registerBean(
+                    "testRetrievalService",
+                    RetrievalService.class,
+                    () -> mock(RetrievalService.class),
+                    definition -> definition.setPrimary(true));
+            beans.registerBean(
+                    "testRagService",
+                    RagService.class,
+                    () -> mock(RagService.class),
+                    definition -> definition.setPrimary(true));
+        });
         return application.run(
                 "--server.port=0",
                 "--spring.datasource.url=" + pg.getJdbcUrl(),
@@ -69,8 +88,13 @@ class AuthBusinessHttpTests {
     }
 
     private void error(HttpResponse<String> response, int status) {
+        assertError(response, status, status * 100);
+    }
+
+    private void assertError(HttpResponse<String> response, int status, int code) {
         assertThat(response.statusCode()).isEqualTo(status);
-        assertThat(response.body()).contains("\"code\":" + status * 100, "\"requestId\":\"auth03-test\"");
+        assertThat(json.readTree(response.body()).path("code").asInt()).isEqualTo(code);
+        assertThat(json.readTree(response.body()).path("requestId").asString()).isEqualTo("auth03-test");
         assertThat(response.headers().firstValue("X-Request-Id")).contains("auth03-test");
     }
 
@@ -132,7 +156,78 @@ class AuthBusinessHttpTests {
             assertThat(json.readTree(detail.body()).path("code").asInt()).isEqualTo(40401);
         }
         error(send(app, "GET", "knowledge-bases", anonymous, null, null), 401);
+        verifySearchAndAnswerOwnership(app, aliceSession, bobSession, aliceKb, aliceId);
         verifyResourceOwnership(app, jdbc, aliceSession, bobSession, aliceKb, bobKb);
+    }
+
+    private void verifySearchAndAnswerOwnership(
+            ConfigurableApplicationContext app, String aliceSession, String bobSession, String aliceKb, long aliceId)
+            throws Exception {
+        RetrievalService retrieval = app.getBean(RetrievalService.class);
+        RagService rag = app.getBean(RagService.class);
+        String aliceToken = token(send(app, "GET", "auth/csrf", aliceSession, null, null));
+        String bobToken = token(send(app, "GET", "auth/csrf", bobSession, null, null));
+        HttpResponse<String> anonymousCsrf = send(app, "GET", "auth/csrf", null, null, null);
+        String anonymous = cookie(anonymousCsrf);
+        String retrievalParameters =
+                """
+                {"vectorTopK":8,"bm25TopK":9,"rrfK":60,"fusionTopK":7,"finalTopK":3}
+                """;
+        String search =
+                """
+                {"knowledgeBaseId":"%s","query":"owned query","strategies":["VECTOR","BM25"],"parameters":%s,"userId":%d}
+                """;
+        String answer =
+                """
+                {"knowledgeBaseId":"%s","question":"owned question","strategy":"VECTOR","retrievalParameters":%s,"userId":%d}
+                """;
+        for (String path : List.of("retrieval/search", "chat/answers")) {
+            String template = path.equals("retrieval/search") ? search : answer;
+            String owned = template.formatted(aliceKb, retrievalParameters, aliceId);
+            assertError(send(app, "POST", path, anonymous, token(anonymousCsrf), owned), 401, 40100);
+            assertError(send(app, "POST", path, aliceSession, null, owned), 403, 40300);
+            assertError(send(app, "POST", path, aliceSession, bobToken, owned), 403, 40300);
+            for (String inaccessibleId : List.of(aliceKb, "1", "2")) {
+                assertError(
+                        send(
+                                app,
+                                "POST",
+                                path,
+                                bobSession,
+                                bobToken,
+                                template.formatted(inaccessibleId, retrievalParameters, aliceId)),
+                        404,
+                        40401);
+            }
+        }
+        verifyNoInteractions(retrieval, rag);
+        assertThat(send(
+                                app,
+                                "POST",
+                                "retrieval/search",
+                                aliceSession,
+                                aliceToken,
+                                search.formatted(aliceKb, retrievalParameters, aliceId))
+                        .statusCode())
+                .isEqualTo(200);
+        assertThat(send(
+                                app,
+                                "POST",
+                                "chat/answers",
+                                aliceSession,
+                                aliceToken,
+                                answer.formatted(aliceKb, retrievalParameters, aliceId))
+                        .statusCode())
+                .isEqualTo(200);
+        RetrievalParameters expected = new RetrievalParameters(8, 9, 60, 7, 3);
+        verify(retrieval)
+                .search(
+                        Long.valueOf(aliceKb),
+                        "owned query",
+                        List.of(RetrievalStrategy.VECTOR, RetrievalStrategy.BM25),
+                        expected);
+        verify(rag).answer(Long.valueOf(aliceKb), "owned question", RetrievalStrategy.VECTOR, expected);
+        verifyNoMoreInteractions(retrieval, rag);
     }
 
     private void verifyResourceOwnership(

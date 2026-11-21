@@ -10,9 +10,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.lnjecit.knowledge.assistant.auth.service.AuthPrincipal;
 import com.lnjecit.knowledge.assistant.infrastructure.web.ApiExceptionHandler;
 import com.lnjecit.knowledge.assistant.infrastructure.web.ApiJacksonConfiguration;
 import com.lnjecit.knowledge.assistant.infrastructure.web.RequestIdFilter;
+import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;
 import com.lnjecit.knowledge.assistant.rag.RagService;
 import com.lnjecit.knowledge.assistant.rag.controller.RagController;
 import com.lnjecit.knowledge.assistant.rag.model.RagCitation;
@@ -29,12 +31,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import tools.jackson.databind.json.JsonMapper;
 
 class RagApiTests {
     RetrievalService retrieval;
+    private final Authentication authentication =
+            UsernamePasswordAuthenticationToken.authenticated(new AuthPrincipal(1L, "owner"), null, List.of());
     MockMvc mvc;
     JsonMapper mapper;
 
@@ -44,12 +50,14 @@ class RagApiTests {
         JsonMapper.Builder builder = JsonMapper.builder();
         new ApiJacksonConfiguration().longAsString().customize(builder);
         mapper = builder.build();
-        mvc = MockMvcBuilders.standaloneSetup(new RagController(new RagService(
-                        retrieval,
-                        new com.lnjecit.knowledge.assistant.rag.context.ContextBuilder(
-                                new com.lnjecit.knowledge.assistant.rag.context.ContextProperties()),
-                        org.mockito.Mockito.mock(
-                                com.lnjecit.knowledge.assistant.rag.generation.AnswerGenerator.class))))
+        mvc = MockMvcBuilders.standaloneSetup(new RagController(
+                        new RagService(
+                                retrieval,
+                                new com.lnjecit.knowledge.assistant.rag.context.ContextBuilder(
+                                        new com.lnjecit.knowledge.assistant.rag.context.ContextProperties()),
+                                org.mockito.Mockito.mock(
+                                        com.lnjecit.knowledge.assistant.rag.generation.AnswerGenerator.class)),
+                        org.mockito.Mockito.mock(KnowledgeBaseService.class)))
                 .setMessageConverters(new JacksonJsonHttpMessageConverter(mapper))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .addFilters(new RequestIdFilter())
@@ -77,6 +85,7 @@ class RagApiTests {
     void emptyAndDefaults() throws Exception {
         result(RetrievalStatus.EMPTY_RESULT);
         mvc.perform(post("/v1/chat/answers")
+                        .principal(authentication)
                         .contentType("application/json")
                         .content("{\"knowledgeBaseId\":\"9007199254740993\",\"question\":\"问题\"}"))
                 .andExpect(status().isOk())
@@ -108,6 +117,7 @@ class RagApiTests {
 
     org.springframework.test.web.servlet.ResultActions request() throws Exception {
         return mvc.perform(post("/v1/chat/answers")
+                        .principal(authentication)
                         .contentType("application/json")
                         .content("{\"knowledgeBaseId\":1,\"question\":\"q\"}"))
                 .andExpect(status().isOk());
@@ -123,7 +133,10 @@ class RagApiTests {
                 "{\"knowledgeBaseId\":1,\"question\":\"q\",\"retrievalParameters\":{}}"
             })
     void invalid(String body) throws Exception {
-        mvc.perform(post("/v1/chat/answers").contentType("application/json").content(body))
+        mvc.perform(post("/v1/chat/answers")
+                        .principal(authentication)
+                        .contentType("application/json")
+                        .content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(40000));
         verifyNoInteractions(retrieval);
@@ -144,7 +157,10 @@ class RagApiTests {
     void rejectsLongQuestionAndInvalidPool() throws Exception {
         String longBody =
                 mapper.writeValueAsString(java.util.Map.of("knowledgeBaseId", 1, "question", "q".repeat(4001)));
-        mvc.perform(post("/v1/chat/answers").contentType("application/json").content(longBody))
+        mvc.perform(post("/v1/chat/answers")
+                        .principal(authentication)
+                        .contentType("application/json")
+                        .content(longBody))
                 .andExpect(status().isBadRequest());
         String poolBody = mapper.writeValueAsString(java.util.Map.of(
                 "knowledgeBaseId",
@@ -155,7 +171,10 @@ class RagApiTests {
                 "VECTOR",
                 "retrievalParameters",
                 java.util.Map.of("vectorTopK", 1, "bm25TopK", 20, "rrfK", 60, "fusionTopK", 20, "finalTopK", 5)));
-        mvc.perform(post("/v1/chat/answers").contentType("application/json").content(poolBody))
+        mvc.perform(post("/v1/chat/answers")
+                        .principal(authentication)
+                        .contentType("application/json")
+                        .content(poolBody))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(retrieval);
     }

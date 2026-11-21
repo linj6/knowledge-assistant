@@ -13,11 +13,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.lnjecit.knowledge.assistant.auth.service.AuthPrincipal;
 import com.lnjecit.knowledge.assistant.infrastructure.web.ApiExceptionHandler;
 import com.lnjecit.knowledge.assistant.infrastructure.web.RequestIdFilter;
+import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;
 import com.lnjecit.knowledge.assistant.rag.RagService;
 import com.lnjecit.knowledge.assistant.rag.context.ContextBuilder;
 import com.lnjecit.knowledge.assistant.rag.context.ContextProperties;
+import com.lnjecit.knowledge.assistant.rag.controller.RagController;
 import com.lnjecit.knowledge.assistant.rag.generation.AnswerGenerator;
 import com.lnjecit.knowledge.assistant.retrieval.RetrievalService;
 import java.util.List;
@@ -29,6 +32,7 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 class RagReliabilityTests {
@@ -163,11 +167,13 @@ class RagReliabilityTests {
         }
         try {
             org.springframework.test.web.servlet.MockMvc mvc = MockMvcBuilders.standaloneSetup(
-                            new com.lnjecit.knowledge.assistant.rag.controller.RagController(service))
+                            new RagController(service, mock(KnowledgeBaseService.class)))
                     .setControllerAdvice(new ApiExceptionHandler())
                     .addFilters(new RequestIdFilter())
                     .build();
             org.springframework.test.web.servlet.ResultActions response = mvc.perform(post("/v1/chat/answers")
+                    .principal(UsernamePasswordAuthenticationToken.authenticated(
+                            new AuthPrincipal(1L, "owner"), null, List.of()))
                     .contentType("application/json")
                     .content("{\"knowledgeBaseId\":" + (scenario.equals("crossKb") ? 2 : 1)
                             + ",\"question\":\"QUESTION_PRIVATE\"}"));

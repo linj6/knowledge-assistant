@@ -7,20 +7,26 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.lnjecit.knowledge.assistant.auth.service.AuthPrincipal;
 import com.lnjecit.knowledge.assistant.infrastructure.web.ApiExceptionHandler;
 import com.lnjecit.knowledge.assistant.infrastructure.web.ApiJacksonConfiguration;
 import com.lnjecit.knowledge.assistant.infrastructure.web.RequestIdFilter;
+import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;
 import com.lnjecit.knowledge.assistant.retrieval.controller.RetrievalController;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import tools.jackson.databind.json.JsonMapper;
 
 class RetrievalApiTests {
     RetrievalServiceTests fixture;
+    private final Authentication authentication =
+            UsernamePasswordAuthenticationToken.authenticated(new AuthPrincipal(1L, "owner"), null, List.of());
     MockMvc mvc;
 
     @BeforeEach
@@ -29,7 +35,8 @@ class RetrievalApiTests {
         fixture.setup();
         JsonMapper.Builder builder = JsonMapper.builder();
         new ApiJacksonConfiguration().longAsString().customize(builder);
-        mvc = MockMvcBuilders.standaloneSetup(new RetrievalController(fixture.service))
+        mvc = MockMvcBuilders.standaloneSetup(
+                        new RetrievalController(fixture.service, org.mockito.Mockito.mock(KnowledgeBaseService.class)))
                 .setMessageConverters(new JacksonJsonHttpMessageConverter(builder.build()))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .addFilters(new RequestIdFilter())
@@ -53,6 +60,7 @@ class RetrievalApiTests {
                 .thenThrow(new IllegalStateException("connection detail token=fixture-token"));
         try {
             mvc.perform(post("/v1/retrieval/search")
+                            .principal(authentication)
                             .contentType("application/json")
                             .content(body("[\"VECTOR\",\"BM25\",\"HYBRID_RRF\",\"HYBRID_RERANK\"]", null)))
                     .andExpect(status().isOk())
@@ -100,6 +108,7 @@ class RetrievalApiTests {
         String request = body("[\"VECTOR\"]", null).replace("\"query\":\"query\"", "\"query\":\"" + secret + "\"");
         try {
             mvc.perform(post("/v1/retrieval/search")
+                            .principal(authentication)
                             .header("X-Request-Id", "safe-request")
                             .contentType("application/json")
                             .content(request))
@@ -109,6 +118,7 @@ class RetrievalApiTests {
                     .thenThrow(new IllegalStateException(
                             "EXCEPTION_SENTINEL API_KEY_SENTINEL PROVIDER_RESPONSE_SENTINEL 0.1234567"));
             String response = mvc.perform(post("/v1/retrieval/search")
+                            .principal(authentication)
                             .header("X-Request-Id", "safe-request")
                             .contentType("application/json")
                             .content(request))
@@ -163,6 +173,7 @@ class RetrievalApiTests {
     @Test
     void fullDiagnosticsAndStringIds() throws Exception {
         mvc.perform(post("/api/v1/retrieval/search")
+                        .principal(authentication)
                         .servletPath("/api")
                         .contentType("application/json")
                         .header("X-Request-Id", "retrieval-test")
@@ -190,6 +201,7 @@ class RetrievalApiTests {
     @Test
     void customParameters() throws Exception {
         mvc.perform(post("/v1/retrieval/search")
+                        .principal(authentication)
                         .contentType("application/json")
                         .content(body(
                                 "[\"BM25\"]",
@@ -215,6 +227,7 @@ class RetrievalApiTests {
                 body("[\"VECTOR\"]", null).replace("\"query\":\"query\"", "\"query\":\" \""),
                 body("[\"VECTOR\"]", null).replace("\"knowledgeBaseId\":1", "\"knowledgeBaseId\":0")))
             mvc.perform(post("/v1/retrieval/search")
+                            .principal(authentication)
                             .contentType("application/json")
                             .content(request))
                     .andExpect(status().isBadRequest())
@@ -227,7 +240,10 @@ class RetrievalApiTests {
         when(fixture.snapshots.read(1L))
                 .thenThrow(new com.lnjecit.knowledge.assistant.common.error.BusinessException(
                         com.lnjecit.knowledge.assistant.common.error.CommonErrorCode.KNOWLEDGE_BASE_NOT_FOUND));
-        mvc.perform(post("/v1/retrieval/search").contentType("application/json").content(body("[\"VECTOR\"]", null)))
+        mvc.perform(post("/v1/retrieval/search")
+                        .principal(authentication)
+                        .contentType("application/json")
+                        .content(body("[\"VECTOR\"]", null)))
                 .andExpect(status().isNotFound());
     }
 
@@ -235,6 +251,7 @@ class RetrievalApiTests {
     void failedStrategyStillReturnsSuccessfulEnvelope() throws Exception {
         when(fixture.embedding.embed("query")).thenThrow(new IllegalStateException("SECRET query body key"));
         mvc.perform(post("/v1/retrieval/search")
+                        .principal(authentication)
                         .contentType("application/json")
                         .content(body("[\"VECTOR\",\"BM25\"]", null)))
                 .andExpect(status().isOk())
