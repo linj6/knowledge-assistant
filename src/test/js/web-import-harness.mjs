@@ -1,5 +1,3 @@
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import fs from 'node:fs';
 const base = 'src/main/resources/static/js/';
@@ -62,21 +60,17 @@ class Element {
 export const tick = async () => {
     for (let i = 0; i < 15; i++) await Promise.resolve();
 };
-export async function setup() {
+export async function setup({ manualAuth = false, session = new Map() } = {}) {
+    const html = fs.readFileSync('src/main/resources/static/index.html', 'utf8');
     const elements = Object.fromEntries(
-        [
-            'evaluation',
-            'eval-load',
-            'eval-run',
-            'eval-content',
-            'knowledge',
-            'chat',
-            'retrieval',
-            'kb',
-            'status',
-            'reload',
-        ].map((id) => [id, new Element()]),
+        [...html.matchAll(/<([\w-]+)\b([^<>]*\bid="([^"]+)"[^<>]*)>/g)].map(([, , attributes, id]) => {
+            const element = new Element();
+            element.hidden = /\bhidden\b/.test(attributes);
+            return [id, element];
+        }),
     );
+    const authCalls = [];
+    let reloads = 0;
     const calls = [],
         timers = [],
         listeners = {};
@@ -110,7 +104,15 @@ export async function setup() {
             return id;
         },
         clearTimeout: (id) => pendingTimers.delete(id),
+        sessionStorage: {
+            getItem: (key) => session.get(key),
+            setItem: (key, value) => session.set(key, value),
+            removeItem: (key) => session.delete(key),
+        },
         location: {
+            reload() {
+                reloads++;
+            },
             href: 'http://localhost/api/index.html',
             origin: 'http://localhost',
             hash: '#knowledge',
@@ -129,8 +131,16 @@ export async function setup() {
                     : callback;
             },
         },
-        fetch: (url, options) =>
-            new Promise((resolve, reject) => calls.push({ url: String(url), options, resolve, reject })),
+        fetch: (url, options) => {
+            if (!manualAuth && url.pathname?.startsWith('/api/v1/auth/')) {
+                authCalls.push({ url: String(url), options });
+                const data = url.pathname.endsWith('/me')
+                    ? { id: '1', username: 'test_user' }
+                    : { headerName: 'X-CSRF-TOKEN', token: 'test-token' };
+                return Promise.resolve(response(data));
+            }
+            return new Promise((resolve, reject) => calls.push({ url: String(url), options, resolve, reject }));
+        },
     });
     const modules = {};
     async function module(name) {
@@ -152,22 +162,29 @@ export async function setup() {
         return result;
     };
     const button = (label) => all().find((el) => el.tag === 'button' && el.textContent === label);
-    const respond = async (index, data, status = 200) => {
-        calls[index].resolve({
+    function response(data, status = 200) {
+        return {
             ok: status < 400,
             status,
             headers: { get: () => 'test-id' },
             json: async () => ({ code: status < 400 ? 0 : 50000, data, requestId: 'test-id' }),
-        });
+        };
+    }
+    const respond = async (index, data, status) => {
+        calls[index].resolve(response(data, status));
         await tick();
     };
     const state = modules['state.js'].namespace;
     const kb = (id) => ({ id, name: '库' + id, description: null });
-    await respond(0, [kb('1'), kb('2')]);
+    await tick();
+    if (!manualAuth) await respond(0, [kb('1'), kb('2')]);
     const page = (number = 1, total = '0', items = []) => ({ page: number, pageSize: 20, total, items });
     return {
         elements,
         calls,
+        authCalls,
+        reloads: () => reloads,
+        request: modules['api.js'].namespace.request,
         timers,
         listeners,
         pendingTimers,

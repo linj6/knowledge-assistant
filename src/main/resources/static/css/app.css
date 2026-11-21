@@ -703,3 +703,33 @@ details[open] > summary {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
 }
+
+.auth-panel {
+    grid-column: 1 / -1;
+    align-self: center;
+    width: min(420px, calc(100% - 40px));
+    padding: 28px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+}
+
+.auth-panel input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #d7dce2;
+    border-radius: 8px;
+}
+
+.auth-panel .actions {
+    margin-top: 18px;
+}
+
+#auth-status,
+#logout-status {
+    color: #475467;
+}
+
+#logout-status:empty {
+    display: none;
+}

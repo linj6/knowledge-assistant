@@ -4,7 +4,8 @@ import { initializeChat } from './chat.js';
 import { initializeKnowledge } from './knowledge.js';
 import { ApiError, request } from './api.js';
 import { AppState, subscribe, updateState } from './state.js';
-const pages = ['chat', 'knowledge', 'retrieval', 'evaluation'];
+import { initializeAuth } from './auth.js';
+const pages = ['chat', 'knowledge', 'retrieval'];
 const selector = document.querySelector('#kb');
 const status = document.querySelector('#status');
 const reload = document.querySelector('#reload');
@@ -39,6 +40,7 @@ selector.addEventListener('change', () => {
 let generation = 0;
 let selectionRevision = 0;
 async function loadKnowledgeBases(preferredId, expectedRevision = selectionRevision) {
+    if (!AppState.user) return false;
     const revision = selectionRevision;
     const current = ++generation;
     reload.disabled = true;
@@ -125,4 +127,7 @@ initializeKnowledge(loadKnowledgeBases, () => selectionRevision);
 initializeChat();
 initializeRetrieval();
 navigate();
-loadKnowledgeBases();
+initializeAuth(loadKnowledgeBases, () => {
+    generation++;
+    selector.replaceChildren();
+});

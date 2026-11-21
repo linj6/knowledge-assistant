@@ -7,13 +7,28 @@
         <link href="./css/app.css" rel="stylesheet" />
     </head>
     <body>
-        <aside>
+        <section id="auth" class="auth-panel" aria-labelledby="auth-title">
+            <p class="eyebrow">Knowledge Assistant</p>
+            <h1 id="auth-title">正在确认登录状态</h1>
+            <p id="auth-status" role="status" aria-live="polite"></p>
+            <button id="auth-retry" type="button" hidden>重试连接</button>
+            <form id="auth-form" hidden aria-describedby="auth-status">
+                <label for="auth-username">用户名</label>
+                <input id="auth-username" autocomplete="username" required />
+                <label for="auth-password">密码</label>
+                <input id="auth-password" type="password" autocomplete="current-password" required />
+                <div class="actions">
+                    <button id="auth-submit" type="submit">登录</button>
+                    <button id="auth-toggle" type="button">注册账号</button>
+                </div>
+            </form>
+        </section>
+        <aside id="workspace-nav" hidden>
             <strong> Knowledge Assistant </strong>
             <p>让知识，成为答案。</p>
             <details open="">
                 <summary>功能导航</summary>
                 <nav aria-label="主导航">
-                    <a href="#evaluation">评估工作台</a>
                     <a href="#chat"> AI 问答 </a>
                     <a href="#knowledge"> 知识库 </a>
                     <a href="#retrieval"> 检索实验室 </a>
@@ -21,8 +36,13 @@
             </details>
             <small> 个人知识工作空间 </small>
         </aside>
-        <main>
+        <main id="workspace" hidden>
             <header>
+                <div class="actions">
+                    <span id="current-user" tabindex="-1"></span>
+                    <button id="logout" type="button">退出登录</button>
+                </div>
+                <p id="logout-status" role="status"></p>
                 <label for="kb"> 当前知识库 </label>
                 <select disabled="" id="kb">
                     <option>正在加载…</option>

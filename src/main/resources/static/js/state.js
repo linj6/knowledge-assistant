@@ -1,4 +1,5 @@
 export const AppState = {
+    user: null,
     activePage: 'chat',
     selectedKnowledgeBaseId: '',
     knowledgeBases: [],
