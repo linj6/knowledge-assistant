@@ -41,7 +41,7 @@ class WebStaticResourcesTests {
         @Bean
         KnowledgeBaseService knowledgeBases() {
             KnowledgeBaseService service = mock(KnowledgeBaseService.class);
-            when(service.list()).thenReturn(List.of());
+            when(service.list(42L)).thenReturn(List.of());
             return service;
         }
 

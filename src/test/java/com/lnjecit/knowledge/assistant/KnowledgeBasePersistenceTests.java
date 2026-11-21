@@ -39,8 +39,8 @@ class KnowledgeBasePersistenceTests {
                 "--assistant.rerank.enabled=false")) {
             KnowledgeBaseService service = context.getBean(KnowledgeBaseService.class);
             JdbcTemplate jdbc = new JdbcTemplate(context.getBean(DataSource.class));
-            assertThat(service.list()).isEmpty();
-            KnowledgeBase first = service.create(" Java ", " 说明 ");
+            assertThat(service.list(42L)).isEmpty();
+            KnowledgeBase first = service.create(42L, " Java ", " 说明 ");
             assertThat(first.getId()).isPositive();
             assertThat(first.getCreatedAt()).isNotNull();
             java.time.Instant savedAt = jdbc.queryForObject(
@@ -51,28 +51,30 @@ class KnowledgeBasePersistenceTests {
             // PostgreSQL 以微秒保存，JDBC 可能对应用的纳秒部分舍入。
             assertThat(java.time.Duration.between(first.getCreatedAt(), savedAt).abs())
                     .isLessThan(java.time.Duration.ofNanos(1000));
-            assertThat(service.get(first.getId()).getName()).isEqualTo("Java");
+            assertThat(service.requireOwned(first.getId(), 42L).getName()).isEqualTo("Java");
             assertThat(jdbc.queryForObject(
                             "SELECT description FROM knowledge_base WHERE id=?", String.class, first.getId()))
                     .isEqualTo("说明");
-            KnowledgeBase second = service.create("Java", null);
+            KnowledgeBase second = service.create(42L, "Java", null);
             assertThat(second.getId()).isNotEqualTo(first.getId());
             jdbc.update("UPDATE knowledge_base SET created_at='2026-01-01T00:00:00Z'");
-            assertThat(service.list())
+            assertThat(service.list(42L))
                     .extracting(KnowledgeBase::getId)
                     .containsExactlyElementsOf(java.util.stream.Stream.of(first.getId(), second.getId())
                             .sorted()
                             .toList());
             jdbc.update("UPDATE knowledge_base SET created_at='2025-01-01T00:00:00Z' WHERE id=?", second.getId());
-            assertThat(service.list()).extracting(KnowledgeBase::getId).containsExactly(second.getId(), first.getId());
+            assertThat(service.list(42L))
+                    .extracting(KnowledgeBase::getId)
+                    .containsExactly(second.getId(), first.getId());
             assertThatThrownBy(() -> service.get(1L)).isInstanceOf(BusinessException.class);
             // 临时测试约束模拟真实数据库拒绝插入，不改变迁移或制造多表事务。
             jdbc.execute("ALTER TABLE knowledge_base ADD CONSTRAINT test_reject CHECK (name <> '拒绝')");
-            assertThatThrownBy(() -> service.create("拒绝", null))
+            assertThatThrownBy(() -> service.create(42L, "拒绝", null))
                     .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
             assertThat(jdbc.queryForObject("SELECT count(*) FROM knowledge_base", Integer.class))
                     .isEqualTo(2);
-            assertThat(service.create("恢复", null).getId()).isPositive();
+            assertThat(service.create(42L, "恢复", null).getId()).isPositive();
             // 使用真实嵌入式服务器验证 YAML servlet 前缀、MVC Long 绑定和自动配置的 Jackson。
             int port = ((org.springframework.boot.web.server.context.WebServerApplicationContext) context)
                     .getWebServer()

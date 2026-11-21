@@ -63,6 +63,66 @@ class AuthBusinessHttpTests {
         assertThat(response.headers().firstValue("X-Request-Id")).contains("auth03-test");
     }
 
+    private String createKnowledgeBase(
+            ConfigurableApplicationContext app, String session, String name, long suppliedUserId) throws Exception {
+        String csrf = token(send(app, "GET", "auth/csrf", session, null, null));
+        HttpResponse<String> created = send(
+                app,
+                "POST",
+                "knowledge-bases",
+                session,
+                csrf,
+                json.writeValueAsString(java.util.Map.of("name", name, "userId", suppliedUserId)));
+        assertThat(created.statusCode()).isEqualTo(201);
+        return json.readTree(created.body()).path("data").path("id").asString();
+    }
+
+    private void assertOwnedKnowledgeBases(ConfigurableApplicationContext app, String session, String expectedId)
+            throws Exception {
+        HttpResponse<String> list = send(app, "GET", "knowledge-bases", session, null, null);
+        assertThat(list.statusCode()).isEqualTo(200);
+        tools.jackson.databind.JsonNode data = json.readTree(list.body()).path("data");
+        assertThat(data.size()).isEqualTo(1);
+        assertThat(data.path(0).path("id").asString()).isEqualTo(expectedId);
+    }
+
+    private void verifyKnowledgeBaseOwnership(
+            ConfigurableApplicationContext app, JdbcTemplate jdbc, String aliceSession) throws Exception {
+        String credentials = "{\"username\":\"bob\",\"password\":\"secret123\"}";
+        HttpResponse<String> csrf = send(app, "GET", "auth/csrf", null, null, null);
+        String anonymous = cookie(csrf);
+        assertThat(send(app, "POST", "auth/register", anonymous, token(csrf), credentials)
+                        .statusCode())
+                .isEqualTo(200);
+        HttpResponse<String> login = send(app, "POST", "auth/login", anonymous, token(csrf), credentials);
+        assertThat(login.statusCode()).isEqualTo(200);
+        String bobSession = cookie(login);
+        long aliceId = jdbc.queryForObject("SELECT id FROM app_user WHERE username='alice'", Long.class);
+        long bobId = jdbc.queryForObject("SELECT id FROM app_user WHERE username='bob'", Long.class);
+        String aliceKb = createKnowledgeBase(app, aliceSession, "Alice KB", bobId);
+        String bobKb = createKnowledgeBase(app, bobSession, "Bob KB", aliceId);
+        assertThat(jdbc.queryForObject(
+                        "SELECT owner_user_id FROM knowledge_base WHERE id=?", Long.class, Long.valueOf(aliceKb)))
+                .isEqualTo(aliceId);
+        assertThat(jdbc.queryForObject(
+                        "SELECT owner_user_id FROM knowledge_base WHERE id=?", Long.class, Long.valueOf(bobKb)))
+                .isEqualTo(bobId);
+        jdbc.update("INSERT INTO knowledge_base(id, name, created_at) VALUES (1, 'Legacy', CURRENT_TIMESTAMP)");
+
+        assertOwnedKnowledgeBases(app, aliceSession, aliceKb);
+        assertOwnedKnowledgeBases(app, bobSession, bobKb);
+        assertThat(send(app, "GET", "knowledge-bases/" + aliceKb, aliceSession, null, null)
+                        .statusCode())
+                .isEqualTo(200);
+        for (String inaccessibleId : java.util.List.of(bobKb, "1", "2")) {
+            HttpResponse<String> detail =
+                    send(app, "GET", "knowledge-bases/" + inaccessibleId, aliceSession, null, null);
+            assertThat(detail.statusCode()).isEqualTo(404);
+            assertThat(json.readTree(detail.body()).path("code").asInt()).isEqualTo(40401);
+        }
+        error(send(app, "GET", "knowledge-bases", anonymous, null, null), 401);
+    }
+
     @Test
     void realLoginAcrossApplications() throws Exception {
         try (PostgreSQLContainer pg = new PostgreSQLContainer(DockerImageName.parse(
@@ -160,6 +220,7 @@ class AuthBusinessHttpTests {
                         .isTrue();
                 error(send(second, "POST", "auth/logout", authenticated, null, null), 403);
                 error(send(second, "POST", "auth/logout", authenticated, token, null), 403);
+                verifyKnowledgeBaseOwnership(second, jdbc, authenticated);
                 String fresh = token(send(second, "GET", "auth/csrf", authenticated, null, null));
                 HttpResponse<String> logout = send(second, "POST", "auth/logout", authenticated, fresh, null);
                 assertThat(logout.statusCode()).isEqualTo(200);

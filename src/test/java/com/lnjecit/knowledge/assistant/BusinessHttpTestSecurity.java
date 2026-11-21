@@ -1,5 +1,6 @@
 package com.lnjecit.knowledge.assistant;
 
+import com.lnjecit.knowledge.assistant.auth.service.AuthPrincipal;
 import com.lnjecit.knowledge.assistant.infrastructure.web.CsrfController;
 import com.lnjecit.knowledge.assistant.infrastructure.web.RequestIdFilter;
 import com.lnjecit.knowledge.assistant.infrastructure.web.SecurityConfiguration;
@@ -48,7 +49,9 @@ public class BusinessHttpTestSecurity {
         session.setAttribute(
                 HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
                 new SecurityContextImpl(UsernamePasswordAuthenticationToken.authenticated(
-                        "business-test-user", null, AuthorityUtils.createAuthorityList("ROLE_USER"))));
+                        new AuthPrincipal(42L, "business-test-user"),
+                        null,
+                        AuthorityUtils.createAuthorityList("ROLE_USER"))));
         repository.save(session);
         String cookie =
                 "SESSION=" + Base64.getEncoder().encodeToString(session.getId().getBytes(StandardCharsets.UTF_8));

@@ -307,7 +307,7 @@ class IngestionPipelineIT extends ElasticsearchIT {
                 calls.clear();
                 requested.clear();
                 long kb = c.getBean(KnowledgeBaseService.class)
-                        .create("pipeline-" + extension, null)
+                        .create(42L, "pipeline-" + extension, null)
                         .getId();
                 String source = "# 中文知识库 Spring Boot " + extension + "\n\n"
                         + java.util.stream.IntStream.range(0, 160)
@@ -622,7 +622,7 @@ class IngestionPipelineIT extends ElasticsearchIT {
                 }
 
                 long otherKb = c.getBean(KnowledgeBaseService.class)
-                        .create("isolated-" + extension, null)
+                        .create(42L, "isolated-" + extension, null)
                         .getId();
                 mvc.perform(multipart("/v1/knowledge-bases/{id}/documents:import", otherKb)
                                 .file(file))

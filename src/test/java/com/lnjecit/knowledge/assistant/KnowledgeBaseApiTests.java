@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.lnjecit.knowledge.assistant.auth.service.AuthPrincipal;
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
 import com.lnjecit.knowledge.assistant.infrastructure.web.ApiExceptionHandler;
@@ -21,6 +22,8 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import tools.jackson.databind.json.JsonMapper;
@@ -35,6 +38,8 @@ class KnowledgeBaseApiTests {
         JsonMapper.Builder builder = JsonMapper.builder();
         new ApiJacksonConfiguration().longAsString().customize(builder);
         mvc = MockMvcBuilders.standaloneSetup(new KnowledgeBaseController(service))
+                .defaultRequest(get("/").principal(UsernamePasswordAuthenticationToken.authenticated(
+                        new AuthPrincipal(42L, "alice"), null, AuthorityUtils.NO_AUTHORITIES)))
                 .setMessageConverters(new JacksonJsonHttpMessageConverter(builder.build()))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .addFilters(new RequestIdFilter())
@@ -47,8 +52,8 @@ class KnowledgeBaseApiTests {
         entity.setId(9007199254740993L);
         entity.setName("Java");
         entity.setDescription("说明");
-        when(service.create("Java", "说明")).thenReturn(entity);
-        when(service.get(entity.getId())).thenReturn(entity);
+        when(service.create(42L, "Java", "说明")).thenReturn(entity);
+        when(service.requireOwned(entity.getId(), 42L)).thenReturn(entity);
         mvc.perform(post("/v1/knowledge-bases")
                         .contentType("application/json")
                         .content("{\"name\":\" Java \",\"description\":\" 说明 \"}"))
@@ -71,8 +76,8 @@ class KnowledgeBaseApiTests {
         KnowledgeBase entity = new KnowledgeBase();
         entity.setId(1L);
         entity.setName("a".repeat(100));
-        when(service.create("a".repeat(100), "d".repeat(1000))).thenReturn(entity);
-        when(service.create("a".repeat(100), null)).thenReturn(entity);
+        when(service.create(42L, "a".repeat(100), "d".repeat(1000))).thenReturn(entity);
+        when(service.create(42L, "a".repeat(100), null)).thenReturn(entity);
         mvc.perform(post("/v1/knowledge-bases")
                         .contentType("application/json")
                         .content("{\"name\":\" " + "a".repeat(100) + " \",\"description\":\" " + "d".repeat(1000)
@@ -82,7 +87,7 @@ class KnowledgeBaseApiTests {
                         .contentType("application/json")
                         .content("{\"name\":\"" + "a".repeat(100) + "\"}"))
                 .andExpect(status().isCreated());
-        when(service.list()).thenReturn(List.of(entity));
+        when(service.list(42L)).thenReturn(List.of(entity));
         mvc.perform(get("/v1/knowledge-bases"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].id").isString())
@@ -119,7 +124,7 @@ class KnowledgeBaseApiTests {
 
     @Test
     void notFound() throws Exception {
-        when(service.get(1L)).thenThrow(new BusinessException(CommonErrorCode.KNOWLEDGE_BASE_NOT_FOUND));
+        when(service.requireOwned(1L, 42L)).thenThrow(new BusinessException(CommonErrorCode.KNOWLEDGE_BASE_NOT_FOUND));
         mvc.perform(get("/v1/knowledge-bases/1"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(40401))
@@ -128,7 +133,7 @@ class KnowledgeBaseApiTests {
 
     @Test
     void emptyList() throws Exception {
-        when(service.list()).thenReturn(List.of());
+        when(service.list(42L)).thenReturn(List.of());
         mvc.perform(get("/v1/knowledge-bases"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isEmpty());
@@ -136,7 +141,7 @@ class KnowledgeBaseApiTests {
 
     @Test
     void databaseFailureIsSafe() throws Exception {
-        when(service.create("a", null))
+        when(service.create(42L, "a", null))
                 .thenThrow(new org.springframework.dao.DataAccessResourceFailureException("SECRET SQL"));
         mvc.perform(post("/v1/knowledge-bases").contentType("application/json").content("{\"name\":\"a\"}"))
                 .andExpect(status().isInternalServerError())

@@ -15,15 +15,23 @@ public class KnowledgeBaseService {
         this.repository = repository;
     }
 
-    public KnowledgeBase create(String name, String description) {
+    public KnowledgeBase create(long ownerUserId, String name, String description) {
         // 单次 INSERT 由数据库保证原子性，异常交由统一处理器处理。
-        return repository.create(name.strip(), description == null ? null : description.strip());
+        return repository.create(ownerUserId, name.strip(), description == null ? null : description.strip());
     }
 
-    public List<KnowledgeBase> list() {
-        return repository.findAll();
+    public List<KnowledgeBase> list(long ownerUserId) {
+        return repository.findAllByOwner(ownerUserId);
     }
 
+    /** 用户访问知识库时校验所有权，未绑定的历史知识库视为不存在。 */
+    public KnowledgeBase requireOwned(Long id, long ownerUserId) {
+        KnowledgeBase entity = repository.findByIdAndOwner(id, ownerUserId);
+        if (entity == null) throw new BusinessException(CommonErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
+        return entity;
+    }
+
+    /** 供内部业务按 ID 检查知识库是否存在。 */
     public KnowledgeBase get(Long id) {
         KnowledgeBase entity = repository.find(id);
         if (entity == null) throw new BusinessException(CommonErrorCode.KNOWLEDGE_BASE_NOT_FOUND);

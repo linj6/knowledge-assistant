@@ -90,7 +90,7 @@ class ImportPersistenceTests {
                 "--assistant.model.embedding-model=text-embedding-v4",
                 "--assistant.model.dimensions=1024")) {
             Long kb = context.getBean(KnowledgeBaseService.class)
-                    .create("http", null)
+                    .create(42L, "http", null)
                     .getId();
             int port = ((org.springframework.boot.web.server.context.WebServerApplicationContext) context)
                     .getWebServer()
@@ -145,8 +145,8 @@ class ImportPersistenceTests {
             TestStore store = context.getBean(TestStore.class);
             JdbcTemplate jdbc = new JdbcTemplate(context.getBean(DataSource.class));
             KnowledgeBaseService knowledge = context.getBean(KnowledgeBaseService.class);
-            Long kb = knowledge.create("one", null).getId();
-            Long other = knowledge.create("two", null).getId();
+            Long kb = knowledge.create(42L, "one", null).getId();
+            Long other = knowledge.create(42L, "two", null).getId();
             byte[] bytes = new byte[] {(byte) 0xef, (byte) 0xbb, (byte) 0xbf, 65};
             DocumentImportService.Outcome first = service.receive(kb, ImportTests.file("a.md", bytes));
             assertThat(first.duplicate()).isFalse();

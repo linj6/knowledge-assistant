@@ -205,7 +205,7 @@ class StorageImportIT {
             assertThat(j.queryForObject("SELECT extversion FROM pg_extension WHERE extname='vector'", String.class))
                     .isEqualTo("0.8.0");
             long kb = c.getBean(KnowledgeBaseService.class)
-                    .create("storage", null)
+                    .create(42L, "storage", null)
                     .getId();
             PlatformTransactionManager manager = c.getBean(PlatformTransactionManager.class);
             FaultStore store = new FaultStore(real);
