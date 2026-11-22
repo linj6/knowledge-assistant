@@ -124,7 +124,7 @@ class AuthMigrationTests {
                 "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'active','test','ACTIVE'),(2,'disabled','test','DISABLED'),(3,'other','test','ACTIVE')");
         jdbc.execute("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES (101,'free',NULL),(102,'owned',3)");
         String document =
-                java.nio.file.Files.readString(java.nio.file.Path.of("docs/operations/auth-01-owner-binding.md"));
+                java.nio.file.Files.readString(java.nio.file.Path.of("docs/archive/v1-development/operations/auth-01-owner-binding.md"));
         String transaction = document.split("```sql")[2].split("```")[0];
         String setup = transaction.substring(transaction.indexOf("LOCK TABLE"), transaction.indexOf("-- 人工填入"));
         String operation = transaction.substring(

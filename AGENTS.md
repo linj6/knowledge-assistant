@@ -10,12 +10,12 @@ Knowledge Assistant 是基于 Java / Spring AI 的个人知识管理与 RAG 问�
 
 ## 权威文档
 
-- 产品需求：[Product Spec](docs/product/product-spec.md)。
-- 架构决策：[Architecture Spec](docs/architecture/architecture.md)。
-- 开发顺序：[Implementation Plan](docs/plans/implementation-plan.md)。
-- 具体代码风格：[Code Style](docs/engineering/code-style.md)。
-- 单次任务模板：[Codex Task Template](docs/plans/codex-task-template.md)。
-- 模型能力及验证边界：[Model Capability Report](docs/engineering/model-capability-report.md)。
+- 产品需求：[Product Spec](docs/archive/v1-development/product/product-spec.md)。
+- 架构决策：[Architecture Spec](docs/archive/v1-development/architecture/architecture.md)。
+- 开发顺序：[Implementation Plan](docs/archive/v1-development/plans/implementation-plan.md)。
+- 具体代码风格：[Code Style](docs/archive/v1-development/engineering/code-style.md)。
+- 单次任务模板：[Codex Task Template](docs/archive/v1-development/plans/codex-task-template.md)。
+- 模型能力及验证边界：[Model Capability Report](docs/archive/v1-development/engineering/model-capability-report.md)。
 
 单次任务以用户当前明确授权的范围为准。文档冲突或与实际代码版本不一致时，先报告冲突，不擅自修改冻结文档。已知差异：Architecture Spec 的 Spring Boot 3.x 与当前 pom.xml 的 4.1.2 不一致；模型报告的默认 clean verify 说明不作为每次任务的验证要求，按下述影响范围执行。
 

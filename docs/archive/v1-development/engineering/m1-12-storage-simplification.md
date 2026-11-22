@@ -24,7 +24,7 @@ MinIO调用均在PG事务外，receive明确拒绝外层事务，内部Transacti
 
 使用单Bucket，不创建第二Bucket。固定服务器镜像 `knowledge-assistant-minio:RELEASE.2025-09-07T16-13-09Z-local`，实际server `RELEASE.2025-09-07T16-13-09Z`；内置mc实际 `RELEASE.2025-08-13T08-35-41Z`，已运行帮助检查其支持 `ilm rule add --prefix --expire-days`。
 
-新增 [配置脚本](../../infra/minio/configure-staging-ilm.py) 和 [部署/人工核对说明](../../infra/minio/README.md)，根目录执行：
+新增 [配置脚本](../../../../infra/minio/configure-staging-ilm.py) 和 [部署/人工核对说明](../../../../infra/minio/README.md)，根目录执行：
 
 ```powershell
 python infra/minio/configure-staging-ilm.py --bucket knowledge-assistant

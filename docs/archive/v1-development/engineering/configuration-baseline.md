@@ -67,7 +67,7 @@ M1-12 替代 M1-09 的120秒租约现状及历史续租规划。统一由 Worker
 
 所有时长均为整毫秒，范围为1毫秒至365天。失败只保存固定安全码及描述，未知 RuntimeException 不自动重试。过期任务仅恢复不同 owner，未耗尽次数时安排同一退避策略；恢复本身不递增执行次数，重新领取递增 attempt_count 和 claim_epoch。
 
-不自动续租、不强制终止线程、不提供跨进程 fencing。部署必须保证单 Worker，重启前确认旧执行进程已停止。上传在同一Bucket中使用唯一 staging/ 和 originals/ Key，服务端复制后短PG事务只保存正式Key；PG异常先查引用再补偿，查询失败保留并告警。staging/ 的原生ILM过期天数为2，不在应用配置Worker扫描参数；原三个orphan扫描参数已删除。规则部署、检查及历史正式对象人工核对见 [MinIO部署](../../infra/minio/README.md)。
+不自动续租、不强制终止线程、不提供跨进程 fencing。部署必须保证单 Worker，重启前确认旧执行进程已停止。上传在同一Bucket中使用唯一 staging/ 和 originals/ Key，服务端复制后短PG事务只保存正式Key；PG异常先查引用再补偿，查询失败保留并告警。staging/ 的原生ILM过期天数为2，不在应用配置Worker扫描参数；原三个orphan扫描参数已删除。规则部署、检查及历史正式对象人工核对见 [MinIO部署](../../../../infra/minio/README.md)。
 
 实际验证与未验证边界见 [M1-12 验收](m1-12-verification.md)。M1-12 不接入真实导入链路，完整 E2E 留待 M1-13。
 存储现状以 [M1-12存储简化](m1-12-storage-simplification.md) 为准；不再提供应用层定时扫描。

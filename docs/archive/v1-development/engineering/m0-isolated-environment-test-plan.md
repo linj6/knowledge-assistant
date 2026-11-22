@@ -8,7 +8,7 @@
 
 历史环境为 Windows 11 amd64、Docker Desktop 4.69.0、Engine 29.4.0/API 1.54、Linux amd64；Java 21、Maven 3.9.16，Testcontainers 2.0.5/docker-java 3.7.1。当前机器、虚拟化能力、剩余资源与权限均未重新实查。
 
-依据：[README](../../README.md)、[实施计划](../plans/implementation-plan.md)、[兼容矩阵](compatibility-matrix.md)、[基础设施历史记录](m0-03-infrastructure-verification.md)、[07 设计](m0-07-test-design.md)、[07B 记录](m0-07b-verification.md)、[M0 报告](m0-verification-report.md)、[配置基线](configuration-baseline.md)。历史失败不因后续本机成功而消失。
+依据：[README](../../../../README.md)、[实施计划](../plans/implementation-plan.md)、[兼容矩阵](compatibility-matrix.md)、[基础设施历史记录](m0-03-infrastructure-verification.md)、[07 设计](m0-07-test-design.md)、[07B 记录](m0-07b-verification.md)、[M0 报告](m0-verification-report.md)、[配置基线](configuration-baseline.md)。历史失败不因后续本机成功而消失。
 
 | 镜像 | 版本与已知身份 | 来源、构建输入及归档现状 |
 |---|---|---|
@@ -17,9 +17,9 @@
 | MinIO | knowledge-assistant-minio:RELEASE.2025-09-07T16-13-09Z-local；ID sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e；commit 07c3a429bfed433e49018cb0f78a52145d4bedeb | 历史本机 minio/minio:latest 核验版本后固定项目标签，并非允许以后回退 latest。历史归档 C:/Users/mi/ka-infrastructure-artifacts/minio-RELEASE.2025-09-07T16-13-09Z.tar；SHA256 033da3bb0531f4b071310c1ad44cade4017e694ec554dc482d6da38f01fbcd33；当前文件存在性及重新校验未知 |
 | Ryuk | testcontainers/ryuk:0.14.0；历史 ID 前缀7c1a8a9a47c7 | Testcontainers 辅助镜像，07B 曾发生隐式下载，随后配置全局禁止拉取策略；无完整 ID、可信 digest、归档路径或归档哈希记录 |
 
-ES Dockerfile 与 [Compose](../../compose.yaml) 已读。IK 输入为 https://release.infinilabs.com/analysis-ik/stable/elasticsearch-analysis-ik-8.18.0.zip ，SHA256 为 3ff14b395289ad8e00e310b6514902512be43b63c7ac73cf9db92790e556b206。当前 Dockerfile 基础镜像仍按标签引用，历史本地 manifest list 曾因 provenance 改变；构建输入可追踪不等于位级可重复构建。后续恢复优先使用核验后的完整最终镜像归档，恢复阶段不构建或下载 IK。
+ES Dockerfile 与 [Compose](../../../../compose.yaml) 已读。IK 输入为 https://release.infinilabs.com/analysis-ik/stable/elasticsearch-analysis-ik-8.18.0.zip ，SHA256 为 3ff14b395289ad8e00e310b6514902512be43b63c7ac73cf9db92790e556b206。当前 Dockerfile 基础镜像仍按标签引用，历史本地 manifest list 曾因 provenance 改变；构建输入可追踪不等于位级可重复构建。后续恢复优先使用核验后的完整最终镜像归档，恢复阶段不构建或下载 IK。
 
-[LocalImagePullPolicy](../../src/test/java/com/lnjecit/knowledge/assistant/LocalImagePullPolicy.java) 的 shouldPull 恒 false；[测试配置](../../src/test/resources/testcontainers.properties) 设置 pull.policy，三个业务 IT 另有 withImagePullPolicy(image -> false)。[POM](../../pom.xml) 默认 Failsafe 白名单为 DatabaseIT、ElasticsearchIT、MinioIT，failIfNoTests=true。静态配置不能替代负面实测。
+[LocalImagePullPolicy](../../../../src/test/java/com/lnjecit/knowledge/assistant/LocalImagePullPolicy.java) 的 shouldPull 恒 false；[测试配置](../../../../src/test/resources/testcontainers.properties) 设置 pull.policy，三个业务 IT 另有 withImagePullPolicy(image -> false)。[POM](../../../../pom.xml) 默认 Failsafe 白名单为 DatabaseIT、ElasticsearchIT、MinioIT，failIfNoTests=true。静态配置不能替代负面实测。
 
 镜像标签是可变引用；image ID 是镜像配置内容身份，Registry digest 是清单或索引身份，tar SHA256 是交付文件身份，三者不能互换。docker save/load 是否保留测试需要的 digest 引用必须实测，不能只验证标签可见。
 

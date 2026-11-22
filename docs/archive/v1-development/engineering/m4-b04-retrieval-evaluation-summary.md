@@ -4,7 +4,7 @@
 
 基线 `feature/m4-rag-evaluation` / `2cbebb29b0dfbc73eb35e14d6e1329728038e967`，起始工作区干净。本轮仅整合冻结结果，不改变生产代码、Gold、候选或标签。
 
-权威输入：[B02 验收](m4-b02-evidence-metrics-acceptance.md)、[B03 验收](m4-b03-ranking-evaluation-report.md)、[B03 原始精度归档](m4-b03-frozen-ranking-evaluation.json)、[人工语义记录](m4-02-retrieval-comparison-report.md#最终人工语义复核)及 [Fixture](../../src/test/resources/retrieval-metrics-v1.json)。已有 EvidenceMetrics / RankingMetrics 和冻结入口足够，无需新增计算代码或机器汇总副本。
+权威输入：[B02 验收](m4-b02-evidence-metrics-acceptance.md)、[B03 验收](m4-b03-ranking-evaluation-report.md)、[B03 原始精度归档](../../../engineering/m4-b03-frozen-ranking-evaluation.json)、[人工语义记录](m4-02-retrieval-comparison-report.md#最终人工语义复核)及 [Fixture](../../../../src/test/resources/retrieval-metrics-v1.json)。已有 EvidenceMetrics / RankingMetrics 和冻结入口足够，无需新增计算代码或机器汇总副本。
 
 Evidence Recall、CEC、Hit、MRR、CCR 沿用 SourceSpan 并集算法；Recall 是逐题必要 Evidence 覆盖比例的宏平均。Precision 沿用 relevance≥2、固定 K 分母；Pooled nDCG 沿用池内 IDCG。Semantic Complete Coverage 只从历史 C/P/M 人工标签计数，绝不从 SourceSpan 推导。所有小数 HALF_EVEN 三位，先汇总后舍入；原始 double 及逐题结果完整保留在归档，B02 精确分子保留于验收记录（包括 MRR 53/80=0.6625）。
 

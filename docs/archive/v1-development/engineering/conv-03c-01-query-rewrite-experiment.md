@@ -4,7 +4,7 @@
 
 ## 样本与来源
 
-历史按时间从旧到新排列。每行「问 → 答」为一个 HistoryTurn，`／` 分隔历史轮次。历史是固定实验输入，当前问题是 A 组的完整原始 Query。Gold 栏的 Q 编号指向 [M4 Gold 协议](m4-02c1-gold-protocol.json) 的同名条目，包含来源路径、SHA-256、Evidence ID 和区间。对应原文摘录及必要答案事实见 [M4 原文证据](m4-01-gold-evidence.json)。
+历史按时间从旧到新排列。每行「问 → 答」为一个 HistoryTurn，`／` 分隔历史轮次。历史是固定实验输入，当前问题是 A 组的完整原始 Query。Gold 栏的 Q 编号指向 [M4 Gold 协议](../../../engineering/m4-02c1-gold-protocol.json) 的同名条目，包含来源路径、SHA-256、Evidence ID 和区间。对应原文摘录及必要答案事实见 [M4 原文证据](../../../engineering/m4-01-gold-evidence.json)。
 
 | caseId | 历史（问 → 答） | 原始问题 | 预期意图与人工核对 | Gold |
 | --- | --- | --- | --- | --- |

@@ -14,7 +14,7 @@ TaskFailure 使用固定安全码：NOT_FOUND、NOT_CLAIMABLE、OWNERSHIP_INVALI
 
 ## SQL、事务和锁顺序
 
-全部新业务 SQL 位于 [TaskMapper.xml](../../src/main/resources/mapper/ingestion/TaskMapper.xml)，Java Mapper 不含 SQL。领取由 Service 的 REQUIRES_NEW 短事务包围：
+全部新业务 SQL 位于 [TaskMapper.xml](../../../../src/main/resources/mapper/ingestion/TaskMapper.xml)，Java Mapper 不含 SQL。领取由 Service 的 REQUIRES_NEW 短事务包围：
 
 ```sql
 SELECT * FROM document_import_task

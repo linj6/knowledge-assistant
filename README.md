@@ -1,6 +1,6 @@
 # Knowledge Assistant
 
-当前为 Java 21、Spring Boot 4.1.2、Spring AI 2.0.2 的单 Maven 模块工程。M0-01～M0-07 已有实现与验证记录；M0-01、M0-03、M0-07 仍为部分验证，M0 尚未完全验收。详见 [M0 验收报告](docs/engineering/m0-verification-report.md)。M1 导入、M2 检索及 M3 单轮 RAG 已实现；M4 系统评估尚未完成，详见 [M3 最终验收](docs/engineering/m3-final-acceptance.md)。
+当前为 Java 21、Spring Boot 4.1.2、Spring AI 2.0.2 的单 Maven 模块工程。M0-01～M0-07 已有实现与验证记录；M0-01、M0-03、M0-07 仍为部分验证，M0 尚未完全验收。详见 [M0 验收报告](docs/archive/v1-development/engineering/m0-verification-report.md)。M1 导入、M2 检索及 M3 单轮 RAG 已实现；M4 系统评估尚未完成，详见 [M3 最终验收](docs/archive/v1-development/engineering/m3-final-acceptance.md)。
 
 使用 JDK 21 和 Maven 3.9（本机验证版本 3.9.16）：
 
@@ -46,7 +46,7 @@ PG/ES/S3/MinIO Console 分别绑定本机 5432/9200/9000/9001。服务共享项�
 应用已配置 PostgreSQL 与 Flyway；ES/MinIO 已有容器功能探针，M1 业务接入已有实现。修改 PG 初始化凭据不会修改已有卷中的数据库密码。
 停止保留卷；不要使用 `down -v`，该命令会删除数据。备份应在升级或主动删除卷之前完成。
 ES 关闭认证仅用于本地单节点开发；生产需要认证、TLS、权限与独立安全设计。
-MinIO 历史远端获取失败保留原记录；固定本地镜像运行、对象读写及重启持久化已验证，空白隔离环境恢复仍未验证。见 [验证记录](docs/engineering/m0-03-infrastructure-verification.md)。
+MinIO 历史远端获取失败保留原记录；固定本地镜像运行、对象读写及重启持久化已验证，空白隔离环境恢复仍未验证。见 [验证记录](docs/archive/v1-development/engineering/m0-03-infrastructure-verification.md)。
 
 ## MinIO 固定本地镜像与离线交付
 
@@ -86,9 +86,9 @@ docker compose up -d --build
 404 保留 MVC 默认行为。未知异常日志只记录 RequestId、错误码、异常类型，不记录消息或堆栈。
 不记录配置对象、环境变量全集、请求正文、Prompt、文档或密钥。本地开发基线不包含认证和审计。
 
-数据库连接、环境变量与真实集成测试命令见 [M0-05 验证记录](docs/engineering/m0-05-database-verification.md)。
+数据库连接、环境变量与真实集成测试命令见 [M0-05 验证记录](docs/archive/v1-development/engineering/m0-05-database-verification.md)。
 
-代码格式与提交前检查见 [代码格式规范](docs/engineering/code-style.md)。
+代码格式与提交前检查见 [代码格式规范](docs/archive/v1-development/engineering/code-style.md)。
 
 ## M0-07 测试入口
 
@@ -102,14 +102,14 @@ docker compose up -d --build
 
 离线环境须预缓存 Maven 依赖和所有容器镜像，然后可用 Maven `-o`；本机 load 记录不代表空白 daemon/异机恢复已验证。容器测试清理自己的 schema/index/bucket，由 JUnit 和 Ryuk 清理容器，不删除开发数据卷。
 
-六类业务参数已记录为 [V1 初始配置基线](docs/engineering/configuration-baseline.md)，尚未实现或完成业务验证，不添加未使用配置。M0-07C 历史完整构建已通过（46 项、零失败/错误/跳过），本轮未重跑；隔离环境镜像恢复及负面测试仍未完成。
+六类业务参数已记录为 [V1 初始配置基线](docs/archive/v1-development/engineering/configuration-baseline.md)，尚未实现或完成业务验证，不添加未使用配置。M0-07C 历史完整构建已通过（46 项、零失败/错误/跳过），本轮未重跑；隔离环境镜像恢复及负面测试仍未完成。
 
-本轮实施证据见 [M0-07B 验证记录](docs/engineering/m0-07b-verification.md)。
+本轮实施证据见 [M0-07B 验证记录](docs/archive/v1-development/engineering/m0-07b-verification.md)。
 
 MinIO 上传使用 staging/originals 单 Bucket 流程；部署前配置并检查 [staging 两天生命周期规则](infra/minio/README.md)。已有正式对象仍可直接读取，历史孤儿需按该文档一次性人工核对。
 
 ## M1 文档导入与首次发布
 
-当前验收与默认测试发现边界见 [M1 最终综合验收](docs/engineering/m1-final-acceptance.md)。上传上限 2 MiB，支持 UTF-8 Markdown/TXT；新上传202、重复内容200。Worker默认关闭，启用前配置数据库、MinIO、ES、Embedding，并保持单实例单Worker。MinIO staging ILM部署见 [运维说明](infra/minio/README.md)。本轮不实现检索或RAG。
+当前验收与默认测试发现边界见 [M1 最终综合验收](docs/archive/v1-development/engineering/m1-final-acceptance.md)。上传上限 2 MiB，支持 UTF-8 Markdown/TXT；新上传202、重复内容200。Worker默认关闭，启用前配置数据库、MinIO、ES、Embedding，并保持单实例单Worker。MinIO staging ILM部署见 [运维说明](infra/minio/README.md)。本轮不实现检索或RAG。
 
 WEB-01 正式入口：`http://localhost:8080/api/index.html`，启动方式同上。保留 `spring.mvc.servlet.path=/api`。`/api/` 实测返回 200；正式访问请使用明确的 index.html 路径，支持 `#chat`、`#knowledge`、`#retrieval`。

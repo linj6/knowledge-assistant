@@ -8,7 +8,7 @@
 
 `FrozenRankingEvaluation` 在测试目录严格核对确认状态、整数等级、reviewer/confirmationBasis/confirmedAt、池版本和快照、完整候选集合、文档版本映射、正文与原始来源文件 SHA-256；任何缺失、重复或池外候选均拒绝冻结。未确认返回异常状态 NOT_READY，身份/Hash/集合错误为 INVALID_POOL，不自动修复。冻结后在 Fixture 深拷贝中适配字符串 relevance 和 COMPLETE，复用 RankingMetrics；不覆盖原始文件。
 
-冻结视图及全部逐题原始 double 分值归档为 [m4-b03-frozen-ranking-evaluation.json](m4-b03-frozen-ranking-evaluation.json)。对象键递归排序、数组顺序保留、紧凑 UTF-8 JSON，无时间戳；SHA-256 输入为未添加自身 fingerprint 字段的对象。全局指纹绑定原 Fixture、评审材料、确认文件及各池内容。
+冻结视图及全部逐题原始 double 分值归档为 [m4-b03-frozen-ranking-evaluation.json](../../../engineering/m4-b03-frozen-ranking-evaluation.json)。对象键递归排序、数组顺序保留、紧凑 UTF-8 JSON，无时间戳；SHA-256 输入为未添加自身 fingerprint 字段的对象。全局指纹绑定原 Fixture、评审材料、确认文件及各池内容。
 
 全局冻结指纹：`4100bec441b6dde69c893246af86313c95e6aa28e8cff789cf4aff6b724e388c`。
 
