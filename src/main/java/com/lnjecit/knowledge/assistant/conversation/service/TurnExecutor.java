@@ -1,6 +1,7 @@
 package com.lnjecit.knowledge.assistant.conversation.service;
 
 import com.lnjecit.knowledge.assistant.common.RequestIdContext;
+import com.lnjecit.knowledge.assistant.conversation.dto.HistoryTurn;
 import com.lnjecit.knowledge.assistant.conversation.dto.TurnResponse;
 import com.lnjecit.knowledge.assistant.conversation.entity.Message;
 import com.lnjecit.knowledge.assistant.conversation.entity.MessageStatus;
@@ -12,6 +13,7 @@ import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStrategy;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.time.Instant;
+import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -33,6 +35,7 @@ public class TurnExecutor {
     private static final Logger log = LoggerFactory.getLogger(TurnExecutor.class);
     private final RagService rag;
     private final ConversationRepository repository;
+    private final TurnHistoryService historyService;
     private final JsonMapper json;
     private final ThreadPoolExecutor executor = new ThreadPoolExecutor(
             4,
@@ -43,9 +46,11 @@ public class TurnExecutor {
             Thread.ofPlatform().name("conversation-turn-", 1).factory());
     private final ConcurrentMap<Long, TurnTask> tasks = new ConcurrentHashMap<>();
 
-    public TurnExecutor(RagService rag, ConversationRepository repository, JsonMapper json) {
+    public TurnExecutor(
+            RagService rag, ConversationRepository repository, TurnHistoryService historyService, JsonMapper json) {
         this.rag = rag;
         this.repository = repository;
+        this.historyService = historyService;
         this.json = json;
     }
 
@@ -56,14 +61,14 @@ public class TurnExecutor {
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    public synchronized MessageStatus dispatch(Long knowledgeBaseId, TurnResponse turn) {
+    public synchronized MessageStatus dispatch(Long knowledgeBaseId, Long conversationId, TurnResponse turn) {
         Long assistantId = turn.assistantMessageId();
         // 投递与取消互斥。若取消先于投递，已提交的状态会阻止任务启动。
         MessageStatus status = repository.turnStatus(assistantId);
         if (status != MessageStatus.PROCESSING) {
             return status;
         }
-        TurnTask task = new TurnTask(knowledgeBaseId, turn, RequestIdContext.current());
+        TurnTask task = new TurnTask(knowledgeBaseId, conversationId, turn, RequestIdContext.current());
         tasks.put(assistantId, task);
         try {
             executor.execute(task);
@@ -106,12 +111,14 @@ public class TurnExecutor {
 
     private final class TurnTask implements Runnable {
         private final Long knowledgeBaseId;
+        private final Long conversationId;
         private final TurnResponse turn;
         private final String requestId;
         private final ModelCallCancellation cancellation = new ModelCallCancellation();
 
-        private TurnTask(Long knowledgeBaseId, TurnResponse turn, String requestId) {
+        private TurnTask(Long knowledgeBaseId, Long conversationId, TurnResponse turn, String requestId) {
             this.knowledgeBaseId = knowledgeBaseId;
+            this.conversationId = conversationId;
             this.turn = turn;
             this.requestId = requestId;
         }
@@ -124,7 +131,7 @@ public class TurnExecutor {
             try {
                 cancellation.run(() -> {
                     if (repository.turnStatus(turn.assistantMessageId()) == MessageStatus.PROCESSING) {
-                        execute(knowledgeBaseId, turn);
+                        execute(knowledgeBaseId, conversationId, turn);
                     }
                     return null;
                 });
@@ -149,11 +156,15 @@ public class TurnExecutor {
         }
     }
 
-    private void execute(Long knowledgeBaseId, TurnResponse turn) {
+    private void execute(Long knowledgeBaseId, Long conversationId, TurnResponse turn) {
         Message result;
         try {
-            // 模型调用在独立线程执行，结果通过单条条件更新写回。
-            RagAnswer answer = rag.answer(knowledgeBaseId, turn.question(), RetrievalStrategy.HYBRID_RRF, null);
+            // 提交后在工作线程读取历史，读完再进入检索和生成。
+            ModelCallCancellation.checkpoint();
+            List<HistoryTurn> history = historyService.select(conversationId, turn.turnId());
+            ModelCallCancellation.checkpoint();
+            RagAnswer answer =
+                    rag.answer(knowledgeBaseId, turn.question(), RetrievalStrategy.HYBRID_RRF, null, history);
             result = new Message();
             result.setStatus(MessageStatus.valueOf(answer.status().name()));
             result.setContent(answer.answer());

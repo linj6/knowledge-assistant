@@ -194,7 +194,7 @@ class AuthBusinessHttpTests {
                 """.formatted(turnId);
         RagService rag = app.getBean(RagService.class);
         RetrievalStrategy strategy = RetrievalStrategy.HYBRID_RRF;
-        when(rag.answer(Long.valueOf(aliceKb), "missing evidence", strategy, null))
+        when(rag.answer(Long.valueOf(aliceKb), "missing evidence", strategy, null, List.of()))
                 .thenReturn(new RagAnswer(
                         RagStatus.INSUFFICIENT_EVIDENCE, null, List.of(), strategy, strategy, false, null, null));
         assertThat(send(app, "POST", path + "/turns", aliceSession, aliceToken, body)
@@ -225,7 +225,7 @@ class AuthBusinessHttpTests {
         assertThat(send(app, "POST", path + "/turns", aliceSession, aliceToken, body)
                         .statusCode())
                 .isEqualTo(202);
-        verify(rag).answer(Long.valueOf(aliceKb), "missing evidence", strategy, null);
+        verify(rag).answer(Long.valueOf(aliceKb), "missing evidence", strategy, null, List.of());
     }
 
     private void verifySearchAndAnswerOwnership(

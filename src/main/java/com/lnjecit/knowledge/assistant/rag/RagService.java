@@ -3,6 +3,7 @@ package com.lnjecit.knowledge.assistant.rag;
 import com.lnjecit.knowledge.assistant.common.RequestIdContext;
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
+import com.lnjecit.knowledge.assistant.conversation.dto.HistoryTurn;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelCallCancellation;
 import com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog;
 import com.lnjecit.knowledge.assistant.rag.context.AssembledContext;
@@ -45,11 +46,20 @@ public class RagService {
 
     public RagAnswer answer(
             Long knowledgeBaseId, String question, RetrievalStrategy strategy, RetrievalParameters parameters) {
+        return answer(knowledgeBaseId, question, strategy, parameters, List.of());
+    }
+
+    public RagAnswer answer(
+            Long knowledgeBaseId,
+            String question,
+            RetrievalStrategy strategy,
+            RetrievalParameters parameters,
+            List<HistoryTurn> history) {
         Observation observation = new Observation();
         long started = System.nanoTime();
         RagAnswer outcome = null;
         try {
-            outcome = execute(knowledgeBaseId, question, strategy, parameters, observation);
+            outcome = execute(knowledgeBaseId, question, strategy, parameters, history, observation);
             return outcome;
         } finally {
             // 程序缺陷继续传播，全局处理器负责唯一的 ERROR 堆栈。
@@ -87,7 +97,7 @@ public class RagService {
         Observation observation = new Observation();
         observation.retrievalCheck = retrievalCheck;
         try {
-            RagAnswer answer = execute(knowledgeBaseId, question, strategy, parameters, observation);
+            RagAnswer answer = execute(knowledgeBaseId, question, strategy, parameters, List.of(), observation);
             return new RagExecutionResult(observation.retrieval, observation.context, answer, null);
         } catch (RuntimeException failure) {
             // 只记录异常类型，不把供应商异常中的凭据或敏感原文带入评估产物。
@@ -120,6 +130,7 @@ public class RagService {
             String question,
             RetrievalStrategy strategy,
             RetrievalParameters parameters,
+            List<HistoryTurn> history,
             Observation observation) {
         if (knowledgeBaseId == null || knowledgeBaseId <= 0) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT);
@@ -161,7 +172,11 @@ public class RagService {
             return response(result, RagStatus.FAILED, null, List.of(), RagError.CONTEXT_BUDGET_EXCEEDED, null);
         RawGenerationResult raw;
         try {
-            raw = timed("GENERATION", () -> generator.generate(question, context));
+            raw = timed(
+                    "GENERATION",
+                    () -> history.isEmpty()
+                            ? generator.generate(question, context)
+                            : generator.generate(question, context, history));
         } catch (AnswerGenerator.GenerationException failure) {
             return response(result, RagStatus.FAILED, null, List.of(), failure.error(), failure.usage());
         }
