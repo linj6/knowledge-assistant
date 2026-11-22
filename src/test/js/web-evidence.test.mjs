@@ -62,18 +62,25 @@ async function fixture(citations) {
     closeButton.focus = () => {
         focused = closeButton;
     };
-    nodes().find((e) => e.tag === 'textarea').value = '问题';
-    void nodes()
-        .find((e) => e.tag === 'form')
-        .fire('submit');
-    await h.tick();
+    const conversation = { id: '1', knowledgeBaseId: '1', title: '会话' };
+    await h.respond(h.calls.length - 1, [conversation]);
+    await h.respond(h.calls.length - 1, conversation);
     const c = { ...citation, evidenceId: 'E1', sourceStart: 0, sourceEnd: 2 };
     await h.respond(h.calls.length - 1, {
-        status: 'ANSWERED',
-        requestedStrategy: 'HYBRID_RRF',
-        answer: '答案 [E99]',
-        citations: citations ?? [c, { ...c, evidenceId: 'E2', chunkId: '4' }],
-        error: null,
+        page: 1,
+        pageSize: 100,
+        hasNext: false,
+        items: [
+            {
+                id: '2',
+                conversationId: '1',
+                turnId: '5eebed1b-bdc4-4184-a8ef-945ce65d06e9',
+                role: 'ASSISTANT',
+                status: 'ANSWERED',
+                content: '答案 [E99]',
+                citations: citations ?? [c, { ...c, evidenceId: 'E2', chunkId: '4' }],
+            },
+        ],
     });
     const buttons = nodes().filter((e) => e.tag === 'button' && e.textContent.includes('查看证据'));
     buttons.forEach((b) => {

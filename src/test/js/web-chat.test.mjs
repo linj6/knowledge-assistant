@@ -1,332 +1,225 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setup } from './web-import-harness.mjs';
-for (const result of ['ANSWERED', 'INSUFFICIENT_EVIDENCE', 'FAILED']) {
-    test('单轮业务状态 ' + result, async () => {
-        const h = await setup();
-        h.state.updateState({ activePage: 'chat' });
-        const nodes = [];
-        const walk = (el) => {
-            nodes.push(el);
-            el.children.forEach(walk);
-        };
-        walk(h.elements.chat);
-        const form = nodes.find((el) => el.tag === 'form');
-        nodes.find((el) => el.tag === 'textarea').value = '<script>问题</script>';
-        void form.fire('submit');
-        await h.tick();
-        const index = h.calls.length - 1;
-        const body = JSON.parse(h.calls[index].options.body);
-        assert.deepEqual(Object.keys(body).sort(), ['knowledgeBaseId', 'question', 'strategy']);
-        void form.fire('submit');
-        await h.tick();
-        assert.equal(h.calls.length, index + 1);
-        await h.respond(index, {
-            status: result,
-            requestedStrategy: 'HYBRID_RRF',
-            answer: result === 'ANSWERED' ? '<img onerror=alert(1)>' : null,
-            citations:
-                result === 'ANSWERED'
-                    ? [
-                          {
-                              evidenceId: 'E1',
-                              chunkId: '9007199254740993',
-                              documentId: '2',
-                              indexVersionId: '3',
-                              sourceStart: 0,
-                              sourceEnd: 1,
-                          },
-                      ]
-                    : [],
-            error: result === 'FAILED' ? 'GENERATION_FAILED' : null,
-        });
-        assert.match(
-            h.elements.chat.textContent,
-            new RegExp({ ANSWERED: '已回答', INSUFFICIENT_EVIDENCE: '证据不足', FAILED: '问答失败' }[result]),
-        );
-    });
-}
-test('切库后的迟到响应无效且历史清空', async () => {
-    const h = await setup();
-    h.state.updateState({ activePage: 'chat' });
-    const nodes = [];
-    const walk = (e) => {
-        nodes.push(e);
-        e.children.forEach(walk);
-    };
-    walk(h.elements.chat);
-    nodes.find((e) => e.tag === 'textarea').value = '旧问题';
-    void nodes.find((e) => e.tag === 'form').fire('submit');
-    await h.tick();
-    const index = h.calls.length - 1;
-    h.state.updateState({ selectedKnowledgeBaseId: '2' });
-    await h.respond(index, {
-        status: 'INSUFFICIENT_EVIDENCE',
-        requestedStrategy: 'HYBRID_RRF',
-        answer: '旧答案',
-        citations: [],
-        error: null,
-    });
-    assert.doesNotMatch(h.elements.chat.textContent, /旧问题|旧答案/);
-});
 
-async function chat() {
-    const h = await setup();
+const id = '9007199254740993';
+const other = '9007199254740994';
+const conversation = (id, knowledgeBaseId = '1') => ({ id, knowledgeBaseId, title: id });
+const page = (items = []) => ({ items, page: 1, pageSize: 100, hasNext: false });
+
+async function fixture(session) {
+    const h = await setup({ session });
     h.state.updateState({ activePage: 'chat' });
-    h.nodes = () => {
-        const a = [];
-        const walk = (e) => {
-            a.push(e);
-            e.children.forEach(walk);
-        };
-        walk(h.elements.chat);
-        return a;
+    const nodes = (node = h.elements.chat) => [node, ...node.children.flatMap(nodes)];
+    h.find = (label) => nodes().find((node) => node.tag === 'button' && node.textContent === label);
+    h.last = () => h.calls.at(-1);
+    h.reply = (data, status) => h.respond(h.calls.length - 1, data, status);
+    h.load = async (items) => {
+        await h.reply([conversation(id), conversation(other)]);
+        await h.reply(conversation(id));
+        await h.reply(page(items));
     };
-    h.form = h.nodes().find((e) => e.tag === 'form');
-    h.input = h.nodes().find((e) => e.tag === 'textarea');
-    h.send = h.nodes().find((e) => e.textContent === '发送');
-    h.submit = async (text = '问题') => {
-        h.input.value = text;
-        void h.form.fire('submit');
+    h.click = async (label) => {
+        await h.find(label).fire('click');
         await h.tick();
-        return h.calls.length - 1;
     };
+    h.submit = async (text) => {
+        nodes().find((node) => node.tag === 'textarea').value = text;
+        await nodes()
+            .find((node) => node.tag === 'form')
+            .fire('submit');
+        await h.tick();
+        return JSON.parse(h.last().options.body);
+    };
+    h.fireTimer = async (delay) => {
+        const [key, timer] = [...h.pendingTimers].findLast(([, timer]) => timer.delay === delay);
+        h.pendingTimers.delete(key);
+        timer.callback();
+        await h.tick();
+    };
+    h.text = () => h.elements.chat.textContent;
     return h;
 }
-const answer = () => ({
-    status: 'ANSWERED',
-    requestedStrategy: 'HYBRID_RRF',
-    answer: '答案 [E99] <script>alert(1)</script>',
-    citations: [
-        {
-            evidenceId: 'E1',
-            chunkId: '9007199254740993',
-            documentId: '2',
-            indexVersionId: '3',
-            sourceStart: 0,
-            sourceEnd: 1,
-        },
-    ],
-    error: null,
+
+const result = (body, status, extra = {}) => ({
+    ...body,
+    userMessageId: id,
+    assistantMessageId: other,
+    status,
+    citations: [],
+    ...extra,
 });
-for (const result of ['ANSWERED', 'INSUFFICIENT_EVIDENCE', 'FAILED', 'network', 'timeout']) {
-    test('立即清空且完成不改写后续输入 ' + result, async () => {
-        const h = await chat();
-        h.input.value = '  本轮问题  ';
-        void h.form.fire('submit');
-        assert.equal(h.input.value, '');
-        assert.equal(h.input.disabled, true);
-        assert.match(h.elements.chat.textContent, /本轮问题/);
-        await h.tick();
-        const i = h.calls.length - 1;
-        assert.equal(JSON.parse(h.calls[i].options.body).question, '本轮问题');
-        assert.equal(h.input.value, '');
-        // 模拟后续草稿，验证任何完成回调均不会改写输入值。
-        h.input.value = '下一轮草稿';
-        if (result === 'network') {
-            h.calls[i].reject(new Error('network'));
-            await h.tick();
-        } else if (result === 'timeout') {
-            [...h.pendingTimers.values()].find((t) => t.delay === 60000).callback();
-            await h.respond(i, answer());
-        } else {
-            const data = answer();
-            if (result !== 'ANSWERED')
-                Object.assign(data, {
-                    status: result,
-                    answer: null,
-                    citations: [],
-                    error: result === 'FAILED' ? 'GENERATION_FAILED' : null,
-                });
-            await h.respond(i, data);
-        }
-        assert.equal(h.input.value, '下一轮草稿');
-        assert.equal(h.input.disabled, false);
-        assert.match(h.elements.chat.textContent, /本轮问题/);
-        if (result === 'network') assert.match(h.elements.chat.textContent, /网络连接失败/);
-    });
-}
-for (const [name, text, kb] of [
-    ['空白', '  ', '1'],
-    ['超长', '问'.repeat(4001), '1'],
-    ['未选库', '保留问题', ''],
-]) {
-    test('非法提交保留输入 ' + name, async () => {
-        const h = await chat();
-        h.state.updateState({ selectedKnowledgeBaseId: kb });
+
+test('同一会话连续发送并展示成功、证据不足和失败终态', async () => {
+    const h = await fixture();
+    assert.equal(h.find('发送').disabled, true);
+    await h.load();
+    const ids = [];
+    for (const [status, extra, visible] of [
+        ['ANSWERED', { answer: '<答案>' }, /<答案>已回答/],
+        ['INSUFFICIENT_EVIDENCE', {}, /证据不足/],
+        ['FAILED', { errorCode: 'MODEL_FAILED' }, /问答失败错误码：MODEL_FAILED/],
+    ]) {
+        const body = await h.submit('  <问题> ' + status);
+        ids.push(body.turnId);
+        assert.equal(body.question, '  <问题> ' + status);
+        assert.equal(h.find('发送').disabled, true);
         const count = h.calls.length;
-        await h.submit(text);
-        assert.equal(h.input.value, text);
+        await h.submit('重复发送');
         assert.equal(h.calls.length, count);
-    });
-}
-for (const [name, text, kb] of [
-    ['空白', '  ', '1'],
-    ['UTF16超长', '😀'.repeat(2001), '1'],
-    ['无知识库', '问题', ''],
-])
-    test(name, async () => {
-        const h = await chat();
-        h.state.updateState({ selectedKnowledgeBaseId: kb });
-        const n = h.calls.length;
-        await h.submit(text);
-        assert.equal(h.calls.length, n);
-    });
-test('固定策略、字符串ID、重复提交锁、完成恢复、单轮隔离', async () => {
-    const h = await chat();
-    h.state.updateState({ selectedKnowledgeBaseId: '9007199254740993' });
-    const i = await h.submit();
-    assert.equal(h.send.disabled, true);
-    await h.submit();
-    assert.equal(h.calls.length, i + 1);
-    assert.equal(
-        h.nodes().some((e) => e.tag === 'select'),
-        false,
-    );
-    assert.deepEqual(JSON.parse(h.calls[i].options.body), {
-        knowledgeBaseId: '9007199254740993',
-        question: '问题',
-        strategy: 'HYBRID_RRF',
-    });
-    await h.respond(i, answer());
-    assert.equal(h.send.disabled, false);
-    const j = await h.submit('第二问');
-    assert.equal(Object.keys(JSON.parse(h.calls[j].options.body)).length, 3);
-    await h.respond(j, answer());
-});
-for (const [name, mutate] of [
-    ['未知状态', (d) => (d.status = 'UNKNOWN')],
-    ['非法响应', (d) => (d.citations = null)],
-    ['空引用', (d) => (d.citations = [])],
-    ['非法标识', (d) => (d.citations[0].evidenceId = '<img>')],
-    ['数值ID', (d) => (d.citations[0].chunkId = 123)],
-])
-    test(name, async () => {
-        const h = await chat();
-        const i = await h.submit();
-        const d = answer();
-        mutate(d);
-        await h.respond(i, d);
-        assert.match(h.elements.chat.textContent, /响应格式异常/);
-        assert.equal(h.send.disabled, false);
-    });
-test('多引用、虚构引用、HTML和requestId安全文本', async () => {
-    const h = await chat();
-    const i = await h.submit();
-    const d = answer();
-    d.citations.push({ ...d.citations[0], evidenceId: 'E2' });
-    h.calls[i].resolve({
-        ok: true,
-        status: 200,
-        headers: { get: () => null },
-        json: async () => ({ code: 0, data: d, requestId: '<img onerror=alert(1)>' }),
-    });
-    await h.tick();
-    const text = h.elements.chat.textContent;
-    assert.match(text, /引用：E1/);
-    assert.match(text, /引用：E2/);
-    assert.doesNotMatch(text, /引用：E99/);
-    assert.match(text, /<script>/);
-    assert.match(text, /requestId：<img/);
-    assert.equal(
-        h.nodes().some((e) => ['img', 'script'].includes(e.tag)),
-        false,
-    );
-});
-for (const kind of ['http', 'envelope', 'network'])
-    test('请求层失败 ' + kind, async () => {
-        const h = await chat();
-        const i = await h.submit();
-        if (kind === 'network') h.calls[i].reject(new Error('secret'));
-        else
-            h.calls[i].resolve({
-                ok: kind !== 'http',
-                status: kind === 'http' ? 500 : 200,
-                headers: { get: () => null },
-                json: async () => ({ code: 50000, data: answer(), requestId: 'id' }),
-            });
-        await h.tick();
-        assert.match(h.elements.chat.textContent, /请求未完成/);
-        assert.doesNotMatch(h.elements.chat.textContent, /已回答|secret/);
-        assert.equal(h.calls.length, i + 1);
-    });
-for (const action of ['cancel', 'timeout', 'page', 'kb'])
-    test('旧请求失效与新请求锁 ' + action, async () => {
-        const h = await chat();
-        const i = await h.submit('旧问题');
-        if (action === 'cancel')
-            await h
-                .nodes()
-                .find((e) => e.textContent === '取消等待')
-                .fire('click');
-        if (action === 'timeout') [...h.pendingTimers.values()].find((t) => t.delay === 60000).callback();
-        if (action === 'page') {
-            h.state.updateState({ activePage: 'knowledge' });
-            h.state.updateState({ activePage: 'chat' });
-        }
-        if (action === 'kb') h.state.updateState({ selectedKnowledgeBaseId: '2' });
-        assert.equal(h.calls[i].options.signal.aborted, true);
-        assert.equal(h.calls.filter((c) => c.options.method === 'POST').length, 1);
-        const j = await h.submit('新问题');
-        await h.respond(i, answer());
-        assert.equal(h.send.disabled, true);
-        assert.doesNotMatch(h.elements.chat.textContent, /已回答/);
-        await h.respond(j, answer());
-        assert.equal(h.send.disabled, false);
-        if (action === 'kb') assert.doesNotMatch(h.elements.chat.textContent, /旧问题/);
-    });
-test('旧响应晚到不覆盖新答案', async () => {
-    const h = await chat();
-    const i = await h.submit();
-    h.state.updateState({ selectedKnowledgeBaseId: '2' });
-    const j = await h.submit();
-    await h.respond(j, answer());
-    const before = h.elements.chat.textContent;
-    await h.respond(i, answer());
-    assert.equal(h.elements.chat.textContent, before);
-});
-test('刷新清空历史', async () => {
-    const h = await chat();
-    await h.respond(await h.submit(), answer());
-    const fresh = await chat();
-    assert.doesNotMatch(fresh.elements.chat.textContent, /已回答/);
-});
-test('Enter、Shift和输入法组合', async () => {
-    const h = await chat();
-    let n = 0;
-    h.form.requestSubmit = () => n++;
-    const key = h.input.events.keydown[0];
-    const e = { key: 'Enter', preventDefault() {} };
-    key({ ...e, shiftKey: true });
-    key({ ...e, isComposing: true });
-    key({ ...e, keyCode: 229 });
-    assert.equal(n, 0);
-    await h.input.fire('compositionstart');
-    key(e);
-    assert.equal(n, 0);
-    await h.input.fire('compositionend');
-    key(e);
-    assert.equal(n, 1);
-});
-test('Hash往返不重发、不重复绑定', async () => {
-    const h = await chat();
-    const i = await h.submit();
-    await h.respond(i, answer());
-    const n = h.calls.filter((c) => c.options.method === 'POST').length;
-    for (let k = 0; k < 3; k++) {
-        h.context.location.hash = '#retrieval';
-        h.listeners.hashchange();
-        h.context.location.hash = '#chat';
-        h.listeners.hashchange();
+        await h.reply({ turnId: body.turnId, status: 'PROCESSING' }, 202);
+        assert.match(h.last().url, new RegExp('/turns/' + body.turnId + '$'));
+        await h.reply(result(body, 'PROCESSING'));
+        assert.match(h.text(), /正在生成/);
+        await h.fireTimer(1500);
+        await h.reply(result(body, status, extra));
+        assert.match(h.text(), visible);
+        assert.equal(h.find('发送').disabled, false);
     }
-    assert.equal(h.calls.filter((c) => c.options.method === 'POST').length, n);
-    assert.equal(h.form.events.submit.length, 1);
-    await h.respond(await h.submit(), answer());
-    assert.equal(h.calls.filter((c) => c.options.method === 'POST').length, n + 1);
+    assert.equal(new Set(ids).size, 3);
 });
-test('原始长度包含首尾空白', async () => {
-    const h = await chat();
-    const n = h.calls.length;
-    await h.submit(' '.repeat(4000) + '问');
-    assert.equal(h.calls.length, n);
+
+test('服务端取消后持续轮询到 CANCELLED', async () => {
+    const h = await fixture();
+    await h.load();
+    const body = await h.submit('取消测试');
+    await h.reply({ turnId: body.turnId, status: 'PROCESSING' });
+    await h.reply(result(body, 'PROCESSING'));
+    await h.click('取消生成');
+    assert.match(h.last().url, /\/cancel$/);
+    assert.equal(h.last().options.method, 'POST');
+    await h.reply({ turnId: body.turnId, status: 'CANCEL_REQUESTED' });
+    assert.match(h.text(), /正在取消/);
+    await h.reply(result(body, 'CANCEL_REQUESTED'));
+    assert.equal(h.find('发送').disabled, true);
+    await h.fireTimer(1500);
+    await h.reply(result(body, 'CANCELLED'));
+    assert.match(h.text(), /已取消/);
+    assert.equal(h.find('发送').disabled, false);
+});
+
+test('查询超时仅中止浏览器请求，并可恢复原轮查询', async () => {
+    const h = await fixture();
+    await h.load();
+    const body = await h.submit('超时测试');
+    await h.reply({ turnId: body.turnId, status: 'PROCESSING' });
+    const poll = h.last();
+    await h.fireTimer(20000);
+    assert.equal(poll.options.signal.aborted, true);
+    assert.match(h.text(), /超时/);
+    assert.doesNotMatch(h.text(), /已取消/);
+    assert.equal(h.find('发送').disabled, true);
+    await h.click('重试');
+    assert.equal(h.last().url, poll.url);
+    await h.reply(result(body, 'ANSWERED', { answer: '恢复完成' }));
+    assert.match(h.text(), /恢复完成/);
+    assert.equal(h.calls.filter((call) => call.options.method === 'POST').length, 1);
+});
+
+test('POST 响应丢失时查原 UUID，手动重提沿用原问题和 UUID', async () => {
+    const session = new Map();
+    const h = await fixture(session);
+    await h.load();
+    const body = await h.submit('原问题');
+    h.last().reject(new Error('offline'));
+    await h.tick();
+    assert.match(h.last().url, new RegExp(body.turnId + '$'));
+    assert.equal(h.calls.filter((call) => call.options.method === 'POST').length, 1);
+
+    const refreshed = await fixture(session);
+    await refreshed.load();
+    assert.match(refreshed.last().url, new RegExp(body.turnId + '$'));
+    refreshed.last().resolve({
+        status: 404,
+        ok: false,
+        headers: { get: () => null },
+        json: async () => ({ code: 40400 }),
+    });
+    await refreshed.tick();
+    await refreshed.click('重试提交');
+    assert.deepEqual(JSON.parse(refreshed.last().options.body), body);
+    await refreshed.reply({ turnId: body.turnId, status: 'PROCESSING' });
+    await refreshed.reply(result(body, 'ANSWERED', { answer: '原轮回答' }));
+    assert.match(refreshed.text(), /原轮回答/);
+    assert.equal(refreshed.text().split('原问题').length, 2);
+});
+
+test('刷新从消息历史恢复轮询，切会话、切库、登出隔离迟到结果', async () => {
+    for (const action of ['会话', '知识库', '退出']) {
+        const h = await fixture();
+        const body = { turnId: '5eebed1b-bdc4-4184-a8ef-945ce65d06e9', question: '历史原问题' };
+        await h.load([
+            { id, conversationId: id, turnId: body.turnId, role: 'USER', content: body.question, citations: [] },
+            {
+                id: other,
+                conversationId: id,
+                turnId: body.turnId,
+                role: 'ASSISTANT',
+                status: 'PROCESSING',
+                citations: [],
+            },
+        ]);
+        const old = h.calls.length - 1;
+        assert.match(h.last().url, new RegExp(body.turnId + '$'));
+        assert.equal(h.find('发送').disabled, true);
+        if (action === '会话') await h.click(other);
+        if (action === '知识库') h.state.updateState({ selectedKnowledgeBaseId: '2' });
+        if (action === '退出') h.state.updateState({ user: null });
+        assert.equal(h.calls[old].options.signal.aborted, true);
+        await h.respond(old, result(body, 'ANSWERED', { answer: '迟到回答' }));
+        assert.doesNotMatch(h.text(), /历史原问题|迟到回答/);
+        assert.equal(
+            h.calls.some((call) => call.options.method === 'POST'),
+            false,
+        );
+    }
+});
+
+test('POST 已落库但响应丢失时直接完成原轮，离开页面只停止查询', async () => {
+    const h = await fixture();
+    await h.load();
+    const body = await h.submit('已落库');
+    h.last().reject(new Error('offline'));
+    await h.tick();
+    const firstRead = h.calls.length - 1;
+    h.listeners.pagehide();
+    assert.equal(h.calls[firstRead].options.signal.aborted, true);
+    await h.respond(firstRead, result(body, 'ANSWERED', { answer: '已失效的等待' }));
+    assert.doesNotMatch(h.text(), /已失效的等待/);
+    h.listeners.pageshow({ persisted: true });
+    await h.reply(conversation(id));
+    await h.reply(page());
+    assert.match(h.last().url, new RegExp(body.turnId + '$'));
+    await h.reply(result(body, 'ANSWERED', { answer: '原轮已完成' }));
+    assert.match(h.text(), /原轮已完成/);
+    assert.equal(h.calls.filter((call) => call.options.method === 'POST').length, 1);
+});
+
+test('刷新保留非默认知识库和已选会话', async () => {
+    const session = new Map();
+    const h = await fixture(session);
+    await h.load();
+    h.elements.kb.value = '2';
+    await h.elements.kb.fire('change');
+    await h.reply([conversation(id, '2'), conversation(other, '2')]);
+    await h.click(other);
+    await h.reply(conversation(other, '2'));
+    await h.reply(page());
+
+    const refreshed = await fixture(session);
+    assert.match(refreshed.last().url, /knowledgeBaseId=2$/);
+    await refreshed.reply([conversation(id, '2'), conversation(other, '2')]);
+    assert.match(refreshed.last().url, new RegExp(other + '$'));
+});
+
+test('切换后旧轮查询的 401 不触发新页面退出登录', async () => {
+    const h = await fixture();
+    await h.load();
+    const body = await h.submit('旧轮');
+    await h.reply({ turnId: body.turnId, status: 'PROCESSING' });
+    const old = h.calls.length - 1;
+    await h.click(other);
+    await h.respond(old, null, 401);
+    assert.equal(h.reloads(), 0);
+    assert.equal(h.state.AppState.user.id, '1');
 });

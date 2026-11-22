@@ -104,7 +104,7 @@ export async function request(path, { method = 'GET', body, signal, raw = false 
         requestId: envelope?.requestId ?? response.headers.get('X-Request-Id'),
         elapsedMillis: performance.now() - start,
     };
-    if (revision !== sessionRevision) throw new ApiError('aborted');
+    if (revision !== sessionRevision || signal?.aborted) throw new ApiError('aborted');
     if (response.status === 401) onUnauthorized(url.pathname);
     // 仅失效本次写请求使用的 Token，下次手动提交时重新获取。
     if (response.status === 403 && writes && csrfRequest === tokenRequest) csrfRequest = undefined;

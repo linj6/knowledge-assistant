@@ -53,7 +53,10 @@ test('空列表创建会话，刷新后从服务端读取完整分页并打开�
     await refreshed.reply([conversation(a)]);
     await refreshed.reply(conversation(a));
     assert.match(refreshed.last().url, /messages\?page=1&pageSize=100$/);
-    const questions = Array.from({ length: 100 }, (_, i) => message(i + 1, 'USER', '历史问题 ' + i));
+    const questions = Array.from({ length: 100 }, (_, i) => ({
+        ...message(i + 1, 'USER', '历史问题 ' + i),
+        turnId: '5eebed1b-bdc4-4184-a8ef-' + String(i).padStart(12, '0'),
+    }));
     await refreshed.reply(page(questions, 1, true));
     assert.match(refreshed.last().url, /messages\?page=2&pageSize=100$/);
     await refreshed.reply(page([message(101, 'ASSISTANT', '历史答案', [citation])], 2));

@@ -33,8 +33,19 @@ subscribe((state) => {
         el.textContent = '当前知识库 · ' + (selected?.name ?? '尚未选择');
     });
 });
+function rememberKnowledgeBase(userId, value) {
+    try {
+        const key = 'ka.knowledge-base:' + userId;
+        if (value === undefined) return sessionStorage.getItem(key);
+        sessionStorage.setItem(key, value);
+    } catch {
+        // 浏览器禁用会话存储时仍可正常切换知识库。
+    }
+}
+
 selector.addEventListener('change', () => {
     selectionRevision++;
+    rememberKnowledgeBase(AppState.user?.id, selector.value);
     updateState({ selectedKnowledgeBaseId: selector.value });
 });
 let generation = 0;
@@ -67,7 +78,7 @@ async function loadKnowledgeBases(preferredId, expectedRevision = selectionRevis
         const candidate =
             typeof preferredId === 'string' && expectedRevision === selectionRevision && revision === selectionRevision
                 ? preferredId
-                : AppState.selectedKnowledgeBaseId;
+                : AppState.selectedKnowledgeBaseId || rememberKnowledgeBase(AppState.user.id);
         const selected = data.some((kb) => kb.id === candidate) ? candidate : (data[0]?.id ?? '');
         selector.replaceChildren();
         for (const kb of data) {
@@ -82,6 +93,7 @@ async function loadKnowledgeBases(preferredId, expectedRevision = selectionRevis
             selector.append(option);
         }
         selector.value = selected;
+        if (selected) rememberKnowledgeBase(AppState.user.id, selected);
         updateState({
             knowledgeBases: data,
             selectedKnowledgeBaseId: selected,

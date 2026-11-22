@@ -1,3 +1,4 @@
+import { webcrypto } from 'node:crypto';
 import vm from 'node:vm';
 import fs from 'node:fs';
 const base = 'src/main/resources/static/js/';
@@ -93,6 +94,7 @@ export async function setup({ manualAuth = false, session = new Map() } = {}) {
     };
     const context = vm.createContext({
         document,
+        crypto: webcrypto,
         URL,
         AbortController,
         FormData,
