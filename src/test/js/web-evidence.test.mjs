@@ -97,6 +97,36 @@ async function fixture(citations) {
     const retry = nodes().find((e) => e.textContent === '重试读取');
     return { ...h, nodes, dialog, buttons, closeButton, retry, click, focused: () => focused };
 }
+const headingPathJson = (...titles) => JSON.stringify({ version: 1, headings: titles.map((text) => ({ text })) });
+for (const [name, headingPath, expected] of [
+    ['单级标题', headingPathJson('Spring 事务：先找边界，再看异常与资源'), 'Spring 事务：先找边界，再看异常与资源'],
+    [
+        '多级标题',
+        headingPathJson('Spring 事务', '事务传播行为', 'REQUIRES_NEW'),
+        'Spring 事务 › 事务传播行为 › REQUIRES_NEW',
+    ],
+    ['空 headings', headingPathJson(), '无标题路径'],
+    ['空白标题', headingPathJson('  '), '无标题路径'],
+    ['null 标题路径', null, '无标题路径'],
+    ['缺失标题路径', undefined, '无标题路径'],
+    ['旧版文本', '[Java] Spring 事务', '[Java] Spring 事务'],
+    ['异常 JSON', '{"version":1,"headings":[', '无标题路径'],
+    ['不支持的版本', '{"version":2,"headings":[{"text":"标题"}]}', '无标题路径'],
+    ['HTML 特殊字符', headingPathJson('<img> & "事务"'), '<img> & "事务"'],
+]) {
+    test('显示证据标题路径：' + name, async () => {
+        const h = await fixture();
+        await h.respond(await h.click(0), { ...data(), filename: '文档.md', headingPath });
+        const body = h.nodes().find((e) => e.className === 'evidence-body');
+        assert.equal(body.children[1].textContent, '标题路径：' + expected);
+        assert.equal(body.children[1].children.length, 0);
+        assert.equal(body.children[2].textContent, '来源区间：[0, 2)（Unicode 码点）');
+        assert.equal(body.children[3].textContent, '<script>');
+        assert.match(h.dialog.textContent, /E1 · 引用证据/);
+        assert.match(h.dialog.textContent, /证据已加载/);
+    });
+}
+
 test('打开、关闭、焦点恢复、重新打开清除错误', async () => {
     const h = await fixture();
     let i = await h.click(0);

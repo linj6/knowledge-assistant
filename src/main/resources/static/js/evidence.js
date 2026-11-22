@@ -1,12 +1,33 @@
 import { request, ApiError } from './api.js';
 import { AppState, subscribe } from './state.js';
 const id = (value) => typeof value === 'string' && /^[1-9]\d*$/.test(value);
+function formatHeadingPath(headingPath) {
+    const fallback = '无标题路径';
+    const path = headingPath?.trim();
+    if (!path) return fallback;
+    if (!path.startsWith('{') && !path.startsWith('[')) return headingPath;
+
+    let parsed;
+    try {
+        parsed = JSON.parse(path);
+    } catch {
+        // 结构化路径损坏时隐藏原始 JSON，保留带括号的旧版标题。
+        return /^\{\s*(?:"|$)/.test(path) ? fallback : headingPath;
+    }
+    if (parsed.version !== 1 || !Array.isArray(parsed.headings)) return fallback;
+    return (
+        parsed.headings
+            .map((heading) => (typeof heading?.text === 'string' ? heading.text.trim() : ''))
+            .filter(Boolean)
+            .join(' › ') || fallback
+    );
+}
 export function validateEvidence(data, citation) {
     if (
         !data ||
         ['chunkId', 'documentId', 'indexVersionId'].some((key) => !id(data[key]) || data[key] !== citation[key]) ||
         typeof data.filename !== 'string' ||
-        (data.headingPath !== null && typeof data.headingPath !== 'string') ||
+        (data.headingPath !== undefined && data.headingPath !== null && typeof data.headingPath !== 'string') ||
         typeof data.content !== 'string' ||
         !Number.isSafeInteger(data.sourceStart) ||
         !Number.isSafeInteger(data.sourceEnd) ||
@@ -102,7 +123,7 @@ export function createEvidence(root) {
             const data = validateEvidence(response.data, citation);
             body.append(
                 node('p', '文件名：' + data.filename),
-                node('p', '标题路径：' + (data.headingPath ?? '无标题路径')),
+                node('p', '标题路径：' + formatHeadingPath(data.headingPath)),
                 node('p', `来源区间：[${data.sourceStart}, ${data.sourceEnd})（Unicode 码点）`),
                 node('pre', data.content),
             );
