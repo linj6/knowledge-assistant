@@ -151,11 +151,31 @@ class DatabaseIT {
             repository.insertConversation(conversation);
             Long id = conversation.getId();
             assertThat(id).isPositive();
-            Conversation stored = repository.findConversation(id);
+            Conversation stored = repository.findOwnedConversation(id, 1L);
             assertThat(stored.getOwnerUserId()).isEqualTo(1L);
             assertThat(stored.getKnowledgeBaseId()).isEqualTo(2L);
             assertThat(stored.getTitle()).isEqualTo("新会话");
             assertThat(stored.getCreatedAt()).isNotNull().isEqualTo(stored.getUpdatedAt());
+            jdbc.update(
+                    "INSERT INTO app_user (id, username, password_hash, status) VALUES (7, 'other', 'hash', 'ACTIVE')");
+            jdbc.update(
+                    "INSERT INTO knowledge_base (id, name, owner_user_id) VALUES (8, 'other base', 1), (9, 'private', 7)");
+            jdbc.update(
+                    """
+                    INSERT INTO chat_conversation (id, owner_user_id, knowledge_base_id, updated_at)
+                    VALUES (20, 1, 2, '2026-01-01T00:00:00Z'),
+                           (21, 1, 2, '2026-01-01T00:00:00Z'),
+                           (22, 1, 8, '2026-01-01T00:00:00Z'),
+                           (23, 7, 9, '2026-01-01T00:00:00Z')
+                    """);
+            assertThat(repository.findOwnedConversation(id, 7L)).isNull();
+            assertThat(repository.listOwnedConversations(1L, 2L))
+                    .extracting(Conversation::getId)
+                    .containsExactly(id, 21L, 20L);
+            assertThat(repository.listOwnedConversations(1L, 8L))
+                    .extracting(Conversation::getId)
+                    .containsExactly(22L);
+            assertThat(repository.listOwnedConversations(1L, 9L)).isEmpty();
 
             UUID turn = UUID.randomUUID();
             Message user = message(id, turn, MessageRole.USER, null);
@@ -164,7 +184,16 @@ class DatabaseIT {
             Message assistant = message(id, turn, MessageRole.ASSISTANT, MessageStatus.PROCESSING);
             assistant.setCitations("[{\"chunkId\": 5}]");
             repository.insertMessage(assistant);
-            List<Message> messages = repository.listMessages(id);
+            // 固定为同一时刻，验证跨页时仍按主键顺序读取。
+            jdbc.update("UPDATE chat_message SET created_at = CURRENT_TIMESTAMP WHERE conversation_id = ?", id);
+            assertThat(repository.listMessages(id, 1, 0))
+                    .extracting(Message::getId)
+                    .containsExactly(user.getId());
+            assertThat(repository.listMessages(id, 1, 1))
+                    .extracting(Message::getId)
+                    .containsExactly(assistant.getId());
+            assertThat(repository.listMessages(id, 1, 2)).isEmpty();
+            List<Message> messages = repository.listMessages(id, 10, 0);
             assertThat(messages).extracting(Message::getId).containsExactly(user.getId(), assistant.getId());
             assertThat(assistant.getId()).isPositive();
             Message storedUser = messages.getFirst();
@@ -200,7 +229,7 @@ class DatabaseIT {
             failed.setCompletedAt(completedAt);
             repository.insertMessage(failed);
             repository.insertMessage(message(id, nextTurn, MessageRole.ASSISTANT, MessageStatus.PROCESSING));
-            assertThat(repository.listMessages(id))
+            assertThat(repository.listMessages(id, 10, 0))
                     .filteredOn(row -> row.getId().equals(failed.getId()))
                     .singleElement()
                     .satisfies(row -> {

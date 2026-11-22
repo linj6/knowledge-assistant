@@ -22,18 +22,24 @@ public class ConversationRepository {
         conversationMapper.insert(conversation);
     }
 
-    public Conversation findConversation(Long id) {
-        return conversationMapper.selectById(id);
-    }
-
     public void insertMessage(Message message) {
         messageMapper.insert(message);
     }
 
-    /** 同一写入时刻的消息按主键排序，保证读取顺序稳定。 */
-    public List<Message> listMessages(Long conversationId) {
-        return messageMapper.selectList(new LambdaQueryWrapper<Message>()
-                .eq(Message::getConversationId, conversationId)
-                .orderByAsc(Message::getCreatedAt, Message::getId));
+    public Conversation findOwnedConversation(Long id, long ownerUserId) {
+        return conversationMapper.selectOne(new LambdaQueryWrapper<Conversation>()
+                .eq(Conversation::getId, id)
+                .eq(Conversation::getOwnerUserId, ownerUserId));
+    }
+
+    public List<Conversation> listOwnedConversations(long ownerUserId, Long knowledgeBaseId) {
+        return conversationMapper.selectList(new LambdaQueryWrapper<Conversation>()
+                .eq(Conversation::getOwnerUserId, ownerUserId)
+                .eq(Conversation::getKnowledgeBaseId, knowledgeBaseId)
+                .orderByDesc(Conversation::getUpdatedAt, Conversation::getId));
+    }
+
+    public List<Message> listMessages(Long conversationId, int limit, long offset) {
+        return messageMapper.selectHistory(conversationId, limit, offset);
     }
 }
