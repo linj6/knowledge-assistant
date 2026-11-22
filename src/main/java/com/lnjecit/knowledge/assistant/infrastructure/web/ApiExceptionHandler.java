@@ -56,7 +56,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             case METHOD_NOT_ALLOWED -> HttpStatus.METHOD_NOT_ALLOWED;
             case UNSUPPORTED_MEDIA_TYPE -> HttpStatus.UNSUPPORTED_MEDIA_TYPE;
             case INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
-            case USERNAME_EXISTS -> HttpStatus.CONFLICT;
+            case USERNAME_EXISTS, TURN_ID_CONFLICT, TURN_IN_PROGRESS -> HttpStatus.CONFLICT;
             case INVALID_ARGUMENT -> HttpStatus.BAD_REQUEST;
         };
     }

@@ -5,14 +5,18 @@ import com.lnjecit.knowledge.assistant.common.api.Result;
 import com.lnjecit.knowledge.assistant.conversation.dto.ConversationResponse;
 import com.lnjecit.knowledge.assistant.conversation.dto.CreateConversationRequest;
 import com.lnjecit.knowledge.assistant.conversation.dto.MessagePageResponse;
+import com.lnjecit.knowledge.assistant.conversation.dto.SubmitTurnRequest;
+import com.lnjecit.knowledge.assistant.conversation.dto.TurnResponse;
 import com.lnjecit.knowledge.assistant.conversation.entity.Message;
 import com.lnjecit.knowledge.assistant.conversation.service.ConversationService;
+import com.lnjecit.knowledge.assistant.conversation.service.TurnService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Positive;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,8 +34,27 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 public class ConversationController {
     private final ConversationService service;
 
-    public ConversationController(ConversationService service) {
+    private final TurnService turns;
+
+    public ConversationController(ConversationService service, TurnService turns) {
         this.service = service;
+        this.turns = turns;
+    }
+
+    @PostMapping("/{id}/turns")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public Result<TurnResponse.Accepted> submitTurn(
+            @PathVariable @Positive Long id,
+            @Valid @RequestBody SubmitTurnRequest request,
+            Authentication authentication) {
+        return Result.success(
+                turns.submit(AuthPrincipal.requireUserId(authentication), id, request.turnId(), request.question()));
+    }
+
+    @GetMapping("/{id}/turns/{turnId}")
+    public Result<TurnResponse> getTurn(
+            @PathVariable @Positive Long id, @PathVariable UUID turnId, Authentication authentication) {
+        return Result.success(turns.get(AuthPrincipal.requireUserId(authentication), id, turnId));
     }
 
     @PostMapping

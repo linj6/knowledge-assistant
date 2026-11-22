@@ -3,12 +3,27 @@ package com.lnjecit.knowledge.assistant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import com.lnjecit.knowledge.assistant.common.error.BusinessException;
+import com.lnjecit.knowledge.assistant.conversation.dto.TurnResponse;
 import com.lnjecit.knowledge.assistant.conversation.entity.Conversation;
 import com.lnjecit.knowledge.assistant.conversation.entity.Message;
 import com.lnjecit.knowledge.assistant.conversation.entity.MessageRole;
 import com.lnjecit.knowledge.assistant.conversation.entity.MessageStatus;
 import com.lnjecit.knowledge.assistant.conversation.repository.ConversationRepository;
+import com.lnjecit.knowledge.assistant.conversation.service.ConversationService;
+import com.lnjecit.knowledge.assistant.conversation.service.TurnExecutor;
+import com.lnjecit.knowledge.assistant.conversation.service.TurnService;
+import com.lnjecit.knowledge.assistant.rag.RagService;
+import com.lnjecit.knowledge.assistant.rag.model.RagAnswer;
+import com.lnjecit.knowledge.assistant.rag.model.RagCitation;
+import com.lnjecit.knowledge.assistant.rag.model.RagError;
+import com.lnjecit.knowledge.assistant.rag.model.RagStatus;
+import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStrategy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -17,6 +32,10 @@ import java.sql.Statement;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
@@ -25,6 +44,9 @@ import org.springframework.boot.WebApplicationType;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import tools.jackson.databind.json.JsonMapper;
 
 @org.testcontainers.junit.jupiter.Testcontainers
 class DatabaseIT {
@@ -110,6 +132,205 @@ class DatabaseIT {
                 Files.deleteIfExists(directory);
             }
         }
+    }
+
+    @Test
+    void submitsAndExecutesConversationTurns() throws Exception {
+        try (ConfigurableApplicationContext context = start()) {
+            JdbcTemplate jdbc = new JdbcTemplate(context.getBean(DataSource.class));
+            jdbc.update(
+                    """
+                    INSERT INTO app_user (id, username, password_hash, status)
+                    VALUES (1, 'owner', 'hash', 'ACTIVE'), (2, 'other', 'hash', 'ACTIVE')
+                    """);
+            jdbc.update("INSERT INTO knowledge_base (id, name, owner_user_id) VALUES (3, 'test', 1)");
+            ConversationService conversations = context.getBean(ConversationService.class);
+            ConversationRepository repository = context.getBean(ConversationRepository.class);
+            RagService rag = mock(RagService.class);
+            TurnExecutor executor = new TurnExecutor(rag, repository, context.getBean(JsonMapper.class));
+            TurnService turns = new TurnService(
+                    conversations, repository, executor, context.getBean(PlatformTransactionManager.class));
+            Long conversationId = conversations.create(1L, 3L).getId();
+            Long otherConversation = conversations.create(1L, 3L).getId();
+            String question = "  原始问题  ";
+            UUID turnId = UUID.randomUUID();
+            CountDownLatch entered = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
+            RetrievalStrategy strategy = RetrievalStrategy.HYBRID_RRF;
+            when(rag.answer(3L, question, strategy, null)).thenAnswer(call -> {
+                assertThat(TransactionSynchronizationManager.isActualTransactionActive())
+                        .isFalse();
+                assertThat(repository.findTurn(conversationId, turnId)).hasSize(2);
+                entered.countDown();
+                assertThat(release.await(10, TimeUnit.SECONDS)).isTrue();
+                return new RagAnswer(
+                        RagStatus.ANSWERED,
+                        "回答",
+                        List.of(new RagCitation("E1", 9L, 10L, 11L, 0, 2)),
+                        strategy,
+                        strategy,
+                        false,
+                        null,
+                        null);
+            });
+            when(rag.answer(3L, "无证据", strategy, null))
+                    .thenReturn(new RagAnswer(
+                            RagStatus.INSUFFICIENT_EVIDENCE, null, List.of(), strategy, strategy, false, null, null));
+            when(rag.answer(3L, "模型失败", strategy, null))
+                    .thenReturn(new RagAnswer(
+                            RagStatus.FAILED,
+                            null,
+                            List.of(),
+                            strategy,
+                            strategy,
+                            false,
+                            RagError.MODEL_TIMEOUT,
+                            null));
+            when(rag.answer(3L, "执行异常", strategy, null)).thenThrow(new IllegalStateException("private payload"));
+
+            try {
+                assertThat(turns.submit(1L, conversationId, turnId, question).status())
+                        .isEqualTo(MessageStatus.PROCESSING);
+                assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+                TurnResponse pending = turns.get(1L, conversationId, turnId);
+                assertThat(pending.question()).isEqualTo(question);
+                assertThat(pending.userMessageId()).isNotEqualTo(pending.assistantMessageId());
+                assertThat(pending.createdAt()).isNotNull();
+                assertThat(pending.completedAt()).isNull();
+                assertThat(pending.citations()).isEqualTo("[]");
+                Conversation stored = conversations.requireOwned(1L, conversationId);
+                assertThat(stored.getTitle()).isEqualTo("原始问题");
+                assertThat(stored.getUpdatedAt()).isEqualTo(pending.createdAt());
+
+                assertThat(turns.submit(1L, conversationId, turnId, question).status())
+                        .isEqualTo(MessageStatus.PROCESSING);
+                assertThatThrownBy(() -> turns.submit(1L, conversationId, turnId, "不同问题"))
+                        .isInstanceOf(BusinessException.class)
+                        .hasMessage("Turn ID 已用于其他问题");
+                UUID blockedTurn = UUID.randomUUID();
+                assertThatThrownBy(() -> turns.submit(1L, conversationId, blockedTurn, question))
+                        .isInstanceOf(BusinessException.class)
+                        .hasMessage("会话已有正在执行的 Turn");
+                assertThat(repository.findTurn(conversationId, blockedTurn)).isEmpty();
+                assertThatThrownBy(() -> turns.get(2L, conversationId, turnId))
+                        .isInstanceOf(BusinessException.class)
+                        .hasMessage("会话不存在");
+                assertThatThrownBy(() -> turns.submit(2L, conversationId, turnId, question))
+                        .isInstanceOf(BusinessException.class)
+                        .hasMessage("会话不存在");
+
+                UUID parallelTurn = UUID.randomUUID();
+                turns.submit(1L, otherConversation, parallelTurn, "无证据");
+                assertThat(awaitTurn(turns, otherConversation, parallelTurn).status())
+                        .isEqualTo(MessageStatus.INSUFFICIENT_EVIDENCE);
+                release.countDown();
+                TurnResponse answered = awaitTurn(turns, conversationId, turnId);
+                assertThat(answered.status()).isEqualTo(MessageStatus.ANSWERED);
+                assertThat(answered.answer()).isEqualTo("回答");
+                assertThat(answered.citations()).contains("E1");
+                assertThat(answered.completedAt()).isAfterOrEqualTo(answered.createdAt());
+                assertThat(turns.submit(1L, conversationId, turnId, question).status())
+                        .isEqualTo(MessageStatus.ANSWERED);
+                verify(rag, times(1)).answer(3L, question, strategy, null);
+
+                UUID failedTurn = UUID.randomUUID();
+                turns.submit(1L, conversationId, failedTurn, "模型失败");
+                TurnResponse failed = awaitTurn(turns, conversationId, failedTurn);
+                assertThat(failed.status()).isEqualTo(MessageStatus.FAILED);
+                assertThat(failed.errorCode()).isEqualTo("MODEL_TIMEOUT");
+
+                UUID exceptionalTurn = UUID.randomUUID();
+                turns.submit(1L, conversationId, exceptionalTurn, "执行异常");
+                assertThat(awaitTurn(turns, conversationId, exceptionalTurn).errorCode())
+                        .isEqualTo("TURN_EXECUTION_FAILED");
+
+                assertConcurrentSubmissions(turns, repository, rag, conversationId, strategy);
+
+                executor.shutdown();
+                UUID rejectedTurn = UUID.randomUUID();
+                assertThat(turns.submit(1L, conversationId, rejectedTurn, "拒绝").status())
+                        .isEqualTo(MessageStatus.FAILED);
+                TurnResponse rejected = turns.get(1L, conversationId, rejectedTurn);
+                assertThat(rejected.errorCode()).isEqualTo("TURN_EXECUTOR_REJECTED");
+                assertThat(rejected.completedAt()).isNotNull();
+                verify(rag, times(0)).answer(3L, "拒绝", strategy, null);
+            } finally {
+                release.countDown();
+                executor.shutdown();
+            }
+        }
+    }
+
+    private static void assertConcurrentSubmissions(
+            TurnService turns,
+            ConversationRepository repository,
+            RagService rag,
+            Long conversationId,
+            RetrievalStrategy strategy)
+            throws Exception {
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        String question = "并发问题";
+        when(rag.answer(3L, question, strategy, null)).thenAnswer(call -> {
+            assertThat(release.await(10, TimeUnit.SECONDS)).isTrue();
+            return new RagAnswer(
+                    RagStatus.INSUFFICIENT_EVIDENCE, null, List.of(), strategy, strategy, false, null, null);
+        });
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+        try (java.util.concurrent.ExecutorService callers = Executors.newFixedThreadPool(2)) {
+            Future<Boolean> left =
+                    callers.submit(() -> raceSubmit(turns, conversationId, first, question, ready, start));
+            Future<Boolean> right =
+                    callers.submit(() -> raceSubmit(turns, conversationId, second, question, ready, start));
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            boolean firstWon = left.get(5, TimeUnit.SECONDS);
+            assertThat(right.get(5, TimeUnit.SECONDS)).isNotEqualTo(firstWon);
+            assertThat(repository.findTurn(conversationId, firstWon ? second : first))
+                    .isEmpty();
+            release.countDown();
+            assertThat(awaitTurn(turns, conversationId, firstWon ? first : second)
+                            .status())
+                    .isEqualTo(MessageStatus.INSUFFICIENT_EVIDENCE);
+            verify(rag, times(1)).answer(3L, question, strategy, null);
+        } finally {
+            release.countDown();
+        }
+    }
+
+    private static boolean raceSubmit(
+            TurnService turns,
+            Long conversationId,
+            UUID turnId,
+            String question,
+            CountDownLatch ready,
+            CountDownLatch start)
+            throws InterruptedException {
+        ready.countDown();
+        assertThat(start.await(5, TimeUnit.SECONDS)).isTrue();
+        try {
+            turns.submit(1L, conversationId, turnId, question);
+            return true;
+        } catch (BusinessException rejected) {
+            assertThat(rejected).hasMessage("会话已有正在执行的 Turn");
+            return false;
+        }
+    }
+
+    private static TurnResponse awaitTurn(TurnService turns, Long conversationId, UUID turnId)
+            throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        TurnResponse turn;
+        do {
+            turn = turns.get(1L, conversationId, turnId);
+            if (turn.status() != MessageStatus.PROCESSING) {
+                return turn;
+            }
+            Thread.sleep(20);
+        } while (System.nanoTime() < deadline);
+        throw new AssertionError("Turn still processing: " + turnId);
     }
 
     @Test

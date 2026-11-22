@@ -108,18 +108,22 @@ public class RagService {
         private AssembledContext context;
     }
 
+    public static void validateQuestion(String question) {
+        if (question == null || question.isBlank() || question.length() > MAX_QUESTION_LENGTH) {
+            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT);
+        }
+    }
+
     private RagAnswer execute(
             Long knowledgeBaseId,
             String question,
             RetrievalStrategy strategy,
             RetrievalParameters parameters,
             Observation observation) {
-        if (knowledgeBaseId == null
-                || knowledgeBaseId <= 0
-                || question == null
-                || question.isBlank()
-                || question.length() > MAX_QUESTION_LENGTH)
+        if (knowledgeBaseId == null || knowledgeBaseId <= 0) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT);
+        }
+        validateQuestion(question);
         RetrievalStrategy requested = strategy == null ? RetrievalStrategy.HYBRID_RRF : strategy;
         RetrievalParameters resolved = parameters == null ? RetrievalParameters.defaults() : parameters;
         try {

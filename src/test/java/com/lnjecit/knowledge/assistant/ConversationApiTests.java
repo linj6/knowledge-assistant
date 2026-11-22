@@ -12,17 +12,24 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.lnjecit.knowledge.assistant.auth.service.AuthPrincipal;
+import com.lnjecit.knowledge.assistant.common.error.BusinessException;
+import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
 import com.lnjecit.knowledge.assistant.conversation.controller.ConversationController;
+import com.lnjecit.knowledge.assistant.conversation.dto.TurnResponse;
 import com.lnjecit.knowledge.assistant.conversation.entity.Conversation;
 import com.lnjecit.knowledge.assistant.conversation.entity.Message;
+import com.lnjecit.knowledge.assistant.conversation.entity.MessageStatus;
 import com.lnjecit.knowledge.assistant.conversation.repository.ConversationRepository;
 import com.lnjecit.knowledge.assistant.conversation.service.ConversationService;
+import com.lnjecit.knowledge.assistant.conversation.service.TurnService;
 import com.lnjecit.knowledge.assistant.infrastructure.web.ApiExceptionHandler;
 import com.lnjecit.knowledge.assistant.infrastructure.web.ApiJacksonConfiguration;
 import com.lnjecit.knowledge.assistant.knowledge.entity.KnowledgeBase;
 import com.lnjecit.knowledge.assistant.knowledge.repository.KnowledgeBaseRepository;
 import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;
+import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
@@ -38,6 +45,7 @@ class ConversationApiTests {
 
     private final ConversationRepository repository = mock(ConversationRepository.class);
     private final KnowledgeBaseRepository knowledgeBases = mock(KnowledgeBaseRepository.class);
+    private final TurnService turns = mock(TurnService.class);
     private MockMvc mvc;
 
     @BeforeEach
@@ -45,11 +53,47 @@ class ConversationApiTests {
         JsonMapper.Builder builder = JsonMapper.builder();
         new ApiJacksonConfiguration().longAsString().customize(builder);
         ConversationService service = new ConversationService(repository, new KnowledgeBaseService(knowledgeBases));
-        mvc = MockMvcBuilders.standaloneSetup(new ConversationController(service))
+        mvc = MockMvcBuilders.standaloneSetup(new ConversationController(service, turns))
                 .defaultRequest(get("/").servletPath("/api").principal(principal(42L)))
                 .setMessageConverters(new JacksonJsonHttpMessageConverter(builder.build()))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .build();
+    }
+
+    @Test
+    void submitsAndQueriesTurnUsingCurrentUser() throws Exception {
+        UUID turnId = UUID.randomUUID();
+        String path = PATH + "/" + ID + "/turns";
+        String body = """
+                {"turnId":"%s","question":"原始问题"}
+                """.formatted(turnId);
+        when(turns.submit(42L, ID, turnId, "原始问题"))
+                .thenReturn(new TurnResponse.Accepted(turnId, MessageStatus.PROCESSING))
+                .thenThrow(new BusinessException(CommonErrorCode.TURN_ID_CONFLICT));
+        when(turns.get(42L, ID, turnId))
+                .thenReturn(new TurnResponse(
+                        turnId,
+                        MessageStatus.ANSWERED,
+                        "原始问题",
+                        "回答",
+                        "[{\"evidenceId\":\"E1\"}]",
+                        null,
+                        ID,
+                        ID + 1,
+                        Instant.EPOCH,
+                        Instant.EPOCH));
+        mvc.perform(post(path).contentType("application/json").content(body))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.data.turnId").value(turnId.toString()))
+                .andExpect(jsonPath("$.data.status").value("PROCESSING"));
+        mvc.perform(post(path).contentType("application/json").content(body))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(40901));
+        mvc.perform(get(path + "/" + turnId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.answer").value("回答"))
+                .andExpect(jsonPath("$.data.citations[0].evidenceId").value("E1"))
+                .andExpect(jsonPath("$.data.userMessageId").value(ID.toString()));
     }
 
     @Test

@@ -13,6 +13,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class ConversationService {
+    static final String DEFAULT_TITLE = "新会话";
+
     private final ConversationRepository repository;
     private final KnowledgeBaseService knowledgeBaseService;
 
@@ -27,7 +29,7 @@ public class ConversationService {
         Conversation conversation = new Conversation();
         conversation.setOwnerUserId(userId);
         conversation.setKnowledgeBaseId(knowledgeBaseId);
-        conversation.setTitle("新会话");
+        conversation.setTitle(DEFAULT_TITLE);
         conversation.setCreatedAt(now);
         conversation.setUpdatedAt(now);
         repository.insertConversation(conversation);
