@@ -36,6 +36,9 @@ spring:
     enabled: true
     baseline-on-migrate: false
 assistant:
+  rag:
+    query-rewrite:
+      enabled: false
   worker:
     enabled: false
     scan-interval: 5s

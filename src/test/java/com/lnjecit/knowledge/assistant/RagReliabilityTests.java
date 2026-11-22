@@ -1,6 +1,7 @@
 package com.lnjecit.knowledge.assistant;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -8,12 +9,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.lnjecit.knowledge.assistant.auth.service.AuthPrincipal;
+import com.lnjecit.knowledge.assistant.conversation.dto.HistoryTurn;
+import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelCallCancellation;
 import com.lnjecit.knowledge.assistant.infrastructure.web.ApiExceptionHandler;
 import com.lnjecit.knowledge.assistant.infrastructure.web.RequestIdFilter;
 import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;
@@ -22,10 +26,19 @@ import com.lnjecit.knowledge.assistant.rag.context.ContextBuilder;
 import com.lnjecit.knowledge.assistant.rag.context.ContextProperties;
 import com.lnjecit.knowledge.assistant.rag.controller.RagController;
 import com.lnjecit.knowledge.assistant.rag.generation.AnswerGenerator;
+import com.lnjecit.knowledge.assistant.rag.model.RagAnswer;
+import com.lnjecit.knowledge.assistant.rag.model.RagError;
+import com.lnjecit.knowledge.assistant.rag.model.RagStatus;
+import com.lnjecit.knowledge.assistant.rag.rewrite.QueryRewriter;
 import com.lnjecit.knowledge.assistant.retrieval.RetrievalService;
+import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalParameters;
+import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalResult;
+import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStrategy;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -36,6 +49,94 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 class RagReliabilityTests {
+    @ParameterizedTest
+    @ValueSource(
+            strings = {"disabled", "single", "trace", "unchanged", "rewritten", "fallback", "invalidCitation", "cancel"
+            })
+    void queryRewriteIntegration(String scenario) {
+        String question = "How can I prevent it?";
+        String rewritten = "How can I prevent Redis cache stampedes?";
+        List<HistoryTurn> history =
+                List.of(new HistoryTurn("What is a cache stampede?", "Many concurrent cache misses."));
+        boolean hasHistory = !List.of("single", "trace").contains(scenario);
+        boolean enabled = !scenario.equals("disabled");
+        boolean attemptsRewrite = enabled && hasHistory;
+        boolean usesRewrite = List.of("rewritten", "invalidCitation").contains(scenario);
+        CitationValidationTests fixture = new CitationValidationTests();
+        RetrievalResult evidence = fixture.result();
+        RetrievalService retrieval = mock(RetrievalService.class);
+        String expectedQuery = usesRewrite ? rewritten : question;
+        when(retrieval.search(1L, expectedQuery, List.of(RetrievalStrategy.HYBRID_RRF), RetrievalParameters.defaults()))
+                .thenReturn(List.of(evidence));
+
+        ModelCallCancellation cancellation = new ModelCallCancellation();
+        ChatModel model = mock(ChatModel.class);
+        ChatResponse generated =
+                chatResponse(fixture.json(true, scenario.equals("invalidCitation") ? "[\"E99\"]" : "[\"E1\"]"));
+        String rewriteOutput =
+                switch (scenario) {
+                    case "unchanged" -> "{\"standaloneQuery\":\"" + question + "\"}";
+                    case "fallback" -> "invalid JSON";
+                    default -> "{\"standaloneQuery\":\"" + rewritten + "\"}";
+                };
+        if (scenario.equals("cancel")) {
+            when(model.call(any(Prompt.class))).thenAnswer(invocation -> {
+                cancellation.cancel();
+                return chatResponse(rewriteOutput);
+            });
+        } else if (attemptsRewrite) {
+            when(model.call(any(Prompt.class))).thenReturn(chatResponse(rewriteOutput), generated);
+        } else {
+            when(model.call(any(Prompt.class))).thenReturn(generated);
+        }
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        beans.addBean("chat", model);
+        RagService service = new RagService(
+                retrieval,
+                new ContextBuilder(new ContextProperties()),
+                new AnswerGenerator(beans.getBeanProvider(ChatModel.class)),
+                new QueryRewriter(beans.getBeanProvider(ChatModel.class)),
+                enabled);
+        if (scenario.equals("cancel")) {
+            assertThatThrownBy(() -> cancellation.run(() -> service.answer(1L, question, null, null, history)))
+                    .isInstanceOf(CancellationException.class);
+            verifyNoInteractions(retrieval);
+            verify(model).call(any(Prompt.class));
+            return;
+        }
+
+        RagAnswer answer =
+                switch (scenario) {
+                    case "trace" -> service.executeWithTrace(1L, question, null, null)
+                            .answer();
+                    case "single" -> service.answer(1L, question, null, null);
+                    default -> service.answer(1L, question, null, null, history);
+                };
+        verify(retrieval)
+                .search(1L, expectedQuery, List.of(RetrievalStrategy.HYBRID_RRF), RetrievalParameters.defaults());
+        ArgumentCaptor<Prompt> prompts = ArgumentCaptor.forClass(Prompt.class);
+        verify(model, times(attemptsRewrite ? 2 : 1)).call(prompts.capture());
+        String generationInput =
+                prompts.getAllValues().getLast().getUserMessage().getText();
+        assertThat(generationInput).contains(question).doesNotContain(rewritten);
+        if (hasHistory) {
+            assertThat(generationInput)
+                    .contains(history.getFirst().question(), history.getFirst().answer());
+        }
+        if (scenario.equals("invalidCitation")) {
+            assertThat(answer.error()).isEqualTo(RagError.CITATION_INVALID);
+            assertThat(answer.citations()).isEmpty();
+        } else {
+            assertThat(answer.status()).isEqualTo(RagStatus.ANSWERED);
+            assertThat(answer.citations()).singleElement().satisfies(citation -> assertThat(citation.chunkId())
+                    .isEqualTo(evidence.chunks().getFirst().chunkId()));
+        }
+    }
+
+    private ChatResponse chatResponse(String text) {
+        return new ChatResponse(List.of(new Generation(new AssistantMessage(text))));
+    }
+
     @ParameterizedTest
     @ValueSource(
             strings = {
@@ -143,8 +244,12 @@ class RagReliabilityTests {
         if (scenario.equals("noResponse")) when(model.call(any(Prompt.class))).thenReturn(null);
         StaticListableBeanFactory beans = new StaticListableBeanFactory();
         if (!scenario.equals("disabled")) beans.addBean("chat", model);
-        RagService service =
-                new RagService(retrieval, contexts, new AnswerGenerator(beans.getBeanProvider(ChatModel.class)));
+        RagService service = new RagService(
+                retrieval,
+                contexts,
+                new AnswerGenerator(beans.getBeanProvider(ChatModel.class)),
+                new QueryRewriter(beans.getBeanProvider(ChatModel.class)),
+                true);
         ch.qos.logback.classic.Logger logger =
                 (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(RagService.class);
         ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> events =

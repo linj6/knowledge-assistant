@@ -14,6 +14,7 @@ import com.lnjecit.knowledge.assistant.rag.model.RagAnswer;
 import com.lnjecit.knowledge.assistant.rag.model.RagCitation;
 import com.lnjecit.knowledge.assistant.rag.model.RagError;
 import com.lnjecit.knowledge.assistant.rag.model.RagStatus;
+import com.lnjecit.knowledge.assistant.rag.rewrite.QueryRewriter;
 import com.lnjecit.knowledge.assistant.rag.validation.CitationValidator;
 import com.lnjecit.knowledge.assistant.rag.validation.StructuredOutputParser;
 import com.lnjecit.knowledge.assistant.retrieval.RetrievalService;
@@ -26,6 +27,8 @@ import java.util.List;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -35,13 +38,27 @@ public class RagService {
     private final RetrievalService retrieval;
     private final ContextBuilder contexts;
     private final AnswerGenerator generator;
+    private final QueryRewriter rewriter;
+    private final boolean queryRewriteEnabled;
     private final StructuredOutputParser parser = new StructuredOutputParser();
     private final CitationValidator validator = new CitationValidator();
 
     public RagService(RetrievalService retrieval, ContextBuilder contexts, AnswerGenerator generator) {
+        this(retrieval, contexts, generator, null, false);
+    }
+
+    @Autowired
+    public RagService(
+            RetrievalService retrieval,
+            ContextBuilder contexts,
+            AnswerGenerator generator,
+            QueryRewriter rewriter,
+            @Value("${assistant.rag.query-rewrite.enabled:false}") boolean queryRewriteEnabled) {
         this.retrieval = retrieval;
         this.contexts = contexts;
         this.generator = generator;
+        this.rewriter = rewriter;
+        this.queryRewriteEnabled = queryRewriteEnabled;
     }
 
     public RagAnswer answer(
@@ -143,9 +160,11 @@ public class RagService {
         } catch (IllegalArgumentException failure) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT);
         }
-        // 单次问答只请求一个策略，复用 M2 的发布快照、召回和失败隔离。
+        // 改写结果只用于检索，生成仍接收原始问题和会话历史。
+        String retrievalQuery = retrievalQuery(question, history);
+        // timed 在进入检索前检查取消，包括改写刚完成时收到的取消。
         RetrievalResult result = timed("RETRIEVAL", () -> retrieval
-                .search(knowledgeBaseId, question, List.of(requested), resolved)
+                .search(knowledgeBaseId, retrievalQuery, List.of(requested), resolved)
                 .getFirst());
         observation.retrieval = result;
         observation.retrievalCheck.accept(result);
@@ -204,6 +223,31 @@ public class RagService {
             FailureLog.error(log, "RAG_CITATION errorCode=CITATION_INVALID", failure);
             return response(result, RagStatus.FAILED, null, List.of(), RagError.CITATION_INVALID, raw.usage());
         }
+    }
+
+    private String retrievalQuery(String question, List<HistoryTurn> history) {
+        QueryRewriter.Status status = QueryRewriter.Status.SKIPPED;
+        String query = question;
+        long elapsedMillis = 0;
+        if (queryRewriteEnabled && !history.isEmpty()) {
+            long started = System.nanoTime();
+            QueryRewriter.Result result = rewriter.rewrite(question, history);
+            elapsedMillis = (System.nanoTime() - started) / 1_000_000;
+            status = result.status();
+            if (status == QueryRewriter.Status.REWRITTEN) query = result.retrievalQuery();
+        }
+        try {
+            log.info(
+                    "stage=QUERY_REWRITE enabled={} status={} elapsedMillis={} originalLength={} retrievalLength={}",
+                    queryRewriteEnabled,
+                    status,
+                    elapsedMillis,
+                    question.length(),
+                    query.length());
+        } catch (RuntimeException loggingFailure) {
+            // 日志后端故障不影响检索。
+        }
+        return query;
     }
 
     private <T> T timed(String stage, Supplier<T> action) {
