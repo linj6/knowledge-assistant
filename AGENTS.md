@@ -1,23 +1,22 @@
 # Knowledge Assistant 项目开发指引
 
-## 项目定位
+## 项目定位与当前状态
 
-Knowledge Assistant 是基于 Java / Spring AI 的个人知识管理与 RAG 问答项目，采用分阶段开发。遵守已确认的 V1 P0 范围和当前任务授权，不提前实现后续里程碑或 P1/P2、Memory、Agent、Web UI。
+Knowledge Assistant 是基于 Java / Spring AI 的个人知识管理与 RAG 问答项目。M5 正在准备公开仓库，当前任务分支为 `feature/m5-public-readiness`。已实现账号与知识库隔离、文档导入、四策略检索、单轮与多轮 RAG、静态 Web 页面及评估工具。M4 有冻结离线结果与历史 LIVE 联调记录。MinIO 分发、模型调用授权和新环境部署待 M5-02 验证。
 
-## 技术栈
+遵守已确认的 V1 P0 范围和当前任务授权。跨会话长期记忆、Agent、Workflow、MCP、Skills、Harness 及后续 P1/P2 功能仍在当前实现范围之外。
 
-当前 pom.xml 使用 Java 21、Spring Boot 4.1.2、Spring AI 2.0.2；项目采用 PostgreSQL / pgvector、Elasticsearch / IK、MinIO、Flyway、Maven、JUnit。基础设施具体版本与验证状态应查阅仓库记录，不推测版本或引入新技术。
+## 当前文档入口
 
-## 权威文档
+- [项目总览](README.md)
+- [开始使用](docs/getting-started.md)
+- [当前架构](docs/architecture.md)
+- [核心功能](docs/core-features.md)
+- [M4 评估](docs/evaluation.md)
 
-- 产品需求：[Product Spec](docs/archive/v1-development/product/product-spec.md)。
-- 架构决策：[Architecture Spec](docs/archive/v1-development/architecture/architecture.md)。
-- 开发顺序：[Implementation Plan](docs/archive/v1-development/plans/implementation-plan.md)。
-- 具体代码风格：[Code Style](docs/archive/v1-development/engineering/code-style.md)。
-- 单次任务模板：[Codex Task Template](docs/archive/v1-development/plans/codex-task-template.md)。
-- 模型能力及验证边界：[Model Capability Report](docs/archive/v1-development/engineering/model-capability-report.md)。
+当前实现与版本以源码、配置、Flyway 和测试为准。当前 pom.xml 使用 Java 21、Spring Boot 4.1.2、Spring AI 2.0.2。文档冲突应先报告，例如历史架构规格的 Spring Boot 3.x 与当前 pom.xml 不同。保护冻结评估输入和历史正文。
 
-单次任务以用户当前明确授权的范围为准。文档冲突或与实际代码版本不一致时，先报告冲突，不擅自修改冻结文档。已知差异：Architecture Spec 的 Spring Boot 3.x 与当前 pom.xml 的 4.1.2 不一致；模型报告的默认 clean verify 说明不作为每次任务的验证要求，按下述影响范围执行。
+[历史资料](docs/archive/README.md)供核对早期产品需求、架构决策、开发顺序及阶段验证。历史[代码风格](docs/archive/v1-development/engineering/code-style.md)作为工程规范参考，历史模型报告中的默认 clean verify 说明按下述影响范围规则处理。
 
 ## 开发约束
 
@@ -38,7 +37,7 @@ Knowledge Assistant 是基于 Java / Spring AI 的个人知识管理与 RAG 问�
 
 ## Git 工作流
 
-- 在当前任务指定分支上开发；M0 当前使用 feature/m0-foundation。
+- 在当前任务指定分支上开发。
 - 开始修改前检查工作区状态，不覆盖或清理用户已有的未提交修改。
 - 仅提交任务相关文件，保持提交粒度清晰。
 - Git Commit Message 默认使用中文描述变更意图，保留 Conventional Commits 类型前缀及必要英文技术术语；详细规则见 Code Style 的 Git Commit Message 章节，无需改写已有提交历史。

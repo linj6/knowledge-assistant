@@ -1,0 +1,28 @@
+# 核心功能
+
+## 用户权限与知识库
+
+用户可以注册、登录、查询登录态及登出。业务接口使用 Redis 支持的 Session Cookie，写请求受 CSRF 校验。知识库归属当前账号，文档证据、导入任务、检索和会话按归属校验。主站提供「知识库」「检索」「问答」页面。评估 API 当前由安全配置拒绝访问。[安全配置](../src/main/java/com/lnjecit/knowledge/assistant/infrastructure/web/SecurityConfiguration.java) · [知识库接口](../src/main/java/com/lnjecit/knowledge/assistant/knowledge/controller/KnowledgeBaseController.java)
+
+## 文档导入
+
+支持 UTF-8 Markdown / TXT，单文件上限 2 MiB。同一知识库内重复内容复用已有导入结果，新任务返回 HTTP 202，重复内容返回 200。页面可查询任务进度及文档列表。切分支持固定代码点与 Markdown 结构感知，当前配置默认固定切分，长度 800、重叠 120。发布后才能参与检索。[导入接口](../src/main/java/com/lnjecit/knowledge/assistant/ingestion/controller/DocumentImportController.java) · [默认配置](../src/main/resources/application.yml)
+
+## 四种检索策略
+
+| 策略 | 行为 |
+| --- | --- |
+| `VECTOR` | 对问题生成 Embedding，在 pgvector 检索相近 Chunk |
+| `BM25` | 在 Elasticsearch / IK 中进行关键词检索 |
+| `HYBRID_RRF` | 融合向量与 BM25 候选，按各路排名累加贡献 |
+| `HYBRID_RERANK` | 以 RRF 候选为输入，调用配置的重排模型 |
+
+检索页可对比各路结果。四种策略已实现，M4 冻结评估范围为前三种。[检索编排](../src/main/java/com/lnjecit/knowledge/assistant/retrieval/RetrievalService.java) · [M4 评估](evaluation.md)
+
+## 引用与多轮会话
+
+单轮入口为 `POST /api/v1/chat/answers`。主站问答使用绑定一个知识库的会话。后端从检索候选构建上下文，校验生成结果中的引用身份，证据不足时可返回拒答。引用可打开对应版本的 Chunk；引用校验覆盖身份与范围，正文是否支持结论需另行判断。同一会话可参考有预算限制的近期已回答轮次。[RAG 源码](../src/main/java/com/lnjecit/knowledge/assistant/rag) · [历史选择](../src/main/java/com/lnjecit/knowledge/assistant/conversation/service/TurnHistoryService.java)
+
+## 取消与恢复
+
+同一会话只允许一个活动轮次。同一轮次 ID 和问题的重复提交读取已有状态。页面轮询查询轮次，取消会请求中断处理，再通过服务端状态确认结果。重进页面可读取已保存消息，启动时会收敛上次进程中断留下的活动轮次。生成中断后可重新发起提问。导入恢复独立于对话，Worker 按任务租约与重试规则处理遗留任务。[轮次服务](../src/main/java/com/lnjecit/knowledge/assistant/conversation/service/TurnService.java) · [轮次执行器](../src/main/java/com/lnjecit/knowledge/assistant/conversation/service/TurnExecutor.java) · [导入任务](../src/main/java/com/lnjecit/knowledge/assistant/ingestion/task)

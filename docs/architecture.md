@@ -1,0 +1,52 @@
+# 当前架构
+
+当前实现是一个 Spring Boot 应用，根包为 `com.lnjecit.knowledge.assistant`。浏览器加载应用内静态页面，通过 `/api/v1` 调用业务接口。异步导入 Worker 和会话执行器均在应用进程内。
+
+| Java 包 | 职责 |
+| --- | --- |
+| `auth`、`knowledge`、`document` | 认证、知识库归属校验、文档及证据查询 |
+| `ingestion` | 上传、任务租约与重试、解析切分、向量化、索引验证与发布 |
+| `retrieval`、`rag` | 发布快照、策略编排、上下文构建、生成与引用校验 |
+| `conversation` | 会话归属、消息持久化、历史选择、轮次调度与取消 |
+| `evaluation`、`infrastructure` | 评估数据与运行归档，以及数据库、对象存储、模型和 Web 基础设施适配 |
+
+[Java 源码](../src/main/java/com/lnjecit/knowledge/assistant) · [Flyway 迁移](../src/main/resources/db/migration)
+
+| 存储 | 保存内容 |
+| --- | --- |
+| PostgreSQL / pgvector | 用户、知识库、文档、任务、索引版本、Chunk、向量及会话消息。发布状态以 PostgreSQL 为准 |
+| Elasticsearch / IK | Chunk 文本的 BM25 搜索索引 |
+| MinIO | 单 Bucket 中的 `staging/` 临时对象和 `originals/` 正式原文件 |
+| Redis | Spring Session 登录态 |
+| 文件系统 | 评估运行材料，默认位于 `data/evaluation` |
+
+## 文档导入与索引发布
+
+```mermaid
+flowchart TD
+    A["上传与内容去重"] --> B["MinIO 临时对象与正式原文件"]
+    B --> C["PostgreSQL 文档与导入任务"]
+    C --> D["Worker 读取原文并解析切分"]
+    D --> E["Embedding 与 PostgreSQL 写入"]
+    E --> F["Elasticsearch 批量索引"]
+    F --> G["校验 PostgreSQL 与 Elasticsearch"]
+    G --> H["发布索引版本"]
+    H --> I["检索读取当前发布快照"]
+```
+
+上传和后台建索引分开执行。Worker 领取带租约的任务，按配置重试可重试故障。索引经过双存储校验才可发布，检索以知识库的已发布文档及版本快照约束候选。对象存储与数据库之间存在失败窗口，上传流程做补偿清理，临时对象由 Bucket 生命周期规则兜底，正式孤儿对象需人工核对。[导入源码](../src/main/java/com/lnjecit/knowledge/assistant/ingestion) · [检索快照](../src/main/java/com/lnjecit/knowledge/assistant/retrieval/snapshot) · [对象存储运维](../infra/minio/README.md)
+
+## 多轮 RAG
+
+```mermaid
+flowchart TD
+    A["提交问题与轮次 ID"] --> B["持久化用户消息与助手占位"]
+    B --> C["异步读取同会话近期已回答轮次"]
+    C --> D["可选查询改写"]
+    D --> E["检索绑定知识库的发布版本"]
+    E --> F["构建证据上下文并生成回答"]
+    F --> G["校验引用并保存轮次结果"]
+    G --> H["浏览器轮询并展示结果"]
+```
+
+已回答历史按估算 Token 预算选取。查询改写默认关闭。近轮历史用于理解追问，引用由当前轮次的检索上下文约束。轮次和引用落在 PostgreSQL，登录态落在 Redis。[会话执行器](../src/main/java/com/lnjecit/knowledge/assistant/conversation/service/TurnExecutor.java) · [RAG 源码](../src/main/java/com/lnjecit/knowledge/assistant/rag)
