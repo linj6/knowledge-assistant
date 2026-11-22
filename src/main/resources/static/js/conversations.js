@@ -45,12 +45,14 @@ export function initializeConversations(root, node, evidence, appendCitations) {
     const list = node('ul');
     const status = node('p');
     const retry = node('button', '重试');
+    const draftNotice = node('p');
+    draftNotice.setAttribute('role', 'status');
     const history = node('div');
     history.className = 'chat-history';
     history.setAttribute('aria-label', '会话历史');
     status.setAttribute('role', 'status');
     create.type = retry.type = 'button';
-    panel.append(node('h2', '会话'), create, list, status, retry, history);
+    panel.append(node('h2', '会话'), create, list, status, draftNotice, retry, history);
     const form = node('form');
     form.className = 'chat-composer';
     const label = node('label', '你的问题');
@@ -110,6 +112,11 @@ export function initializeConversations(root, node, evidence, appendCitations) {
     }
 
     function controls() {
+        const draft = selected ? getDraft() : undefined;
+        draftNotice.textContent = draft?.blockedByActiveTurn
+            ? '提交时此会话已有一轮正在执行。原问题已保留，可在当前轮结束后手动重试提交。'
+            : '';
+        draftNotice.hidden = !draftNotice.textContent;
         send.disabled = question.disabled = !ready || !!turn;
         cancel.hidden = turn?.status !== 'PROCESSING';
         cancel.disabled = cancel.hidden || !!pending;
@@ -215,7 +222,11 @@ export function initializeConversations(root, node, evidence, appendCitations) {
             } catch (error) {
                 if (!isCurrent()) return;
                 if (error.code === 40902) {
-                    saveDraft(null);
+                    saveDraft({
+                        turnId: current.turnId,
+                        question: current.question,
+                        blockedByActiveTurn: true,
+                    });
                     loadHistory(selected);
                     return;
                 }

@@ -223,3 +223,70 @@ test('切换后旧轮查询的 401 不触发新页面退出登录', async () => 
     assert.equal(h.reloads(), 0);
     assert.equal(h.state.AppState.user.id, '1');
 });
+
+test('另一标签页正在执行时保留原问题，结束后仅手动重提原 UUID', async () => {
+    const session = new Map();
+    const h = await fixture(session);
+    await h.load();
+    const body = await h.submit('  原始问题  ');
+    h.last().resolve({
+        status: 409,
+        ok: false,
+        headers: { get: () => null },
+        json: async () => ({ code: 40902 }),
+    });
+    await h.tick();
+    const saved = JSON.parse(session.get('ka.turn:1:' + id));
+    assert.equal(saved.turnId, body.turnId);
+    assert.equal(saved.question, body.question);
+    assert.match(h.text(), /原问题已保留/);
+    assert.match(h.last().url, new RegExp('/conversations/' + id + '$'));
+
+    const serverTurn = { turnId: '5eebed1b-bdc4-4184-a8ef-945ce65d06e9', question: '另一标签页的问题' };
+    const messages = [
+        {
+            id,
+            conversationId: id,
+            turnId: serverTurn.turnId,
+            role: 'USER',
+            content: serverTurn.question,
+            citations: [],
+        },
+        {
+            id: other,
+            conversationId: id,
+            turnId: serverTurn.turnId,
+            role: 'ASSISTANT',
+            status: 'PROCESSING',
+            citations: [],
+        },
+    ];
+    await h.reply(conversation(id));
+    await h.reply(page(messages));
+    assert.match(h.last().url, new RegExp('/turns/' + serverTurn.turnId + '$'));
+    assert.equal(h.find('发送').disabled, true);
+    const postCount = () => h.calls.filter((call) => call.options.method === 'POST').length;
+    await h.reply(result(serverTurn, 'PROCESSING'));
+    await h.fireTimer(1500);
+    await h.reply(result(serverTurn, 'ANSWERED', { answer: '另一轮已完成' }));
+    await h.reply(conversation(id));
+    await h.reply(page([messages[0], { ...messages[1], status: 'ANSWERED', content: '另一轮已完成' }]));
+
+    assert.match(h.last().url, new RegExp('/turns/' + body.turnId + '$'));
+    assert.ok(h.text().includes(body.question));
+    h.last().resolve({
+        status: 404,
+        ok: false,
+        headers: { get: () => null },
+        json: async () => ({ code: 40400 }),
+    });
+    await h.tick();
+    assert.equal(postCount(), 1);
+    await h.click('重试提交');
+    assert.equal(postCount(), 2);
+    assert.deepEqual(JSON.parse(h.last().options.body), body);
+    await h.reply({ turnId: body.turnId, status: 'PROCESSING' }, 202);
+    await h.reply(result(body, 'ANSWERED', { answer: '原问题已回答' }));
+    assert.match(h.text(), /原问题已回答/);
+    assert.equal(session.has('ka.turn:1:' + id), false);
+});
