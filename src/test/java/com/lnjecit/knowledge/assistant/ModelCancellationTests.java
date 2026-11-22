@@ -260,7 +260,10 @@ class ModelCancellationTests {
     void clearsHttpCallAfterNetworkTimeout() throws Exception {
         Map<String, Call> calls = new ConcurrentHashMap<>();
         try (LocalServer server = new LocalServer(true, "timeout")) {
-            ModelCall call = new ModelCall(server.customizedModel(1, trackCalls(calls)), identifiedPrompt("timeout"));
+            int timeoutSeconds = 2;
+            ModelCall call = new ModelCall(
+                    server.customizedModel(timeoutSeconds, trackCalls(calls)), identifiedPrompt("timeout"));
+            long started = System.nanoTime();
             Thread worker = startWorker(call.task);
             assertTrue(server.first.arrived.await(WAIT_SECONDS, TimeUnit.SECONDS));
             assertNotNull(calls.get("timeout"));
@@ -269,11 +272,20 @@ class ModelCancellationTests {
             join(worker);
             assertFalse(call.task.isCancelled());
             String outcome = failureTypes(failure.getCause());
-            assertTrue(outcome.contains("SocketTimeoutException"), outcome);
+            // 服务端一直等待观察信号，客户端测试也没有发起取消。SDK 的总超时和读超时可能先后触发。
+            assertFalse(server.first.result.isDone());
+            assertTrue(call.finallyAt.get() - started >= TimeUnit.SECONDS.toNanos(timeoutSeconds), outcome);
+            assertTrue(
+                    java.util.stream.Stream.iterate(failure.getCause(), java.util.Objects::nonNull, Throwable::getCause)
+                            .anyMatch(cause -> cause instanceof IOException
+                                    && ("timeout".equals(cause.getMessage())
+                                            || "Read timed out".equals(cause.getMessage()))),
+                    outcome);
             assertTrue(calls.isEmpty());
             server.first.observeConnection.countDown();
             assertEquals("PEER_EOF", server.first.result.get(WAIT_SECONDS, TimeUnit.SECONDS));
             server.assertNoAdditionalConnections();
+            assertEquals(1, server.first.requests.get());
             System.out.printf(
                     "target=timeout HTTP=PEER_EOF worker=%s outcome=%s remainingHandles=%d%n",
                     worker.getState(), failureTypes(failure.getCause()), calls.size());

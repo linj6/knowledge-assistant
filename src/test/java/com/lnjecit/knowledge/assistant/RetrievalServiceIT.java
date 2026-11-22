@@ -8,6 +8,7 @@ import co.elastic.clients.transport.rest_client.RestClientTransport;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.RerankResult;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.Reranker;
 import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsChunkDocument;
+import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsIndexNames;
 import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsIndexRepository;
 import com.lnjecit.knowledge.assistant.retrieval.RetrievalService;
 import com.lnjecit.knowledge.assistant.retrieval.embedding.QueryEmbeddingService;
@@ -22,18 +23,39 @@ import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStrategy;
 import com.lnjecit.knowledge.assistant.retrieval.rerank.RerankService;
 import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshotService;
 import com.lnjecit.knowledge.assistant.retrieval.vector.VectorRetriever;
+import java.net.CookieManager;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.Generation;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.boot.web.server.context.WebServerApplicationContext;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 class RetrievalServiceIT extends ElasticsearchIT {
     private static final List<RetrievalStrategy> ALL = List.of(RetrievalStrategy.values());
@@ -237,6 +259,207 @@ class RetrievalServiceIT extends ElasticsearchIT {
                 client.indices().delete(r -> r.index(index));
             }
         }
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void answersConversationThroughHybridRetrieval(CapturedOutput output) throws Exception {
+        String evidence = "知识助手使用发布快照检索文档。";
+        String question = "  知识助手如何检索文档？  ";
+        String answer = "知识助手使用发布快照检索文档。";
+        JsonMapper json = JsonMapper.builder().build();
+        AtomicReference<JsonNode> modelInput = new AtomicReference<>();
+        ChatModel model = prompt -> {
+            modelInput.set(json.readTree(prompt.getUserMessage().getText()));
+            return new ChatResponse(List.of(new Generation(new AssistantMessage(
+                    """
+                    {"answerable":true,"answer":"%s","citations":["E1"]}
+                    """
+                            .formatted(answer)))));
+        };
+        float[] vector = new float[1024];
+        vector[0] = 1;
+        SpringApplication app = new SpringApplication(KnowledgeAssistantApplication.class);
+        app.addInitializers(context -> {
+            GenericApplicationContext beans = (GenericApplicationContext) context;
+            beans.registerBean(ChatModel.class, () -> model);
+            beans.registerBean(QueryEmbeddingService.class, () -> new QueryEmbeddingService(null) {
+                @Override
+                public QueryVector embed(String query) {
+                    return new QueryVector(vector);
+                }
+            });
+        });
+
+        try (GenericContainer<?> redis =
+                new GenericContainer<>("redis:7.4.11").withExposedPorts(6379).withImagePullPolicy(image -> false)) {
+            redis.start();
+            try (ConfigurableApplicationContext context = app.run(
+                    "--server.port=0",
+                    "--spring.datasource.url=" + postgres.getJdbcUrl(),
+                    "--spring.datasource.username=" + postgres.getUsername(),
+                    "--spring.datasource.password=" + postgres.getPassword(),
+                    "--spring.data.redis.port=" + redis.getMappedPort(6379),
+                    "--assistant.model.enabled=false",
+                    "--assistant.rerank.enabled=false",
+                    "--assistant.elasticsearch.enabled=true",
+                    "--assistant.elasticsearch.endpoint=http://" + elasticsearch.getHttpHostAddress())) {
+                int port =
+                        ((WebServerApplicationContext) context).getWebServer().getPort();
+                try (HttpClient http = HttpClient.newBuilder()
+                        .cookieHandler(new CookieManager())
+                        .build()) {
+                    URI api = URI.create("http://localhost:" + port + "/api/v1/");
+                    String credentials =
+                            """
+                            {"username":"conv_fixture","password":"secret123"}
+                            """;
+                    String csrf = exchange(http, api, json, "auth/csrf", null, null, 200)
+                            .path("token")
+                            .asString();
+                    exchange(http, api, json, "auth/register", csrf, credentials, 200);
+                    exchange(http, api, json, "auth/login", csrf, credentials, 200);
+                    csrf = exchange(http, api, json, "auth/csrf", null, null, 200)
+                            .path("token")
+                            .asString();
+
+                    JdbcTemplate jdbc = context.getBean(JdbcTemplate.class);
+                    jdbc.update(
+                            """
+                            INSERT INTO knowledge_base(id,name,owner_user_id)
+                            SELECT 701,'conversation fixture',id FROM app_user WHERE username='conv_fixture'
+                            """);
+                    jdbc.update(
+                            """
+                            INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key)
+                            VALUES (702,701,'fixture.md','fixture','fixture')
+                            """);
+                    jdbc.update(
+                            """
+                            INSERT INTO document_index_version(id,document_id,chunking_config)
+                            VALUES (703,702,'{}')
+                            """);
+                    List<EsChunkDocument> corpus = new ArrayList<>();
+                    addChunk(jdbc, corpus, 704, 701, 702, 703, 0, evidence, 1, 0);
+                    jdbc.update("UPDATE document SET active_version_id=703 WHERE id=702");
+                    String index = EsIndexNames.CHUNKS;
+                    EsIndexRepository writer = context.getBean(EsIndexRepository.class);
+                    writer.ensureIndex(index);
+                    writer.create(index, corpus);
+                    context.getBean(ElasticsearchClient.class).indices().refresh(r -> r.index(index));
+
+                    JsonNode created = exchange(
+                            http,
+                            api,
+                            json,
+                            "conversations",
+                            csrf,
+                            """
+                            {"knowledgeBaseId":701}
+                            """,
+                            201);
+                    assertThat(created.path("title").asString()).isEqualTo("新会话");
+                    String conversation = "conversations/" + created.path("id").asString();
+                    UUID turnId = UUID.randomUUID();
+                    exchange(
+                            http,
+                            api,
+                            json,
+                            conversation + "/turns",
+                            csrf,
+                            """
+                            {"turnId":"%s","question":"%s"}
+                            """
+                                    .formatted(turnId, question),
+                            202);
+                    String turnPath = conversation + "/turns/" + turnId;
+                    JsonNode turn;
+                    long deadline = System.nanoTime() + Duration.ofSeconds(15).toNanos();
+                    do {
+                        turn = exchange(http, api, json, turnPath, null, null, 200);
+                        if (!"PROCESSING".equals(turn.path("status").asString())) {
+                            break;
+                        }
+                        Thread.sleep(25);
+                    } while (System.nanoTime() < deadline);
+                    assertThat(turn.path("status").asString())
+                            .as("Turn response %s", turn)
+                            .isEqualTo("ANSWERED");
+                    assertThat(turn.path("question").asString()).isEqualTo(question);
+                    assertThat(turn.path("answer").asString()).isEqualTo(answer);
+
+                    JsonNode prompt = modelInput.get();
+                    assertThat(prompt.path("question").asString()).isEqualTo(question);
+                    assertThat(prompt.path("evidence").size()).isEqualTo(1);
+                    assertThat(prompt.path("evidence")
+                                    .path(0)
+                                    .path("evidenceId")
+                                    .asString())
+                            .isEqualTo("E1");
+                    assertThat(prompt.path("evidence").path(0).path("content").asString())
+                            .isEqualTo(evidence);
+                    JsonNode citations = turn.path("citations");
+                    assertThat(citations.size()).isEqualTo(1);
+                    JsonNode citation = citations.path(0);
+                    assertThat(citation.path("evidenceId").asString()).isEqualTo("E1");
+                    assertThat(citation.path("chunkId").asString()).isEqualTo("704");
+                    assertThat(citation.path("documentId").asString()).isEqualTo("702");
+                    assertThat(citation.path("indexVersionId").asString()).isEqualTo("703");
+                    assertThat(citation.path("sourceStart").asInt()).isZero();
+                    assertThat(citation.path("sourceEnd").asInt()).isEqualTo(evidence.length());
+
+                    JsonNode detail = exchange(http, api, json, conversation, null, null, 200);
+                    assertThat(detail.path("title").asString()).isEqualTo(question.strip());
+                    JsonNode history = exchange(http, api, json, conversation + "/messages", null, null, 200)
+                            .path("items");
+                    assertThat(history.size()).isEqualTo(2);
+                    assertThat(history.path(0).path("role").asString()).isEqualTo("USER");
+                    assertThat(history.path(0).path("content").asString()).isEqualTo(question);
+                    assertThat(history.path(1).path("role").asString()).isEqualTo("ASSISTANT");
+                    assertThat(history.path(1).path("status")).isEqualTo(turn.path("status"));
+                    assertThat(history.path(1).path("content")).isEqualTo(turn.path("answer"));
+                    assertThat(history.path(1).path("citations")).isEqualTo(citations);
+                    String persisted = jdbc.queryForObject(
+                            """
+                            SELECT jsonb_build_object('content', content, 'status', status, 'citations', citations)::text
+                            FROM chat_message WHERE turn_id=? AND role='ASSISTANT'
+                            """,
+                            String.class,
+                            turnId);
+                    JsonNode stored = json.readTree(persisted);
+                    assertThat(stored.path("content")).isEqualTo(turn.path("answer"));
+                    assertThat(stored.path("status")).isEqualTo(turn.path("status"));
+                    assertThat(stored.path("citations")).isEqualTo(citations);
+                    assertThat(output.getOut())
+                            .contains(
+                                    "requestedStrategy=HYBRID_RRF actualStrategy=HYBRID_RRF degraded=false",
+                                    "stage=CONTEXT_BUILD",
+                                    "stage=GENERATION",
+                                    "stage=CITATION_VALIDATE");
+                    for (String phase : List.of("VECTOR", "BM25", "FUSION")) {
+                        assertThat(output.getOut())
+                                .containsPattern("actualStrategy=HYBRID_RRF degraded=false status=SUCCESS phase="
+                                        + phase + " elapsedMillis=\\d+ candidateCount=1 ");
+                    }
+                }
+            }
+        }
+    }
+
+    private static JsonNode exchange(
+            HttpClient http, URI api, JsonMapper json, String path, String csrf, String body, int status)
+            throws Exception {
+        HttpRequest.Builder request = HttpRequest.newBuilder(api.resolve(path)).timeout(Duration.ofSeconds(10));
+        if (body == null) {
+            request.GET();
+        } else {
+            request.header("X-CSRF-TOKEN", csrf)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(body));
+        }
+        HttpResponse<String> response = http.send(request.build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).as("%s %s", path, response.body()).isEqualTo(status);
+        return json.readTree(response.body()).path("data");
     }
 
     private static void addChunk(
