@@ -121,15 +121,16 @@ for (const mode of ['hidden', 'page'])
             mode === 'hidden'
                 ? ((h.document.hidden = false), h.listeners.visibilitychange())
                 : h.state.updateState({ activePage: 'knowledge' });
+        const importCalls = () => h.calls.filter((call) => !call.url.includes('/conversations'));
         pause();
         resume();
         resume();
-        assert.equal(h.calls.length, 5);
+        assert.equal(importCalls().length, 5);
         await h.respond(3, task('READY'));
-        assert.equal(h.calls.length, 5);
-        await h.respond(4, task('PROCESSING'));
+        assert.equal(importCalls().length, 5);
+        await h.respond(h.calls.indexOf(importCalls()[4]), task('PROCESSING'));
         resume();
-        assert.equal(h.calls.length, 5);
+        assert.equal(importCalls().length, 5);
         assert.equal([...h.pendingTimers.values()].filter((t) => t.delay === 3000).length, 1);
         assert.equal(h.all().find((x) => x.id === 'import-file').events.change.length, 1);
     });

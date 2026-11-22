@@ -1,3 +1,4 @@
+import { initializeConversations } from './conversations.js';
 import { createEvidence } from './evidence.js';
 import { request, ApiError } from './api.js';
 import { AppState, subscribe } from './state.js';
@@ -71,8 +72,25 @@ export function initializeChat() {
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');
     form.append(label, question, send, cancel);
-    root.append(context, node('p', '每次只发送当前问题；历史仅供本页阅读，刷新后清空。'), history, form, status);
+    root.append(context);
     const evidence = createEvidence(root);
+    function appendCitations(item, selectedKb, citations) {
+        for (const c of citations) {
+            const button = node('button', '引用：' + c.evidenceId + ' · 查看证据');
+            button.className = 'citation-button';
+            button.type = 'button';
+            button.addEventListener('click', () => evidence.open(selectedKb, c, button));
+            item.append(button);
+        }
+    }
+    initializeConversations(root, node, evidence, appendCitations);
+    root.append(
+        node('h2', '单轮问答'),
+        node('p', '每次只发送当前问题。单轮记录仅在本页显示，刷新后清空。'),
+        history,
+        form,
+        status,
+    );
     let generation = 0,
         pending = null,
         kb = AppState.selectedKnowledgeBaseId,
@@ -163,13 +181,7 @@ export function initializeChat() {
             );
             if (data.answer) item.append(node('p', data.answer));
             if (data.status === 'FAILED') item.append(node('p', '问答处理失败，请稍后自行重试。错误码：' + data.error));
-            data.citations.forEach((c) => {
-                const button = node('button', '引用：' + c.evidenceId + ' · 查看证据');
-                button.className = 'citation-button';
-                button.type = 'button';
-                button.addEventListener('click', () => evidence.open(selectedKb, c, button));
-                item.append(button);
-            });
+            appendCitations(item, selectedKb, data.citations);
             if (response.requestId) {
                 const meta = node('p', 'requestId：' + response.requestId);
                 meta.className = 'request-meta';

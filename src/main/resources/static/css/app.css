@@ -733,3 +733,22 @@ details[open] > summary {
 #logout-status:empty {
     display: none;
 }
+
+#chat .conversation-panel {
+    margin-block: 16px 24px;
+}
+#chat .conversation-panel ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    list-style: none;
+    padding: 0;
+}
+#chat .conversation-panel button[aria-current='true'] {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}
+#chat .conversation-panel .chat-turn p {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
