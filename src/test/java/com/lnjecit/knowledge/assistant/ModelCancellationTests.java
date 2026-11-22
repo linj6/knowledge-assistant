@@ -268,7 +268,8 @@ class ModelCancellationTests {
                     assertThrows(ExecutionException.class, () -> call.task.get(WAIT_SECONDS, TimeUnit.SECONDS));
             join(worker);
             assertFalse(call.task.isCancelled());
-            assertTrue(failureTypes(failure.getCause()).contains("SocketTimeoutException"));
+            String outcome = failureTypes(failure.getCause());
+            assertTrue(outcome.contains("SocketTimeoutException"), outcome);
             assertTrue(calls.isEmpty());
             server.first.observeConnection.countDown();
             assertEquals("PEER_EOF", server.first.result.get(WAIT_SECONDS, TimeUnit.SECONDS));

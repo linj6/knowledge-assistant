@@ -419,6 +419,7 @@ class DatabaseIT {
 
     @Test
     void recoversPreviousProcessTurnsOnStartup() {
+        UUID completedTurn = UUID.randomUUID();
         try (ConfigurableApplicationContext context = start()) {
             JdbcTemplate jdbc = conversationFixtures(context);
             jdbc.update(
@@ -429,6 +430,14 @@ class DatabaseIT {
                     VALUES (6, 4, gen_random_uuid(), 'ASSISTANT', 'PROCESSING'),
                            (7, 5, gen_random_uuid(), 'ASSISTANT', 'CANCEL_REQUESTED')
                     """);
+            jdbc.update(
+                    """
+                    INSERT INTO chat_message (id, conversation_id, turn_id, role, status, content, citations, completed_at)
+                    VALUES (8, 4, ?, 'USER', NULL, '历史问题', '[]', NULL),
+                           (9, 4, ?, 'ASSISTANT', 'ANSWERED', '历史回答', '[{"chunkId": 5}]', CURRENT_TIMESTAMP)
+                    """,
+                    completedTurn,
+                    completedTurn);
         }
         try (ConfigurableApplicationContext context = start()) {
             ConversationRepository repository = context.getBean(ConversationRepository.class);
@@ -439,7 +448,12 @@ class DatabaseIT {
                     .isEqualTo("TURN_PROCESS_RESTARTED");
             assertThat(jdbc.queryForObject(
                             "SELECT COUNT(*) FROM chat_message WHERE completed_at IS NOT NULL", Integer.class))
-                    .isEqualTo(2);
+                    .isEqualTo(3);
+            TurnResponse history = context.getBean(TurnService.class).get(1L, 4L, completedTurn);
+            assertThat(history.status()).isEqualTo(MessageStatus.ANSWERED);
+            assertThat(history.question()).isEqualTo("历史问题");
+            assertThat(history.answer()).isEqualTo("历史回答");
+            assertThat(history.citations()).isEqualTo("[{\"chunkId\": 5}]");
         }
     }
 

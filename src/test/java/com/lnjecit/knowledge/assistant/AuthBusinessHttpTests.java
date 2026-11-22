@@ -5,9 +5,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
 import com.lnjecit.knowledge.assistant.rag.RagService;
+import com.lnjecit.knowledge.assistant.rag.model.RagAnswer;
+import com.lnjecit.knowledge.assistant.rag.model.RagStatus;
 import com.lnjecit.knowledge.assistant.retrieval.RetrievalService;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalParameters;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStrategy;
@@ -15,6 +18,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -26,6 +30,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 class AuthBusinessHttpTests {
@@ -160,6 +165,67 @@ class AuthBusinessHttpTests {
         error(send(app, "GET", "knowledge-bases", anonymous, null, null), 401);
         verifySearchAndAnswerOwnership(app, aliceSession, bobSession, aliceKb, aliceId);
         verifyResourceOwnership(app, jdbc, aliceSession, bobSession, aliceKb, bobKb);
+        verifyConversationOwnership(app, aliceSession, bobSession, aliceKb, bobKb);
+    }
+
+    private void verifyConversationOwnership(
+            ConfigurableApplicationContext app, String aliceSession, String bobSession, String aliceKb, String bobKb)
+            throws Exception {
+        String aliceToken = token(send(app, "GET", "auth/csrf", aliceSession, null, null));
+        String bobToken = token(send(app, "GET", "auth/csrf", bobSession, null, null));
+        String create = """
+                {"knowledgeBaseId":%s}
+                """;
+        assertThat(send(app, "POST", "conversations", aliceSession, aliceToken, create.formatted(bobKb))
+                        .statusCode())
+                .isEqualTo(404);
+        error(send(app, "POST", "conversations", aliceSession, null, create.formatted(aliceKb)), 403);
+        HttpResponse<String> created =
+                send(app, "POST", "conversations", aliceSession, aliceToken, create.formatted(aliceKb));
+        assertThat(created.statusCode()).isEqualTo(201);
+        JsonNode conversation = json.readTree(created.body()).path("data");
+        assertThat(conversation.path("title").asString()).isEqualTo("新会话");
+        String path = "conversations/" + conversation.path("id").asString();
+        UUID turnId = UUID.randomUUID();
+        String turnPath = path + "/turns/" + turnId;
+        String body =
+                """
+                {"turnId":"%s","question":"missing evidence"}
+                """.formatted(turnId);
+        RagService rag = app.getBean(RagService.class);
+        RetrievalStrategy strategy = RetrievalStrategy.HYBRID_RRF;
+        when(rag.answer(Long.valueOf(aliceKb), "missing evidence", strategy, null))
+                .thenReturn(new RagAnswer(
+                        RagStatus.INSUFFICIENT_EVIDENCE, null, List.of(), strategy, strategy, false, null, null));
+        assertThat(send(app, "POST", path + "/turns", aliceSession, aliceToken, body)
+                        .statusCode())
+                .isEqualTo(202);
+        for (String hidden : List.of(path, path + "/messages", turnPath)) {
+            assertThat(send(app, "GET", hidden, bobSession, null, null).statusCode())
+                    .isEqualTo(404);
+        }
+        assertThat(send(app, "POST", path + "/turns", bobSession, bobToken, body)
+                        .statusCode())
+                .isEqualTo(404);
+        assertThat(send(app, "POST", turnPath + "/cancel", bobSession, bobToken, null)
+                        .statusCode())
+                .isEqualTo(404);
+        long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+        String status;
+        do {
+            HttpResponse<String> response = send(app, "GET", turnPath, aliceSession, null, null);
+            assertThat(response.statusCode()).isEqualTo(200);
+            status = json.readTree(response.body()).path("data").path("status").asString();
+            if (!status.equals("PROCESSING")) {
+                break;
+            }
+            Thread.sleep(20);
+        } while (System.nanoTime() < deadline);
+        assertThat(status).isEqualTo("INSUFFICIENT_EVIDENCE");
+        assertThat(send(app, "POST", path + "/turns", aliceSession, aliceToken, body)
+                        .statusCode())
+                .isEqualTo(202);
+        verify(rag).answer(Long.valueOf(aliceKb), "missing evidence", strategy, null);
     }
 
     private void verifySearchAndAnswerOwnership(
