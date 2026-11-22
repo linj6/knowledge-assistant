@@ -2,6 +2,8 @@ package com.lnjecit.knowledge.assistant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -14,9 +16,12 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
@@ -25,14 +30,20 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import okhttp3.Call;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.http.okhttp.OpenAiHttpClientBuilderCustomizer;
 
 class ModelCancellationTests {
     private static final int WAIT_SECONDS = 10;
     private static final int RESPONSE_DELAY_MS = 1500;
+    private static final String REQUEST_ID_HEADER = "X-Local-Test-Request-Id";
+    private static final int CANCEL_WAIT_MS = 2000;
     private static final String RESPONSE =
             """
             {"id":"local","object":"chat.completion","created":1,"model":"local",
@@ -61,16 +72,16 @@ class ModelCancellationTests {
             assertFalse(call.task.isCancelled());
             assertTrue(call.finallyAt.get() > 0);
             assertEquals("local ok", text(call.task.get(WAIT_SECONDS, TimeUnit.SECONDS)));
-            assertEquals("RESPONSE_SENT", server.firstExchange.get(WAIT_SECONDS, TimeUnit.SECONDS));
+            assertEquals("RESPONSE_SENT", server.first.result.get(WAIT_SECONDS, TimeUnit.SECONDS));
             server.assertNoAdditionalConnections();
-            assertEquals(1, server.requests.get());
+            assertEquals(1, server.first.requests.get());
             System.out.printf(
                     "%s accepted=%s cancelled=%s worker=%s HTTP=RESPONSE_SENT requests=%d%n",
                     cancelAfterCompletion ? "completed" : "normal",
                     accepted,
                     call.task.isCancelled(),
                     worker.getState(),
-                    server.requests.get());
+                    server.first.requests.get());
         }
     }
 
@@ -79,7 +90,7 @@ class ModelCancellationTests {
         try (LocalServer server = new LocalServer(true)) {
             ModelCall call = new ModelCall(server.model());
             Thread worker = startWorker(call.task);
-            assertTrue(server.arrived.await(WAIT_SECONDS, TimeUnit.SECONDS));
+            assertTrue(server.first.arrived.await(WAIT_SECONDS, TimeUnit.SECONDS));
             long cancelledAt = System.nanoTime();
             boolean accepted = call.task.cancel(true);
             assertTrue(accepted);
@@ -88,13 +99,13 @@ class ModelCancellationTests {
 
             // 用 Callable 的 finally 和线程 join 分别记录调用结束与线程终止。
             Thread.State afterCancel = worker.getState();
-            server.observeConnection.countDown();
+            server.first.observeConnection.countDown();
             join(worker);
             long workerExitedBy = System.nanoTime();
-            String network = server.firstExchange.get(WAIT_SECONDS, TimeUnit.SECONDS);
+            String network = server.first.result.get(WAIT_SECONDS, TimeUnit.SECONDS);
             assertTrue(call.finallyAt.get() >= cancelledAt);
             server.assertNoAdditionalConnections();
-            assertEquals(1, server.requests.get());
+            assertEquals(1, server.first.requests.get());
             System.out.printf(
                     "in-flight accepted=%s cancelled=%s stateAfterCancel=%s finallyMs=%d worker=%s "
                             + "workerExitByMs=%d outcome=%s HTTP=%s networkMs=%d requests=%d%n",
@@ -106,8 +117,8 @@ class ModelCancellationTests {
                     millisSince(cancelledAt, workerExitedBy),
                     call.outcome.get(),
                     network,
-                    millisSince(cancelledAt, server.networkAt.get()),
-                    server.requests.get());
+                    millisSince(cancelledAt, server.first.networkAt.get()),
+                    server.first.requests.get());
         }
     }
 
@@ -143,10 +154,10 @@ class ModelCancellationTests {
                 assertEquals(2, executor.getCompletedTaskCount());
                 assertEquals("NOT_STARTED", call.outcome.get());
                 assertEquals(0, call.finallyAt.get());
-                assertEquals(0, server.requests.get());
+                assertEquals(0, server.first.requests.get());
                 System.out.printf(
                         "queued accepted=%s cancelled=%s callable=%s requests=%d%n",
-                        accepted, call.task.isCancelled(), call.outcome.get(), server.requests.get());
+                        accepted, call.task.isCancelled(), call.outcome.get(), server.first.requests.get());
             } finally {
                 release.countDown();
                 executor.shutdownNow();
@@ -159,26 +170,125 @@ class ModelCancellationTests {
         try (LocalServer server = new LocalServer(false)) {
             ModelCall call = new ModelCall(server.model(1));
             Thread worker = startWorker(call.task);
-            assertTrue(server.arrived.await(WAIT_SECONDS, TimeUnit.SECONDS));
+            assertTrue(server.first.arrived.await(WAIT_SECONDS, TimeUnit.SECONDS));
             ExecutionException failure =
                     assertThrows(ExecutionException.class, () -> call.task.get(WAIT_SECONDS, TimeUnit.SECONDS));
             join(worker);
             assertFalse(call.task.isCancelled());
             assertTrue(call.finallyAt.get() > 0);
-            String network = server.firstExchange.get(WAIT_SECONDS, TimeUnit.SECONDS);
+            String network = server.first.result.get(WAIT_SECONDS, TimeUnit.SECONDS);
             server.assertNoAdditionalConnections();
-            assertEquals(1, server.requests.get());
+            assertEquals(1, server.first.requests.get());
             System.out.printf(
                     "timeout accepted=false cancelled=%s finallyFromArrivalMs=%d worker=%s "
                             + "outcome=%s HTTP=%s networkFromArrivalMs=%d requests=%d%n",
                     call.task.isCancelled(),
-                    millisSince(server.arrivedAt.get(), call.finallyAt.get()),
+                    millisSince(server.first.arrivedAt.get(), call.finallyAt.get()),
                     worker.getState(),
                     failureTypes(failure.getCause()),
                     network,
-                    millisSince(server.arrivedAt.get(), server.networkAt.get()),
-                    server.requests.get());
+                    millisSince(server.first.arrivedAt.get(), server.first.networkAt.get()),
+                    server.first.requests.get());
         }
+    }
+
+    @Test
+    void cancelsOnlyTheTargetHttpCall() throws Exception {
+        Map<String, Call> calls = new ConcurrentHashMap<>();
+        try (LocalServer server = new LocalServer(true, "A")) {
+            ChatModel model = server.customizedModel(6, trackCalls(calls));
+            ModelCall a = new ModelCall(model, identifiedPrompt("A"));
+            Thread workerA = startWorker(a.task);
+            assertTrue(server.first.arrived.await(WAIT_SECONDS, TimeUnit.SECONDS));
+
+            Exchange second = server.startExchange(true, "B");
+            ModelCall b = new ModelCall(model, identifiedPrompt("B"));
+            Thread workerB = startWorker(b.task);
+            assertTrue(second.arrived.await(WAIT_SECONDS, TimeUnit.SECONDS));
+            assertEquals(2, calls.size());
+            Call target = calls.get("A");
+            Call other = calls.get("B");
+            assertNotNull(target);
+            assertNotNull(other);
+            assertFalse(target.isCanceled());
+            assertFalse(other.isCanceled());
+
+            // 测试线程只取消 A 的 HTTP 句柄，两条请求均已到达服务端。
+            long cancelledAt = System.nanoTime();
+            target.cancel();
+            server.first.observeConnection.countDown();
+            assertEquals("PEER_EOF", server.first.result.get(CANCEL_WAIT_MS, TimeUnit.MILLISECONDS));
+            ExecutionException failure =
+                    assertThrows(ExecutionException.class, () -> a.task.get(CANCEL_WAIT_MS, TimeUnit.MILLISECONDS));
+            join(workerA);
+            long workerExitMs = millisSince(cancelledAt, System.nanoTime());
+            long eofMs = millisSince(cancelledAt, server.first.networkAt.get());
+            assertTrue(eofMs <= CANCEL_WAIT_MS);
+            assertTrue(workerExitMs <= CANCEL_WAIT_MS);
+            assertTrue(a.finallyAt.get() >= cancelledAt);
+            assertFalse(a.task.isCancelled());
+            assertEquals(Map.of("B", other), calls);
+            assertFalse(other.isCanceled());
+            assertFalse(b.task.isDone());
+            System.out.printf(
+                    "target=A HTTP=PEER_EOF eofMs=%d worker=%s workerExitByMs=%d outcome=%s%n",
+                    eofMs, workerA.getState(), workerExitMs, failureTypes(failure.getCause()));
+
+            second.observeConnection.countDown();
+            assertEquals("local ok", text(b.task.get(WAIT_SECONDS, TimeUnit.SECONDS)));
+            join(workerB);
+            assertEquals("RESPONSE_SENT", second.result.get(WAIT_SECONDS, TimeUnit.SECONDS));
+            assertTrue(calls.isEmpty());
+            server.assertNoAdditionalConnections();
+            System.out.printf(
+                    "target=B HTTP=RESPONSE_SENT worker=%s remainingHandles=%d%n", workerB.getState(), calls.size());
+        }
+    }
+
+    @Test
+    void clearsHttpCallAfterNetworkTimeout() throws Exception {
+        Map<String, Call> calls = new ConcurrentHashMap<>();
+        try (LocalServer server = new LocalServer(true, "timeout")) {
+            ModelCall call = new ModelCall(server.customizedModel(1, trackCalls(calls)), identifiedPrompt("timeout"));
+            Thread worker = startWorker(call.task);
+            assertTrue(server.first.arrived.await(WAIT_SECONDS, TimeUnit.SECONDS));
+            assertNotNull(calls.get("timeout"));
+            ExecutionException failure =
+                    assertThrows(ExecutionException.class, () -> call.task.get(WAIT_SECONDS, TimeUnit.SECONDS));
+            join(worker);
+            assertFalse(call.task.isCancelled());
+            assertTrue(failureTypes(failure.getCause()).contains("SocketTimeoutException"));
+            assertTrue(calls.isEmpty());
+            server.first.observeConnection.countDown();
+            assertEquals("PEER_EOF", server.first.result.get(WAIT_SECONDS, TimeUnit.SECONDS));
+            server.assertNoAdditionalConnections();
+            System.out.printf(
+                    "target=timeout HTTP=PEER_EOF worker=%s outcome=%s remainingHandles=%d%n",
+                    worker.getState(), failureTypes(failure.getCause()), calls.size());
+        }
+    }
+
+    private static Prompt identifiedPrompt(String requestId) {
+        return new Prompt(
+                "local test",
+                OpenAiChatOptions.builder()
+                        .customHeaders(Map.of(REQUEST_ID_HEADER, requestId))
+                        .build());
+    }
+
+    private static OpenAiHttpClientBuilderCustomizer trackCalls(Map<String, Call> calls) {
+        return builder -> builder.interceptor(chain -> {
+            String requestId = chain.request().header(REQUEST_ID_HEADER);
+            assertNotNull(requestId);
+            Call call = chain.call();
+            // 仅在 HTTP 请求执行期间保留句柄，成功和异常共用清理路径。
+            assertNull(calls.putIfAbsent(requestId, call));
+            try {
+                return chain.proceed(chain.request());
+            } finally {
+                calls.remove(requestId, call);
+            }
+        });
     }
 
     private static String failureTypes(Throwable failure) {
@@ -212,10 +322,14 @@ class ModelCancellationTests {
         private final FutureTask<ChatResponse> task;
 
         private ModelCall(ChatModel model) {
+            this(model, new Prompt("local test"));
+        }
+
+        private ModelCall(ChatModel model, Prompt prompt) {
             task = new FutureTask<>(() -> {
                 outcome.set("RUNNING");
                 try {
-                    ChatResponse response = model.call(new Prompt("local test"));
+                    ChatResponse response = model.call(prompt);
                     outcome.set("RETURNED");
                     return response;
                 } catch (RuntimeException failure) {
@@ -229,22 +343,23 @@ class ModelCancellationTests {
     }
 
     private static final class LocalServer implements AutoCloseable {
-        private final CountDownLatch arrived = new CountDownLatch(1);
-        private final CountDownLatch observeConnection = new CountDownLatch(1);
-        private final AtomicInteger requests = new AtomicInteger();
-        private final AtomicLong arrivedAt = new AtomicLong();
-        private final AtomicLong networkAt = new AtomicLong();
         private final ServerSocket listener;
-        private final boolean holdResponse;
-        private final FutureTask<String> firstExchange;
-        private final Thread serverThread;
+        private final Exchange first;
+        private Exchange second;
 
         private LocalServer(boolean holdResponse) throws IOException {
+            this(holdResponse, null);
+        }
+
+        private LocalServer(boolean holdResponse, String requestId) throws IOException {
             listener = new ServerSocket(0, 8, InetAddress.getByName("127.0.0.1"));
-            this.holdResponse = holdResponse;
             listener.setSoTimeout(WAIT_SECONDS * 1000);
-            firstExchange = new FutureTask<>(this::serve);
-            serverThread = Thread.ofPlatform().daemon().name("local-chat-http").start(firstExchange);
+            first = new Exchange(listener, holdResponse, requestId);
+        }
+
+        private Exchange startExchange(boolean holdResponse, String requestId) {
+            second = new Exchange(listener, holdResponse, requestId);
+            return second;
         }
 
         private ChatModel model() {
@@ -252,30 +367,89 @@ class ModelCancellationTests {
         }
 
         private ChatModel model(int timeoutSeconds) {
+            return new ModelConfiguration().chatModel(properties(timeoutSeconds));
+        }
+
+        private ChatModel customizedModel(int timeoutSeconds, OpenAiHttpClientBuilderCustomizer customizer) {
+            ModelProperties properties = properties(timeoutSeconds);
+            return OpenAiChatModel.builder()
+                    .options(OpenAiChatOptions.builder()
+                            .apiKey(properties.getApiKey())
+                            .baseUrl(properties.getBaseUrl())
+                            .model(properties.getChatModel())
+                            .timeout(Duration.ofSeconds(properties.getTimeoutSeconds()))
+                            .maxRetries(0)
+                            .maxTokens(128)
+                            .build())
+                    .httpClientBuilderCustomizer(customizer)
+                    .build();
+        }
+
+        private ModelProperties properties(int timeoutSeconds) {
             ModelProperties properties = new ModelProperties();
             properties.setEnabled(true);
             properties.setBaseUrl("http://127.0.0.1:" + listener.getLocalPort() + "/v1");
             properties.setApiKey("local-test-key");
             properties.setChatModel("local");
             properties.setTimeoutSeconds(timeoutSeconds);
-            return new ModelConfiguration().chatModel(properties);
+            return properties;
         }
 
-        private String serve() throws Exception {
+        private void assertNoAdditionalConnections() throws IOException {
+            listener.setSoTimeout(150);
+            assertThrows(SocketTimeoutException.class, () -> {
+                try (Socket unexpected = listener.accept()) {
+                    throw new AssertionError("Unexpected connection: " + unexpected.getRemoteSocketAddress());
+                }
+            });
+        }
+
+        @Override
+        public void close() throws IOException, InterruptedException {
+            listener.close();
+            first.observeConnection.countDown();
+            if (second != null) {
+                second.observeConnection.countDown();
+                join(second.thread);
+            }
+            join(first.thread);
+        }
+    }
+
+    private static final class Exchange {
+        private final CountDownLatch arrived = new CountDownLatch(1);
+        private final CountDownLatch observeConnection = new CountDownLatch(1);
+        private final AtomicInteger requests = new AtomicInteger();
+        private final AtomicLong arrivedAt = new AtomicLong();
+        private final AtomicLong networkAt = new AtomicLong();
+        private final FutureTask<String> result;
+        private final Thread thread;
+
+        private Exchange(ServerSocket listener, boolean holdResponse, String requestId) {
+            result = new FutureTask<>(() -> serve(listener, holdResponse, requestId));
+            thread = Thread.ofPlatform().daemon().name("local-chat-http").start(result);
+        }
+
+        private String serve(ServerSocket listener, boolean holdResponse, String requestId) throws Exception {
             try (Socket socket = listener.accept()) {
                 socket.setSoTimeout(WAIT_SECONDS * 1000);
                 BufferedInputStream input = new BufferedInputStream(socket.getInputStream());
                 assertEquals("POST /v1/chat/completions HTTP/1.1", readLine(input));
                 requests.incrementAndGet();
                 int length = -1;
+                String receivedId = null;
                 for (String line = readLine(input); !line.isEmpty(); line = readLine(input)) {
-                    if (line.toLowerCase(Locale.ROOT).startsWith("content-length:")) {
+                    String lower = line.toLowerCase(Locale.ROOT);
+                    if (lower.startsWith("content-length:")) {
                         length = Integer.parseInt(
                                 line.substring(line.indexOf(':') + 1).trim());
+                    } else if (lower.startsWith(REQUEST_ID_HEADER.toLowerCase(Locale.ROOT) + ":")) {
+                        receivedId = line.substring(line.indexOf(':') + 1).trim();
                     }
                 }
                 assertTrue(length > 0 && length <= 65536);
                 assertEquals(length, input.readNBytes(length).length);
+                assertEquals(requestId, receivedId);
                 arrivedAt.set(System.nanoTime());
                 arrived.countDown();
                 if (holdResponse) {
@@ -306,15 +480,6 @@ class ModelCancellationTests {
             }
         }
 
-        private void assertNoAdditionalConnections() throws IOException {
-            listener.setSoTimeout(150);
-            assertThrows(SocketTimeoutException.class, () -> {
-                try (Socket unexpected = listener.accept()) {
-                    throw new AssertionError("Unexpected connection: " + unexpected.getRemoteSocketAddress());
-                }
-            });
-        }
-
         private static String readLine(BufferedInputStream input) throws IOException {
             StringBuilder line = new StringBuilder();
             for (int value = input.read(); value != '\n'; value = input.read()) {
@@ -326,12 +491,6 @@ class ModelCancellationTests {
                 }
             }
             return line.toString();
-        }
-
-        @Override
-        public void close() throws IOException, InterruptedException {
-            listener.close();
-            join(serverThread);
         }
     }
 }
