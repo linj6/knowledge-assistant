@@ -51,6 +51,12 @@ public class ConversationController {
                 turns.submit(AuthPrincipal.requireUserId(authentication), id, request.turnId(), request.question()));
     }
 
+    @PostMapping("/{id}/turns/{turnId}/cancel")
+    public Result<TurnResponse.Accepted> cancelTurn(
+            @PathVariable @Positive Long id, @PathVariable UUID turnId, Authentication authentication) {
+        return Result.success(turns.cancel(AuthPrincipal.requireUserId(authentication), id, turnId));
+    }
+
     @GetMapping("/{id}/turns/{turnId}")
     public Result<TurnResponse> getTurn(
             @PathVariable @Positive Long id, @PathVariable UUID turnId, Authentication authentication) {

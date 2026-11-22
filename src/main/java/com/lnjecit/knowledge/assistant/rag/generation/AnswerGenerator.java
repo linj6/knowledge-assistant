@@ -1,6 +1,7 @@
 package com.lnjecit.knowledge.assistant.rag.generation;
 
 import com.lnjecit.knowledge.assistant.common.RequestIdContext;
+import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelCallCancellation;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.TokenEstimator;
 import com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog;
@@ -79,7 +80,8 @@ public class AnswerGenerator {
             if (model == null) throw new GenerationException(RagError.MODEL_NOT_CONFIGURED, null);
             if (model instanceof OpenAiChatModel openAi)
                 modelId = openAi.getOptions().getModel();
-            ChatResponse response = model.call(prompt(question, context, model));
+            ChatResponse response =
+                    ModelCallCancellation.duringModelCall(() -> model.call(prompt(question, context, model)));
             RawGenerationResult.Usage usage = null;
             if (response != null && response.getMetadata() != null) {
                 if (response.getMetadata().getModel() != null)
@@ -106,6 +108,7 @@ public class AnswerGenerator {
             error = failure.error();
             throw failure;
         } catch (RuntimeException failure) {
+            ModelCallCancellation.checkpoint();
             error = switch (ModelFailures.classify(failure)) {
                 case CONFIGURATION -> RagError.MODEL_NOT_CONFIGURED;
                 case TIMEOUT -> RagError.MODEL_TIMEOUT;

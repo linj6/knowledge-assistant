@@ -61,6 +61,16 @@ class ConversationApiTests {
     }
 
     @Test
+    void cancelsTurnUsingCurrentUserAndReturnsStoredStatus() throws Exception {
+        UUID turnId = UUID.randomUUID();
+        when(turns.cancel(42L, ID, turnId)).thenReturn(new TurnResponse.Accepted(turnId, MessageStatus.ANSWERED));
+        mvc.perform(post(PATH + "/" + ID + "/turns/" + turnId + "/cancel").servletPath("/api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.turnId").value(turnId.toString()))
+                .andExpect(jsonPath("$.data.status").value("ANSWERED"));
+    }
+
+    @Test
     void submitsAndQueriesTurnUsingCurrentUser() throws Exception {
         UUID turnId = UUID.randomUUID();
         String path = PATH + "/" + ID + "/turns";

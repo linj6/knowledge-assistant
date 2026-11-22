@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -319,13 +320,147 @@ class DatabaseIT {
         }
     }
 
+    @Test
+    void cancelsQueuedAndRunningTurnsWithoutOverwritingTerminalStatus() throws Exception {
+        try (ConfigurableApplicationContext context = start()) {
+            conversationFixtures(context);
+            ConversationService conversations = context.getBean(ConversationService.class);
+            ConversationRepository repository = context.getBean(ConversationRepository.class);
+            RagService rag = mock(RagService.class);
+            TurnExecutor executor = new TurnExecutor(rag, repository, context.getBean(JsonMapper.class));
+            TurnService turns = new TurnService(
+                    conversations, repository, executor, context.getBean(PlatformTransactionManager.class));
+            RetrievalStrategy strategy = RetrievalStrategy.HYBRID_RRF;
+            CountDownLatch entered = new CountDownLatch(4);
+            CountDownLatch release = new CountDownLatch(1);
+            RagAnswer answer = new RagAnswer(
+                    RagStatus.ANSWERED,
+                    "回答",
+                    List.of(new RagCitation("E1", 9L, 10L, 11L, 0, 2)),
+                    strategy,
+                    strategy,
+                    false,
+                    null,
+                    null);
+            when(rag.answer(3L, "运行中", strategy, null)).thenAnswer(call -> {
+                entered.countDown();
+                assertThat(release.await(10, TimeUnit.SECONDS)).isTrue();
+                return answer;
+            });
+            when(rag.answer(3L, "下一轮", strategy, null)).thenReturn(answer);
+            Long running = conversations.create(1L, 3L).getId();
+            Long queued = conversations.create(1L, 3L).getId();
+            UUID runningId = UUID.randomUUID();
+            UUID queuedId = UUID.randomUUID();
+            UUID nextId = UUID.randomUUID();
+            try {
+                turns.submit(1L, running, runningId, "运行中");
+                for (int i = 0; i < 3; i++) {
+                    turns.submit(1L, conversations.create(1L, 3L).getId(), UUID.randomUUID(), "运行中");
+                }
+                assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+                turns.submit(1L, queued, queuedId, "排队中");
+                assertThatThrownBy(() -> turns.cancel(2L, queued, queuedId)).isInstanceOf(BusinessException.class);
+                assertThat(turns.cancel(1L, queued, queuedId).status()).isEqualTo(MessageStatus.CANCELLED);
+                assertThat(turns.cancel(1L, queued, queuedId).status()).isEqualTo(MessageStatus.CANCELLED);
+                assertThat(turns.cancel(1L, running, runningId).status()).isEqualTo(MessageStatus.CANCEL_REQUESTED);
+                assertThat(turns.cancel(1L, running, runningId).status()).isEqualTo(MessageStatus.CANCEL_REQUESTED);
+                assertThatThrownBy(() -> turns.submit(1L, running, nextId, "下一轮"))
+                        .isInstanceOf(BusinessException.class);
+                release.countDown();
+                TurnResponse cancelled = awaitTurn(turns, running, runningId);
+                assertThat(cancelled.status()).isEqualTo(MessageStatus.CANCELLED);
+                assertThat(cancelled.answer()).isNull();
+                turns.submit(1L, running, nextId, "下一轮");
+                assertThat(awaitTurn(turns, running, nextId).status()).isEqualTo(MessageStatus.ANSWERED);
+                assertThat(turns.cancel(1L, running, nextId).status()).isEqualTo(MessageStatus.ANSWERED);
+                verify(rag, never()).answer(3L, "排队中", strategy, null);
+            } finally {
+                release.countDown();
+                executor.shutdown();
+            }
+        }
+    }
+
+    @Test
+    void cancelAndCompleteCompeteOnTheSameDatabaseRow() throws Exception {
+        try (ConfigurableApplicationContext context = start();
+                var contenders = Executors.newFixedThreadPool(2)) {
+            conversationFixtures(context);
+            ConversationService conversations = context.getBean(ConversationService.class);
+            ConversationRepository repository = context.getBean(ConversationRepository.class);
+            Long conversation = conversations.create(1L, 3L).getId();
+            Message pending = message(conversation, UUID.randomUUID(), MessageRole.ASSISTANT, MessageStatus.PROCESSING);
+            repository.insertMessage(pending);
+            Message result = new Message();
+            result.setStatus(MessageStatus.ANSWERED);
+            result.setContent("回答");
+            result.setCompletedAt(Instant.now());
+            CountDownLatch start = new CountDownLatch(1);
+            Future<Boolean> cancel = contenders.submit(() -> {
+                assertThat(start.await(5, TimeUnit.SECONDS)).isTrue();
+                return repository.requestCancellation(pending.getId());
+            });
+            Future<Boolean> complete = contenders.submit(() -> {
+                assertThat(start.await(5, TimeUnit.SECONDS)).isTrue();
+                return repository.completeTurn(pending.getId(), result);
+            });
+            start.countDown();
+            boolean cancelled = cancel.get(5, TimeUnit.SECONDS);
+            assertThat(complete.get(5, TimeUnit.SECONDS)).isEqualTo(!cancelled);
+            if (cancelled) {
+                assertThat(repository.completeCancellation(pending.getId())).isTrue();
+                assertThat(repository.completeTurn(pending.getId(), result)).isFalse();
+            }
+            assertThat(repository.turnStatus(pending.getId()))
+                    .isEqualTo(cancelled ? MessageStatus.CANCELLED : MessageStatus.ANSWERED);
+        }
+    }
+
+    @Test
+    void recoversPreviousProcessTurnsOnStartup() {
+        try (ConfigurableApplicationContext context = start()) {
+            JdbcTemplate jdbc = conversationFixtures(context);
+            jdbc.update(
+                    "INSERT INTO chat_conversation (id, owner_user_id, knowledge_base_id) VALUES (4, 1, 3), (5, 1, 3)");
+            jdbc.update(
+                    """
+                    INSERT INTO chat_message (id, conversation_id, turn_id, role, status)
+                    VALUES (6, 4, gen_random_uuid(), 'ASSISTANT', 'PROCESSING'),
+                           (7, 5, gen_random_uuid(), 'ASSISTANT', 'CANCEL_REQUESTED')
+                    """);
+        }
+        try (ConfigurableApplicationContext context = start()) {
+            ConversationRepository repository = context.getBean(ConversationRepository.class);
+            assertThat(repository.turnStatus(6L)).isEqualTo(MessageStatus.FAILED);
+            assertThat(repository.turnStatus(7L)).isEqualTo(MessageStatus.CANCELLED);
+            JdbcTemplate jdbc = new JdbcTemplate(context.getBean(DataSource.class));
+            assertThat(jdbc.queryForObject("SELECT error_code FROM chat_message WHERE id = 6", String.class))
+                    .isEqualTo("TURN_PROCESS_RESTARTED");
+            assertThat(jdbc.queryForObject(
+                            "SELECT COUNT(*) FROM chat_message WHERE completed_at IS NOT NULL", Integer.class))
+                    .isEqualTo(2);
+        }
+    }
+
+    private static JdbcTemplate conversationFixtures(ConfigurableApplicationContext context) {
+        JdbcTemplate jdbc = new JdbcTemplate(context.getBean(DataSource.class));
+        jdbc.update(
+                """
+                INSERT INTO app_user (id, username, password_hash, status)
+                VALUES (1, 'owner', 'hash', 'ACTIVE'), (2, 'other', 'hash', 'ACTIVE')
+                """);
+        jdbc.update("INSERT INTO knowledge_base (id, name, owner_user_id) VALUES (3, 'test', 1)");
+        return jdbc;
+    }
+
     private static TurnResponse awaitTurn(TurnService turns, Long conversationId, UUID turnId)
             throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         TurnResponse turn;
         do {
             turn = turns.get(1L, conversationId, turnId);
-            if (turn.status() != MessageStatus.PROCESSING) {
+            if (turn.status() != MessageStatus.PROCESSING && turn.status() != MessageStatus.CANCEL_REQUESTED) {
                 return turn;
             }
             Thread.sleep(20);

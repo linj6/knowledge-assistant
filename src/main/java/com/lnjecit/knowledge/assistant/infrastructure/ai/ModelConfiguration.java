@@ -54,6 +54,7 @@ public class ModelConfiguration {
         validateChat(p);
         // 使用当前版本的客户端构建路径，禁用 SDK 自动重试以限制调用次数。
         return OpenAiChatModel.builder()
+                .httpClientBuilderCustomizer(ModelCallCancellation.customizer())
                 .options(OpenAiChatOptions.builder()
                         .apiKey(p.getApiKey())
                         .baseUrl(p.getBaseUrl())

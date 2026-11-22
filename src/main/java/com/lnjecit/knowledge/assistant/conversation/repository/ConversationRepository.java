@@ -70,13 +70,53 @@ public class ConversationRepository {
                 .set(title != null, Conversation::getTitle, title));
     }
 
-    public void completeTurn(Long assistantId, Message result) {
-        messageMapper.update(
-                result,
-                new LambdaUpdateWrapper<Message>()
+    public boolean completeTurn(Long assistantId, Message result) {
+        return messageMapper.update(
+                        result,
+                        new LambdaUpdateWrapper<Message>()
+                                .eq(Message::getId, assistantId)
+                                .eq(Message::getRole, MessageRole.ASSISTANT)
+                                .eq(Message::getStatus, MessageStatus.PROCESSING))
+                == 1;
+    }
+
+    public MessageStatus turnStatus(Long assistantId) {
+        return messageMapper.selectById(assistantId).getStatus();
+    }
+
+    public boolean requestCancellation(Long assistantId) {
+        return messageMapper.update(new LambdaUpdateWrapper<Message>()
                         .eq(Message::getId, assistantId)
                         .eq(Message::getRole, MessageRole.ASSISTANT)
-                        .eq(Message::getStatus, MessageStatus.PROCESSING));
+                        .eq(Message::getStatus, MessageStatus.PROCESSING)
+                        .set(Message::getStatus, MessageStatus.CANCEL_REQUESTED))
+                == 1;
+    }
+
+    public boolean completeCancellation(Long assistantId) {
+        return messageMapper.update(new LambdaUpdateWrapper<Message>()
+                        .eq(Message::getId, assistantId)
+                        .eq(Message::getRole, MessageRole.ASSISTANT)
+                        .eq(Message::getStatus, MessageStatus.CANCEL_REQUESTED)
+                        .set(Message::getStatus, MessageStatus.CANCELLED)
+                        .set(Message::getCompletedAt, Instant.now()))
+                == 1;
+    }
+
+    public int recoverInterruptedTurns() {
+        Instant now = Instant.now();
+        int cancelled = messageMapper.update(new LambdaUpdateWrapper<Message>()
+                .eq(Message::getRole, MessageRole.ASSISTANT)
+                .eq(Message::getStatus, MessageStatus.CANCEL_REQUESTED)
+                .set(Message::getStatus, MessageStatus.CANCELLED)
+                .set(Message::getCompletedAt, now));
+        int failed = messageMapper.update(new LambdaUpdateWrapper<Message>()
+                .eq(Message::getRole, MessageRole.ASSISTANT)
+                .eq(Message::getStatus, MessageStatus.PROCESSING)
+                .set(Message::getStatus, MessageStatus.FAILED)
+                .set(Message::getErrorCode, "TURN_PROCESS_RESTARTED")
+                .set(Message::getCompletedAt, now));
+        return cancelled + failed;
     }
 
     public List<Conversation> listOwnedConversations(long ownerUserId, Long knowledgeBaseId) {

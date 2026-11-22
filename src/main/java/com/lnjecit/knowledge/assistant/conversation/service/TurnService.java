@@ -61,6 +61,16 @@ public class TurnService {
         return new TurnResponse.Accepted(turnId, status);
     }
 
+    public TurnResponse.Accepted cancel(long userId, Long conversationId, UUID turnId) {
+        TurnResponse turn = get(userId, conversationId, turnId);
+        Long assistantId = turn.assistantMessageId();
+        if (repository.requestCancellation(assistantId)
+                || repository.turnStatus(assistantId) == MessageStatus.CANCEL_REQUESTED) {
+            executor.cancel(assistantId);
+        }
+        return new TurnResponse.Accepted(turnId, repository.turnStatus(assistantId));
+    }
+
     public TurnResponse get(long userId, Long conversationId, UUID turnId) {
         conversations.requireOwned(userId, conversationId);
         TurnResponse turn = findTurn(conversationId, turnId);

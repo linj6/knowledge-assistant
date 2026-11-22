@@ -3,6 +3,7 @@ package com.lnjecit.knowledge.assistant.rag;
 import com.lnjecit.knowledge.assistant.common.RequestIdContext;
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
+import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelCallCancellation;
 import com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog;
 import com.lnjecit.knowledge.assistant.rag.context.AssembledContext;
 import com.lnjecit.knowledge.assistant.rag.context.ContextBuilder;
@@ -191,6 +192,7 @@ public class RagService {
     }
 
     private <T> T timed(String stage, Supplier<T> action) {
+        ModelCallCancellation.checkpoint();
         long started = System.nanoTime();
         try {
             return action.get();
