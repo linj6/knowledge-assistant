@@ -1,12 +1,21 @@
 package com.lnjecit.knowledge.assistant;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
 
+import com.lnjecit.knowledge.assistant.conversation.entity.Conversation;
+import com.lnjecit.knowledge.assistant.conversation.entity.Message;
+import com.lnjecit.knowledge.assistant.conversation.entity.MessageRole;
+import com.lnjecit.knowledge.assistant.conversation.entity.MessageStatus;
+import com.lnjecit.knowledge.assistant.conversation.repository.ConversationRepository;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
@@ -15,6 +24,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 @org.testcontainers.junit.jupiter.Testcontainers
 class DatabaseIT {
@@ -100,5 +110,141 @@ class DatabaseIT {
                 Files.deleteIfExists(directory);
             }
         }
+    }
+
+    @Test
+    void upgradesV7AndPersistsConversationsAndMessages() {
+        Flyway.configure()
+                .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+                .target("7")
+                .load()
+                .migrate();
+        JdbcTemplate jdbc = new JdbcTemplate(
+                new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword()));
+        jdbc.update(
+                "INSERT INTO app_user (id, username, password_hash, status) VALUES (1, 'fixture', 'hash', 'ACTIVE')");
+        jdbc.update("INSERT INTO knowledge_base (id, name, owner_user_id) VALUES (2, 'existing', 1)");
+        jdbc.update(
+                """
+                INSERT INTO document (id, knowledge_base_id, filename, content_hash, object_key)
+                VALUES (3, 2, 'existing.md', 'hash', 'object')
+                """);
+        jdbc.update("INSERT INTO document_index_version (id, document_id, chunking_config) VALUES (4, 3, '{}')");
+        jdbc.update(
+                """
+                INSERT INTO document_chunk
+                    (id, knowledge_base_id, document_id, index_version_id, chunk_order, content, source_start, source_end)
+                VALUES (5, 2, 3, 4, 0, 'existing', 0, 8)
+                """);
+        jdbc.update("INSERT INTO document_import_task (id, document_id, index_version_id) VALUES (6, 3, 4)");
+        List<String> before = existingRows(jdbc);
+        try (ConfigurableApplicationContext context = start()) {
+            assertThat(existingRows(jdbc)).isEqualTo(before);
+            assertThat(jdbc.queryForObject(
+                            "SELECT count(*) FROM flyway_schema_history WHERE version = '8' AND success",
+                            Integer.class))
+                    .isEqualTo(1);
+            ConversationRepository repository = context.getBean(ConversationRepository.class);
+            Conversation conversation = new Conversation();
+            conversation.setOwnerUserId(1L);
+            conversation.setKnowledgeBaseId(2L);
+            repository.insertConversation(conversation);
+            Long id = conversation.getId();
+            assertThat(id).isPositive();
+            Conversation stored = repository.findConversation(id);
+            assertThat(stored.getOwnerUserId()).isEqualTo(1L);
+            assertThat(stored.getKnowledgeBaseId()).isEqualTo(2L);
+            assertThat(stored.getTitle()).isEqualTo("新会话");
+            assertThat(stored.getCreatedAt()).isNotNull().isEqualTo(stored.getUpdatedAt());
+
+            UUID turn = UUID.randomUUID();
+            Message user = message(id, turn, MessageRole.USER, null);
+            user.setContent("问题");
+            repository.insertMessage(user);
+            Message assistant = message(id, turn, MessageRole.ASSISTANT, MessageStatus.PROCESSING);
+            assistant.setCitations("[{\"chunkId\": 5}]");
+            repository.insertMessage(assistant);
+            List<Message> messages = repository.listMessages(id);
+            assertThat(messages).extracting(Message::getId).containsExactly(user.getId(), assistant.getId());
+            assertThat(assistant.getId()).isPositive();
+            Message storedUser = messages.getFirst();
+            assertThat(storedUser.getConversationId()).isEqualTo(id);
+            assertThat(storedUser.getTurnId()).isEqualTo(turn);
+            assertThat(storedUser.getRole()).isEqualTo(MessageRole.USER);
+            assertThat(storedUser.getContent()).isEqualTo("问题");
+            assertThat(storedUser.getStatus()).isNull();
+            assertThat(storedUser.getCitations()).isEqualTo("[]");
+            Message storedAssistant = messages.getLast();
+            assertThat(storedAssistant.getTurnId()).isEqualTo(turn);
+            assertThat(storedAssistant.getRole()).isEqualTo(MessageRole.ASSISTANT);
+            assertThat(storedAssistant.getStatus()).isEqualTo(MessageStatus.PROCESSING);
+            assertThat(storedAssistant.getCitations()).isEqualTo("[{\"chunkId\": 5}]");
+            assertThat(storedAssistant.getCreatedAt()).isNotNull();
+            assertThat(storedAssistant.getCompletedAt()).isNull();
+            assertThatThrownBy(() -> repository.insertMessage(message(id, turn, MessageRole.USER, null)))
+                    .hasStackTraceContaining("uq_chat_message_turn_role");
+
+            UUID nextTurn = UUID.randomUUID();
+            assertThatThrownBy(() -> repository.insertMessage(
+                            message(id, nextTurn, MessageRole.ASSISTANT, MessageStatus.CANCEL_REQUESTED)))
+                    .hasStackTraceContaining("uq_chat_message_active_assistant");
+            jdbc.update("UPDATE chat_message SET status = 'CANCEL_REQUESTED' WHERE id = ?", assistant.getId());
+            assertThatThrownBy(() -> repository.insertMessage(
+                            message(id, nextTurn, MessageRole.ASSISTANT, MessageStatus.PROCESSING)))
+                    .hasStackTraceContaining("uq_chat_message_active_assistant");
+            jdbc.update("UPDATE chat_message SET status = 'CANCELLED' WHERE id = ?", assistant.getId());
+
+            Instant completedAt = Instant.parse("2026-11-22T10:00:00Z");
+            Message failed = message(id, UUID.randomUUID(), MessageRole.ASSISTANT, MessageStatus.FAILED);
+            failed.setErrorCode("TEST_FAILURE");
+            failed.setCompletedAt(completedAt);
+            repository.insertMessage(failed);
+            repository.insertMessage(message(id, nextTurn, MessageRole.ASSISTANT, MessageStatus.PROCESSING));
+            assertThat(repository.listMessages(id))
+                    .filteredOn(row -> row.getId().equals(failed.getId()))
+                    .singleElement()
+                    .satisfies(row -> {
+                        assertThat(row.getErrorCode()).isEqualTo("TEST_FAILURE");
+                        assertThat(row.getCompletedAt()).isEqualTo(completedAt);
+                    });
+
+            assertThatThrownBy(() -> jdbc.update(
+                            "INSERT INTO chat_conversation (id, owner_user_id, knowledge_base_id) VALUES (10, 99, 2)"))
+                    .hasStackTraceContaining("chat_conversation_owner_user_id_fkey");
+            assertThatThrownBy(() -> jdbc.update(
+                            "INSERT INTO chat_conversation (id, owner_user_id, knowledge_base_id) VALUES (10, 1, 99)"))
+                    .hasStackTraceContaining("chat_conversation_knowledge_base_id_fkey");
+            assertThatThrownBy(() -> repository.insertMessage(message(99L, nextTurn, MessageRole.USER, null)))
+                    .hasStackTraceContaining("chat_message_conversation_id_fkey");
+            assertThatThrownBy(() -> repository.insertMessage(
+                            message(id, UUID.randomUUID(), MessageRole.USER, MessageStatus.FAILED)))
+                    .hasStackTraceContaining("chk_chat_message_role_status");
+            assertThatThrownBy(
+                            () -> repository.insertMessage(message(id, UUID.randomUUID(), MessageRole.ASSISTANT, null)))
+                    .hasStackTraceContaining("chk_chat_message_role_status");
+        }
+    }
+
+    private List<String> existingRows(JdbcTemplate jdbc) {
+        return jdbc.queryForList(
+                """
+                SELECT to_jsonb(r)::text FROM app_user r
+                UNION ALL SELECT to_jsonb(r)::text FROM knowledge_base r
+                UNION ALL SELECT to_jsonb(r)::text FROM document r
+                UNION ALL SELECT to_jsonb(r)::text FROM document_index_version r
+                UNION ALL SELECT to_jsonb(r)::text FROM document_chunk r
+                UNION ALL SELECT to_jsonb(r)::text FROM document_import_task r
+                ORDER BY 1
+                """,
+                String.class);
+    }
+
+    private Message message(Long conversationId, UUID turnId, MessageRole role, MessageStatus status) {
+        Message message = new Message();
+        message.setConversationId(conversationId);
+        message.setTurnId(turnId);
+        message.setRole(role);
+        message.setStatus(status);
+        return message;
     }
 }
