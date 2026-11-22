@@ -2,6 +2,7 @@ package com.lnjecit.knowledge.assistant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.lnjecit.knowledge.assistant.evaluation.EvaluationCorpus;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingConfig;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.FixedCodePointSplitter;
@@ -47,7 +48,7 @@ class ChunkingComparisonTests {
         for (String input : Files.readAllLines(Path.of(manifest))) {
             if (input.isBlank()) continue;
             sample++;
-            byte[] bytes = Files.readAllBytes(Path.of(input));
+            byte[] bytes = Files.readAllBytes(EvaluationCorpus.resolve(input));
             String hash = HexFormat.of()
                     .formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
             ParsedDocument document = new DocumentParserFactory().parse(input, bytes);

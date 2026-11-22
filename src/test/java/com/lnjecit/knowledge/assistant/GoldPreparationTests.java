@@ -2,6 +2,7 @@ package com.lnjecit.knowledge.assistant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.lnjecit.knowledge.assistant.evaluation.EvaluationCorpus;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
@@ -23,8 +24,8 @@ class GoldPreparationTests {
         for (int i = 0; i < gold.size(); i++) {
             JsonNode question = gold.get(i);
             JsonNode mapping = protocol.path("questions").get(i);
-            String source =
-                    Files.readString(Path.of(question.path("documentPath").asString()));
+            String source = Files.readString(
+                    EvaluationCorpus.resolve(question.path("documentPath").asString()));
             assertThat(EmbeddingSnapshot.sha(source))
                     .isEqualTo(mapping.path("sourceSha256").asString());
             assertThat(mapping.path("questionId").asString())

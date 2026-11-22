@@ -2,6 +2,7 @@ package com.lnjecit.knowledge.assistant.evaluation.service;
 
 import com.lnjecit.knowledge.assistant.document.entity.Document;
 import com.lnjecit.knowledge.assistant.document.mapper.DocumentMapper;
+import com.lnjecit.knowledge.assistant.evaluation.EvaluationCorpus;
 import com.lnjecit.knowledge.assistant.evaluation.dataset.EvaluationDatasetLoader;
 import com.lnjecit.knowledge.assistant.evaluation.dataset.Sha256;
 import com.lnjecit.knowledge.assistant.evaluation.model.AnswerEvaluationRun;
@@ -181,7 +182,7 @@ public class EvaluationService {
         PublishedVersionSnapshot snapshot = snapshots.read(request.knowledgeBaseId());
         if (snapshot.documents().isEmpty()) throw new PrecheckRejected("KB_NOT_PUBLISHED");
         for (Source source : selected.sources()) {
-            if (!hash(Path.of(source.documentPath())).equals(source.sourceSha256()))
+            if (!hash(EvaluationCorpus.resolve(source.documentPath())).equals(source.sourceSha256()))
                 throw new PrecheckRejected("SOURCE_HASH_MISMATCH");
             boolean matched = false;
             for (PublishedDocument published : snapshot.documents()) {

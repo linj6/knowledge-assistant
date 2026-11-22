@@ -1,5 +1,6 @@
 package com.lnjecit.knowledge.assistant.evaluation.metrics;
 
+import com.lnjecit.knowledge.assistant.evaluation.EvaluationCorpus;
 import com.lnjecit.knowledge.assistant.evaluation.dataset.FrozenFingerprint;
 import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData.FrozenPool;
 import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData.FrozenPools;
@@ -251,7 +252,8 @@ public final class FrozenRankingEvaluation {
                         "INVALID_POOL",
                         "实验来源映射错误");
                 require(
-                        hash(Files.readAllBytes(Path.of(paths.get(offset)))).equals(c.sourceSha256()),
+                        hash(Files.readAllBytes(EvaluationCorpus.resolve(paths.get(offset))))
+                                .equals(c.sourceSha256()),
                         "INVALID_POOL",
                         "来源文件 Hash 错误");
                 String relevance = Long.toString(grade.proposedRelevance());

@@ -1,6 +1,7 @@
 package com.lnjecit.knowledge.assistant.evaluation.runner;
 
 import com.lnjecit.knowledge.assistant.KnowledgeAssistantApplication;
+import com.lnjecit.knowledge.assistant.evaluation.EvaluationCorpus;
 import com.lnjecit.knowledge.assistant.evaluation.metrics.EvidenceMetrics;
 import com.lnjecit.knowledge.assistant.evaluation.metrics.FrozenRankingEvaluation;
 import com.lnjecit.knowledge.assistant.evaluation.metrics.RankingMetrics;
@@ -545,7 +546,7 @@ public final class LiveEvaluationRunner {
         try {
             for (EvidenceMetrics.Source source : sources) {
                 if (source.documentId() != chunk.documentId() || source.versionId() != chunk.indexVersionId()) continue;
-                byte[] bytes = Files.readAllBytes(Path.of(source.path()));
+                byte[] bytes = Files.readAllBytes(EvaluationCorpus.resolve(source.path()));
                 if (!hash(bytes).equals(source.sha256())) return false;
                 String text = new com.lnjecit.knowledge.assistant.ingestion.parser.DocumentParserFactory()
                         .parse(source.path(), bytes)

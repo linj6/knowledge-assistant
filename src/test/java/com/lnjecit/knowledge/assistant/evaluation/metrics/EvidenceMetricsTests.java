@@ -3,6 +3,7 @@ package com.lnjecit.knowledge.assistant.evaluation.metrics;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.lnjecit.knowledge.assistant.evaluation.EvaluationCorpus;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -35,7 +36,8 @@ class EvidenceMetricsTests {
             for (int i = 0; i < paths.size(); i++) {
                 String path = paths.get(i);
                 String hash = HexFormat.of()
-                        .formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(Path.of(path))));
+                        .formatHex(MessageDigest.getInstance("SHA-256")
+                                .digest(Files.readAllBytes(EvaluationCorpus.resolve(path))));
                 for (JsonNode gold : fixture.path("gold").path("questions"))
                     if (gold.path("documentPath").asString().equals(path))
                         assertThat(hash).isEqualTo(gold.path("sourceSha256").asString());

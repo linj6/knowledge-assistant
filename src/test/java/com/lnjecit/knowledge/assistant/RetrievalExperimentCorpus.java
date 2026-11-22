@@ -2,6 +2,7 @@ package com.lnjecit.knowledge.assistant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.lnjecit.knowledge.assistant.evaluation.EvaluationCorpus;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingConfig;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.FixedCodePointSplitter;
@@ -30,7 +31,7 @@ final class RetrievalExperimentCorpus {
                 .readTree(Files.readString(Path.of("docs/engineering/m4-01-gold-evidence.json")));
         List<String> oversize = new ArrayList<>();
         for (String path : Files.readAllLines(Path.of("docs/engineering/m4-01-samples.txt"))) {
-            byte[] bytes = Files.readAllBytes(Path.of(path));
+            byte[] bytes = Files.readAllBytes(EvaluationCorpus.resolve(path));
             String sha = HexFormat.of()
                     .formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
             boolean matched = false;

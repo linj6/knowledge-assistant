@@ -21,7 +21,7 @@ def build():
                     if key not in candidates:
                         base = 800000 if chunking == 'FIXED_CODE_POINT' else 900000
                         path = paths[c['documentId'] - base - 100]
-                        source = ROOT / path
+                        source = ROOT / 'evaluation' / 'corpus' / path.removeprefix('../')
                         raw = source.read_bytes() if source.exists() else None
                         label = next(j for j in fixture['pool']['judgments'] if j['questionId'] == q and j['chunking'] == chunking and j['chunkId'] == c['chunkId'])
                         candidates[key] = dict(chunkId=c['chunkId'], documentId=c['documentId'], indexVersionId=c['indexVersionId'], documentPath=path,

@@ -23,12 +23,18 @@ Evidence Recall 是逐题必要证据覆盖比例的宏平均，CEC 统计全部
 
 ## 复现与验证边界
 
-OFFLINE 复算读取冻结候选、Gold 和标签，模型调用为零。需提供冻结路径对应的相邻 `backend-interview-lab` 原文，且原文字节须通过 SHA-256 校验。归档 JSON 可直接审阅，完整复算依赖外部原文。
+OFFLINE 复算读取冻结候选、Gold 和标签，模型调用为零。从仓库根目录运行。两个来源仓库的八篇原文已按原始字节放入 [评估语料目录](../evaluation/corpus/README.md)，读取时映射冻结来源路径并校验 SHA-256，复算无需相邻仓库。
 
 ```powershell
 mvn test "-Dtest=RetrievalMetricsFixtureTests,EvidenceMetricsTests,RankingMetricsTests,FrozenRankingEvaluationTests"
 ```
 
-冻结测试将结果与归档比较。生成 manifest、检索明细、指标和报告的入口见 [OFFLINE Runner](archive/v1-development/engineering/m4-c01-offline-runner.md)。
+冻结测试将结果与归档比较。使用以下入口生成 manifest、检索明细、指标和报告，输出目录为 `target/evaluation/m4-c01-offline-v1`。
+
+```powershell
+mvn test-compile org.codehaus.mojo:exec-maven-plugin:3.5.0:java "-Dexec.mainClass=com.lnjecit.knowledge.assistant.evaluation.runner.OfflineEvaluationRunner" "-Dexec.classpathScope=test"
+```
+
+输出目录已存在时，可显式追加 `"-Dexec.args=--overwrite"` 重算。
 
 历史 LIVE 联调在另一个真实知识库运行，BM25、VECTOR、HYBRID_RRF 各成功返回 12 题。向量与融合共享 12 次 Query Embedding；未调用 Chat 或 Rerank。该知识库发布快照与冻结 Gold 不匹配，36 条均无可用质量评分，评分分母为 0。历史 LIVE 产物在本机 `target/` 中，未随 Git 提交。重新运行需要可用的已发布索引、适配当前快照的 Gold 和标签，并在调用真实模型前取得授权。当前评估 HTTP 路由被禁用，命令行入口详见历史运行说明。[LIVE Runner](archive/v1-development/engineering/m4-c02-live-runner.md) · [历史联调验收](archive/v1-development/engineering/m4-c03-evaluation-runner-acceptance.md)

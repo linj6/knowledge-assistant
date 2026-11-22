@@ -2,6 +2,7 @@ package com.lnjecit.knowledge.assistant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.lnjecit.knowledge.assistant.evaluation.EvaluationCorpus;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingConfig;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.DocumentSplitter;
@@ -28,7 +29,7 @@ class ChunkingBaselineTests {
         int sample = 0;
         for (String input : Files.readAllLines(Path.of(manifest))) {
             if (input.isBlank()) continue;
-            Path path = Path.of(input);
+            Path path = EvaluationCorpus.resolve(input);
             byte[] bytes = Files.readAllBytes(path);
             ParsedDocument parsed = new DocumentParserFactory().parse(path.toString(), bytes);
             List<DocumentSplitter.Chunk> chunks = new FixedCodePointSplitter()

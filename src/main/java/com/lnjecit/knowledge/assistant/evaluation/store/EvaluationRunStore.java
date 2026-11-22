@@ -1,5 +1,6 @@
 package com.lnjecit.knowledge.assistant.evaluation.store;
 
+import com.lnjecit.knowledge.assistant.evaluation.EvaluationCorpus;
 import com.lnjecit.knowledge.assistant.evaluation.dataset.Sha256;
 import com.lnjecit.knowledge.assistant.evaluation.model.AnswerEvaluationRun;
 import com.lnjecit.knowledge.assistant.evaluation.model.EvaluationRunResponse;
@@ -177,8 +178,9 @@ public class EvaluationRunStore {
                             || !question.documentPath().equals(frozen.documentPath())
                             || question.goldEvidence().size()
                                     != frozen.evidence().size()) continue;
-                    if (!Sha256.file(Path.of(question.documentPath())).equals(question.sha256())) continue;
-                    String text = Files.readString(Path.of(question.documentPath()));
+                    if (!Sha256.file(EvaluationCorpus.resolve(question.documentPath()))
+                            .equals(question.sha256())) continue;
+                    String text = Files.readString(EvaluationCorpus.resolve(question.documentPath()));
                     boolean valid = true;
                     for (int i = 0; i < question.goldEvidence().size(); i++) {
                         RetrievalRunData.GoldTextEvidence evidence =
