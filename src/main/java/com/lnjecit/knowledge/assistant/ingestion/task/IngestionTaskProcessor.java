@@ -29,7 +29,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 @Service
 @ConditionalOnProperty(
-        name = {"assistant.model.enabled", "assistant.elasticsearch.enabled"},
+        name = {"assistant.model.enabled", "assistant.model.online-authorized", "assistant.elasticsearch.enabled"},
         havingValue = "true")
 public class IngestionTaskProcessor implements TaskProcessor {
     private static final Logger LOG = LoggerFactory.getLogger(IngestionTaskProcessor.class);

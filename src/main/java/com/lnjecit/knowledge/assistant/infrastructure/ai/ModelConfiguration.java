@@ -12,7 +12,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@ConditionalOnProperty(name = "assistant.model.enabled", havingValue = "true")
+@ConditionalOnProperty(
+        name = {"assistant.model.enabled", "assistant.model.online-authorized"},
+        havingValue = "true")
 public class ModelConfiguration {
     public static void validate(ModelProperties p) {
         p.afterPropertiesSet();

@@ -287,6 +287,7 @@ class IngestionPipelineIT extends ElasticsearchIT {
                 "--assistant.elasticsearch.enabled=true",
                 "--assistant.elasticsearch.endpoint=http://" + elasticsearch.getHttpHostAddress(),
                 "--assistant.model.enabled=true",
+                "--assistant.model.online-authorized=true",
                 "--assistant.model.api-key=local-stub",
                 "--assistant.model.chat-model=unused",
                 "--assistant.model.base-url=http://127.0.0.1:"

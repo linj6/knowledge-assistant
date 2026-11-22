@@ -8,7 +8,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@ConditionalOnProperty(name = "assistant.rerank.enabled", havingValue = "true")
+@ConditionalOnProperty(
+        name = {"assistant.rerank.enabled", "assistant.rerank.online-authorized"},
+        havingValue = "true")
 public class RerankConfiguration {
     @Bean
     public Reranker reranker(RerankProperties properties) {

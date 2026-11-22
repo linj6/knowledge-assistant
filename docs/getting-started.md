@@ -29,7 +29,11 @@ docker compose ps
 | Chat / Embedding | 获得真实调用及费用授权后，再设置 `assistant.model.enabled=true`、`online-authorized=true`，填写真实 API Key，并核对端点、模型 ID 和维度。local 内置配置使用 DashScope 兼容端点、`qwen-plus`、`text-embedding-v4`、1024 维 |
 | Rerank | 单独授权后才打开 `assistant.rerank.enabled` 和 `online-authorized`，核对端点、`qwen3-rerank` 和独立 API Key 配置 |
 
-仓库内的 local Profile 将模型与重排设为启用且授权，凭据为占位值。初次检查保持外部样例中的关闭值。在线测试还有独立授权门禁，详见 [Maven profile](../pom.xml) 和 [授权测试](../src/test/java/com/lnjecit/knowledge/assistant/OnlineAuthorizationTests.java)。模型请求可能计费，密钥仅保存在本机外部配置或进程环境中。[local 默认配置](../src/main/resources/application-local.yml)
+仓库默认关闭 Chat、Embedding 和 Rerank，选择 local Profile 后仍然关闭。每组客户端只有在对应的 `enabled` 和 `online-authorized` 同时为 `true` 时才会初始化。
+
+确认允许向供应商发送数据并承担调用费用后，在 Git 忽略的 `config/application-local.yml` 中为需要使用的组填写 API Key，并将该组的两个开关都设为 `true`。从仓库根目录启动并选择 local Profile 时，Spring Boot 会读取这份个人覆盖配置，后续启动可沿用。模型启用后，问答、向量检索及文档导入等操作可能向供应商发送数据并产生费用；混合重排使用独立的 Rerank 配置。密钥仅保存在个人配置或启动进程的环境变量中。[local 默认配置](../src/main/resources/application-local.yml)
+
+在线测试也要求对应的两个开关均为 `true`，Embedding 基线测试还要求 `assistant.embedding.baseline-authorized=true`。仅选择 local Profile 不会授权在线测试。[Maven profile](../pom.xml) 和 [授权测试](../src/test/java/com/lnjecit/knowledge/assistant/OnlineAuthorizationTests.java)
 
 ```powershell
 mvn spring-boot:run "-Dspring-boot.run.profiles=local"

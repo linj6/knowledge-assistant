@@ -14,7 +14,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
-@ConditionalOnProperty(name = "assistant.model.enabled", havingValue = "true")
+@ConditionalOnProperty(
+        name = {"assistant.model.enabled", "assistant.model.online-authorized"},
+        havingValue = "true")
 public class QueryEmbeddingService {
     private final EmbeddingModel model;
 
