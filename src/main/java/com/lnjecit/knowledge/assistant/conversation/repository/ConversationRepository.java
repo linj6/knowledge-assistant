@@ -2,6 +2,7 @@ package com.lnjecit.knowledge.assistant.conversation.repository;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.lnjecit.knowledge.assistant.conversation.dto.HistoryTurn;
 import com.lnjecit.knowledge.assistant.conversation.entity.Conversation;
 import com.lnjecit.knowledge.assistant.conversation.entity.Message;
 import com.lnjecit.knowledge.assistant.conversation.entity.MessageRole;
@@ -48,6 +49,10 @@ public class ConversationRepository {
         return messageMapper.selectList(new LambdaQueryWrapper<Message>()
                 .eq(Message::getConversationId, conversationId)
                 .apply("turn_id = CAST({0} AS uuid)", turnId.toString()));
+    }
+
+    public List<HistoryTurn> findRecentAnsweredTurns(Long conversationId, UUID currentTurnId) {
+        return messageMapper.selectRecentAnsweredTurns(conversationId, currentTurnId);
     }
 
     public boolean hasActiveTurn(Long conversationId) {

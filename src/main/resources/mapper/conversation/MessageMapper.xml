@@ -7,6 +7,28 @@
         <result property="citations" column="citations" typeHandler="com.lnjecit.knowledge.assistant.infrastructure.persistence.JsonbTypeHandler"/>
     </resultMap>
 
+    <select id="selectRecentAnsweredTurns"
+            resultType="com.lnjecit.knowledge.assistant.conversation.dto.HistoryTurn">
+        SELECT question.content AS question, answer.content AS answer
+        FROM chat_message current_turn
+        JOIN chat_message answer
+          ON answer.conversation_id = current_turn.conversation_id
+         AND (answer.created_at, answer.id) &lt; (current_turn.created_at, current_turn.id)
+        JOIN chat_message question
+          ON question.conversation_id = answer.conversation_id
+         AND question.turn_id = answer.turn_id
+         AND question.role = 'USER'
+        WHERE current_turn.conversation_id = #{conversationId}
+          AND current_turn.turn_id = #{currentTurnId,typeHandler=com.lnjecit.knowledge.assistant.infrastructure.persistence.UuidTypeHandler}
+          AND current_turn.role = 'ASSISTANT'
+          AND answer.role = 'ASSISTANT'
+          AND answer.status = 'ANSWERED'
+          AND question.content IS NOT NULL
+          AND answer.content IS NOT NULL
+        ORDER BY answer.created_at DESC, answer.id DESC
+        LIMIT 3
+    </select>
+
     <select id="selectHistory" resultMap="historyMessage">
         SELECT id, conversation_id, turn_id, role, content, status, error_code, citations, created_at, completed_at
         FROM chat_message

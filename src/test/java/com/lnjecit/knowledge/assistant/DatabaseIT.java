@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
+import com.lnjecit.knowledge.assistant.conversation.dto.HistoryTurn;
 import com.lnjecit.knowledge.assistant.conversation.dto.TurnResponse;
 import com.lnjecit.knowledge.assistant.conversation.entity.Conversation;
 import com.lnjecit.knowledge.assistant.conversation.entity.Message;
@@ -18,6 +19,7 @@ import com.lnjecit.knowledge.assistant.conversation.entity.MessageStatus;
 import com.lnjecit.knowledge.assistant.conversation.repository.ConversationRepository;
 import com.lnjecit.knowledge.assistant.conversation.service.ConversationService;
 import com.lnjecit.knowledge.assistant.conversation.service.TurnExecutor;
+import com.lnjecit.knowledge.assistant.conversation.service.TurnHistoryService;
 import com.lnjecit.knowledge.assistant.conversation.service.TurnService;
 import com.lnjecit.knowledge.assistant.rag.RagService;
 import com.lnjecit.knowledge.assistant.rag.model.RagAnswer;
@@ -318,6 +320,62 @@ class DatabaseIT {
             assertThat(rejected).hasMessage("会话已有正在执行的 Turn");
             return false;
         }
+    }
+
+    @Test
+    void selectsOnlyTheLatestThreeCompleteAnsweredTurnsBeforeTheCurrentTurn() {
+        try (ConfigurableApplicationContext context = start()) {
+            JdbcTemplate jdbc = conversationFixtures(context);
+            ConversationService conversations = context.getBean(ConversationService.class);
+            Long conversation = conversations.create(1L, 3L).getId();
+            Long other = conversations.create(1L, 3L).getId();
+            TurnHistoryService history = context.getBean(TurnHistoryService.class);
+            UUID current = insertHistoryPair(jdbc, conversation, 50, "ANSWERED");
+            UUID otherCurrent = insertHistoryPair(jdbc, other, 52, "PROCESSING");
+            assertThat(history.select(conversation, current)).isEmpty();
+            for (int id = 2; id <= 8; id += 2) {
+                insertHistoryPair(jdbc, conversation, id, "ANSWERED");
+            }
+            insertHistoryPair(jdbc, other, 30, "ANSWERED");
+            insertHistoryPair(jdbc, conversation, 32, "FAILED");
+            insertHistoryPair(jdbc, conversation, 34, "CANCELLED");
+            insertHistoryPair(jdbc, conversation, 36, "INSUFFICIENT_EVIDENCE");
+            insertHistoryPair(jdbc, conversation, 38, "PROCESSING");
+            insertHistoryPair(jdbc, conversation, 40, "ANSWERED");
+            jdbc.update("DELETE FROM chat_message WHERE id = 40");
+            insertHistoryPair(jdbc, conversation, 42, "ANSWERED");
+            jdbc.update("DELETE FROM chat_message WHERE id = 43");
+            insertHistoryPair(jdbc, conversation, 44, "ANSWERED");
+            jdbc.update("UPDATE chat_message SET content = NULL WHERE id = 45");
+            insertHistoryPair(jdbc, conversation, 54, "ANSWERED");
+
+            List<HistoryTurn> expected =
+                    List.of(new HistoryTurn("q4", "a4"), new HistoryTurn("q6", "a6"), new HistoryTurn("q8", "a8"));
+            assertThat(history.select(conversation, current)).isEqualTo(expected);
+            jdbc.update("UPDATE chat_message SET status = 'CANCEL_REQUESTED' WHERE id = 39");
+            assertThat(history.select(conversation, current)).isEqualTo(expected);
+            assertThat(history.select(other, otherCurrent)).containsExactly(new HistoryTurn("q30", "a30"));
+        }
+    }
+
+    private static UUID insertHistoryPair(JdbcTemplate jdbc, Long conversation, int id, String status) {
+        UUID turnId = UUID.randomUUID();
+        jdbc.update(
+                """
+                INSERT INTO chat_message (id, conversation_id, turn_id, role, content, status, created_at)
+                VALUES (?, ?, ?, 'USER', ?, NULL, TIMESTAMPTZ '2026-01-01 00:00:00+00'),
+                       (?, ?, ?, 'ASSISTANT', ?, ?, TIMESTAMPTZ '2026-01-01 00:00:00+00')
+                """,
+                id,
+                conversation,
+                turnId,
+                "q" + id,
+                id + 1,
+                conversation,
+                turnId,
+                "a" + id,
+                status);
+        return turnId;
     }
 
     @Test
