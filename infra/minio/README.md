@@ -4,15 +4,17 @@
 
 ## 下载、校验与导入
 
+**公开再分发状态：NOT READY。** 现有网盘归档的对应源码交付和组件许可核对仍有缺项，见[网盘再分发资料](#网盘再分发资料)。
+
 | 项目 | 交付信息 |
 | --- | --- |
 | 网盘下载地址 | [百度网盘下载](https://pan.baidu.com/s/1edkb6uC5-KM-d_WkutpRMQ?pwd=n2ua) |
 | 提取码 | `n2ua` |
 | 镜像归档 | `minio-RELEASE.2025-09-07T16-13-09Z.tar` |
 | SHA-256 | `033da3bb0531f4b071310c1ad44cade4017e694ec554dc482d6da38f01fbcd33`（本地导出归档的实测值） |
-| 对应源代码下载 | **待填写：随镜像提供的完整对应源代码及许可证资料下载地址** |
+| 对应源代码下载 | **待补齐并验证**。上游版本入口见下文。 |
 
-从百度网盘下载原始 tar 文件。在下载目录执行以下 PowerShell 命令。若使用其他目录，修改 `$archive` 为实际路径。校验失败时停止导入。已有同名镜像时先确认是否需要导入，避免覆盖既有标签。
+如已持有原始 tar 文件，在归档所在目录执行以下 PowerShell 命令。若使用其他目录，修改 `$archive` 为实际路径。校验失败时停止导入。已有同名镜像时先确认是否需要导入，避免覆盖既有标签。
 
 ```powershell
 $archive = '.\minio-RELEASE.2025-09-07T16-13-09Z.tar'
@@ -62,9 +64,30 @@ Tag或无法确定范围的过滤拒绝自动修改；And含明确前缀时只�
 
 ## 网盘再分发资料
 
-- MinIO Server 和 mc 的固定版本均采用 GNU AGPLv3，二进制均声明 MinIO, Inc. 2015–2025 年版权。验收镜像包含 `/licenses/LICENSE`、`/licenses/CREDITS` 及 `/usr/share/licenses/` 下的系统包声明。分发镜像时应附上许可证全文，保留上游版权、许可证和无担保声明，以及随镜像组件提供的第三方声明。项目本地标签用于 Compose 引用。上游版本入口见 [MinIO Server](https://github.com/minio/minio/tree/RELEASE.2025-09-07T16-13-09Z) 和 [MinIO Client](https://github.com/minio/mc/tree/RELEASE.2025-08-13T08-35-41Z)。
-- 按 AGPLv3 第 6(d) 节通过网盘交付二进制时，在同一下载位置提供完整、可机器读取的对应源代码，并提供同等访问且不额外收费。对应源代码须匹配实际二进制，包含适用的补丁、构建与安装脚本及所需源码。若源码由另一服务器提供，须在镜像下载处明确标注获取方式，并确保等效访问和持续可用。上述上游版本入口用于溯源，完整对应源代码交付仍待确认。[GNU AGPLv3](https://www.gnu.org/licenses/agpl-3.0.en.html)
-- 镜像标签元数据标识基础层为 Red Hat UBI 9 Micro。分发前按实际镜像核对基础层及其他组件的许可证、版权声明和源码获取义务，保留所需资料。完整组件清单、对应源码包及其下载地址仍待补齐，再分发许可验收尚未完成。[Red Hat UBI FAQ](https://developers.redhat.com/articles/ubi-faq)
+### 本机镜像核对
+
+2026-11-23 通过 `docker image inspect`、`docker history`、`docker diff` 和已运行容器中的只读命令核对。本机标签与容器指向同一镜像 ID `sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e`，平台为 `linux/amd64`。镜像记录的拉取来源为 `docker.io/minio/minio`，与仓库既有记录一致。历史隔离验证记录了本地归档导入前后的文件系统层一致性。网盘文件本次未取回复核。
+
+| 二进制 | 实测版本 | 实测提交 |
+| --- | --- | --- |
+| `/usr/bin/minio` | `RELEASE.2025-09-07T16-13-09Z` | `07c3a429bfed433e49018cb0f78a52145d4bedeb` |
+| `/usr/bin/mc` | `RELEASE.2025-08-13T08-35-41Z` | `7394ce0dd2a80935aded936b09fa12cbb3cb8096` |
+
+两者均报告 Go 1.24.6、GNU AGPLv3 和 MinIO, Inc. 2015–2025 年版权。实测 SHA-256 与镜像内各自的 `.sha256sum` 一致。用上游发布 Dockerfile 中的公钥验证了两份 `.minisig` 的二进制签名和签名内的文件名。本机两份二进制未发现版本不符或额外修改的证据。完整构建输入、依赖源码和整个镜像的构建证明仍未确认。[MinIO 发布 Dockerfile](https://raw.githubusercontent.com/minio/minio/RELEASE.2025-09-07T16-13-09Z/Dockerfile.release)
+
+镜像标签及层历史指向 Red Hat UBI 9 Micro 9.6，`/etc/os-release` 报告 RHEL 9.6。层历史还显示复制了静态 curl、CA 证书包和入口脚本。实测 curl 8.11.0（musl）报告 libcurl 8.11.0、OpenSSL 3.1.7、zlib 1.3.1、libssh2 1.11.0 和 nghttp2 1.58.0。上游发布脚本通过 `latest` 获取静态 curl。实际命中的资产、补丁及完整构建和声明资料、CA 证书包的具体构建输入，以及 UBI 基础镜像的 Registry digest 仍未确认。[静态 curl 获取脚本](https://raw.githubusercontent.com/minio/minio/RELEASE.2025-09-07T16-13-09Z/dockerscripts/download-static-curl.sh)
+
+### 源码、许可证及第三方声明
+
+- 官方发布页关联的完整提交 SHA 与上表一致。可从两个发布页获取对应 tag 的源代码快照。两套源码均提供 Go 模块定义、`Makefile`、`LICENSE` 和 `CREDITS`。MinIO 发布 Dockerfile 下载并验签预编译的 Server 和 mc，再复制到最终镜像。这些入口提供上游源码和构建资料，完整对应源码仍需按实际产物核对。[MinIO Server 源码与发布页](https://github.com/minio/minio/releases/tag/RELEASE.2025-09-07T16-13-09Z) · [mc 源码与发布页](https://github.com/minio/mc/releases/tag/RELEASE.2025-08-13T08-35-41Z)
+- 已有容器可用 `docker cp <容器名>:/licenses ./minio-image-licenses` 和 `docker cp <容器名>:/usr/share/licenses ./minio-system-licenses` 取出随镜像提供的声明。已确认 `/licenses/LICENSE` 为 AGPLv3，`/licenses/CREDITS` 含 Go 标准库等第三方声明，系统目录含 bash、glibc、libgcc 等包的声明。分发资料还应保留上游版权、无担保声明及两套上游的第三方声明。镜像内现有声明对 mc、静态 curl 及其依赖和 CA 证书包的覆盖仍待核对。[Server LICENSE](https://raw.githubusercontent.com/minio/minio/RELEASE.2025-09-07T16-13-09Z/LICENSE) · [Server CREDITS](https://raw.githubusercontent.com/minio/minio/RELEASE.2025-09-07T16-13-09Z/CREDITS) · [mc LICENSE](https://raw.githubusercontent.com/minio/mc/RELEASE.2025-08-13T08-35-41Z/LICENSE) · [mc CREDITS](https://raw.githubusercontent.com/minio/mc/RELEASE.2025-08-13T08-35-41Z/CREDITS)
+- Red Hat 允许按 UBI EULA 再分发 UBI 镜像及适用的 UBI 包。其他 RHEL 包和额外组件须按各自的分发依据和许可证处理。镜像内 RPM 数据库可提供已安装包版本、许可证字段和源 RPM 名称，例如 `bash-5.1.8-9.el9.src.rpm`、`glibc-2.34-168.el9_6.23.src.rpm`。仍需把实际包与 Red Hat 的 UBI 内容及对应源 RPM 逐项匹配，并核对适用声明和源码提供义务。[Red Hat UBI FAQ](https://developers.redhat.com/articles/ubi-faq)
+
+### 解除公开再分发阻断所需资料
+
+1. 按已验签的 MinIO Server 和 mc 产物核对并整理完整、可机器读取的对应源码，包括实际依赖、适用补丁及控制构建和安装的脚本。
+2. 用现有 RPM 数据库、上游发布记录和组件哈希核对 UBI 包、静态 curl 及其依赖和 CA 证书包的实际来源。收齐适用的许可证、声明、再分发依据和要求提供的源码。
+3. 在网盘镜像下载处提供对应源码与许可资料的明确入口，并验证接收方可按 AGPLv3 第 6(d) 节以同等方式获取对应源码，无需额外付费。若源码由另一服务器提供，在镜像下载处指明地址并确保持续可用。[GNU AGPLv3](https://www.gnu.org/licenses/agpl-3.0.en.html)
 
 ## M5-02D 隔离验证记录
 

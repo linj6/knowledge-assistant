@@ -6,7 +6,7 @@
 
 ### 首次部署
 
-1. 从[百度网盘](https://pan.baidu.com/s/1edkb6uC5-KM-d_WkutpRMQ?pwd=n2ua)下载 `minio-RELEASE.2025-09-07T16-13-09Z.tar`（提取码 `n2ua`）。按 [MinIO 镜像交付说明](../infra/minio/README.md#下载校验与导入)校验 SHA-256 后执行 `docker load`，并确认镜像标签为 `knowledge-assistant-minio:RELEASE.2025-09-07T16-13-09Z-local`、架构为 `linux/amd64`。已持有可信且匹配的本地镜像时可直接使用。
+1. 已持有可信且匹配的本地镜像时可直接使用。历史归档 `minio-RELEASE.2025-09-07T16-13-09Z.tar` 的公开再分发状态为 **NOT READY**，原[百度网盘地址](https://pan.baidu.com/s/1edkb6uC5-KM-d_WkutpRMQ?pwd=n2ua)和提取码 `n2ua` 保留供核对。已有归档可按 [MinIO 镜像交付说明](../infra/minio/README.md#下载校验与导入)校验 SHA-256 后执行 `docker load`，并确认镜像标签为 `knowledge-assistant-minio:RELEASE.2025-09-07T16-13-09Z-local`、架构为 `linux/amd64`。
 2. 在仓库根目录将 [`.env.example`](../.env.example) 复制为 `.env`，替换基础设施占位凭据。已有环境保留实际凭据。
 3. 从仓库根目录启动基础设施，等待服务健康。MinIO 使用已导入的镜像，`--build` 用于 Compose 中配置了构建的 Elasticsearch 服务。
 
