@@ -38,7 +38,8 @@ class RetrievalDemoTests {
             assertThat(response.statusCode()).isEqualTo(200);
             assertThat(response.headers().firstValue("Content-Type").orElse("")).contains("text/html");
             assertThat(response.body())
-                    .contains("fetch('/api/v1/retrieval/search'", "el.textContent", "credentials:'same-origin'")
+                    .contains("fetch('/api/v1/retrieval/search'", "el.textContent")
+                    .containsPattern("\\bcredentials\\s*:\\s*'same-origin'")
                     .doesNotContain("innerHTML", "localStorage", "https://", "http://");
             assertThat(client.send(
                                     HttpRequest.newBuilder(URI.create(base + "/retrieval-demo.html"))

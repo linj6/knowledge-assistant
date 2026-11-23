@@ -55,15 +55,23 @@ class BusinessExceptionTests {
     @Test
     void commonStatuses() throws Exception {
         CommonErrorCode[] codes = CommonErrorCode.values();
-        int[] statuses = {404, 400, 405, 415, 404, 500};
         assertThat(java.util.Arrays.stream(codes).map(CommonErrorCode::getCode).toList())
                 .doesNotHaveDuplicates()
                 .doesNotContain(0, 90001);
-        for (int i = 0; i < codes.length; i++) {
-            mvc.perform(get("/business/" + codes[i].name()))
-                    .andExpect(status().is(statuses[i]))
-                    .andExpect(jsonPath("$.code").value(codes[i].getCode()))
-                    .andExpect(jsonPath("$.message").value(codes[i].getMessage()));
+        for (CommonErrorCode code : codes) {
+            int expectedStatus =
+                    switch (code) {
+                        case KNOWLEDGE_BASE_NOT_FOUND, CONVERSATION_NOT_FOUND, NOT_FOUND -> 404;
+                        case USERNAME_EXISTS, TURN_ID_CONFLICT, TURN_IN_PROGRESS -> 409;
+                        case INVALID_ARGUMENT -> 400;
+                        case METHOD_NOT_ALLOWED -> 405;
+                        case UNSUPPORTED_MEDIA_TYPE -> 415;
+                        case INTERNAL_ERROR -> 500;
+                    };
+            mvc.perform(get("/business/" + code.name()))
+                    .andExpect(status().is(expectedStatus))
+                    .andExpect(jsonPath("$.code").value(code.getCode()))
+                    .andExpect(jsonPath("$.message").value(code.getMessage()));
         }
     }
 

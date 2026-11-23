@@ -55,16 +55,20 @@ class MybatisCompatibilityTests {
             assertThat(context.getBean(org.flywaydb.core.Flyway.class).migrate().migrationsExecuted)
                     .isZero();
             assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class))
-                    .isEqualTo(7);
-            // 成功记录必须覆盖当前 V1～V7，不能只凭总数判断迁移已完成。
+                    .isEqualTo(8);
+            // 成功记录必须覆盖当前 V1～V8，不能只凭总数判断迁移已完成。
             assertThat(jdbc.queryForList(
                             "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank",
                             String.class))
-                    .containsExactly("1", "2", "3", "4", "5", "6", "7");
-            assertThat(jdbc.queryForObject(
-                            "SELECT count(*) FROM pg_constraint WHERE contype='f' AND connamespace='public'::regnamespace",
-                            Integer.class))
-                    .isZero();
+                    .containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
+            // V8 仅为会话和消息引入外键，原有表仍不定义外键。
+            assertThat(jdbc.queryForList(
+                            "SELECT conname FROM pg_constraint WHERE contype='f' AND connamespace='public'::regnamespace",
+                            String.class))
+                    .containsExactlyInAnyOrder(
+                            "chat_conversation_owner_user_id_fkey",
+                            "chat_conversation_knowledge_base_id_fkey",
+                            "chat_message_conversation_id_fkey");
             jdbc.execute(
                     "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'compat-owner','test-only','ACTIVE')");
             jdbc.execute("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES (1,'测试',1),(2,'跨库',1)");
