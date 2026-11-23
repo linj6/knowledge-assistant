@@ -4,17 +4,27 @@
 
 准备 JDK 21、Maven 3.9、Docker 与 Compose v2。执行 MinIO 生命周期脚本还需 Python 3。[Compose](../compose.yaml) 使用 PostgreSQL 17 / pgvector 0.8.0（固定 digest）、Redis 7.4.11、Elasticsearch 8.18.0 / IK 8.18.0，以及本地 MinIO 镜像。ES 构建需要获取基础镜像和 [IK 安装包](../infra/elasticsearch/Dockerfile)。Compose 将 PG、Redis、ES、MinIO API 和控制台分别绑定到回环地址的 5432、6379、9200、9000、9001 端口。
 
-取得可信来源提供的 `knowledge-assistant-minio:RELEASE.2025-09-07T16-13-09Z-local` 镜像后再启动。若使用离线归档，先比对交付方提供的 SHA-256，再用 `docker load -i <归档路径>` 加载并核对本地标签。Compose 设置了 `pull_policy: never`。历史本机读写、持久化和 save/load 有验证记录，空白环境的交付仍待验证。[MinIO 历史验证](archive/v1-development/engineering/m0-03-infrastructure-verification.md)
+### 首次部署
 
-在仓库根目录将 [.env.example](../.env.example) 复制为 `.env`，替换基础设施占位凭据，再运行：
+1. 从[百度网盘](https://pan.baidu.com/s/1edkb6uC5-KM-d_WkutpRMQ?pwd=n2ua)下载 `minio-RELEASE.2025-09-07T16-13-09Z.tar`（提取码 `n2ua`）。按 [MinIO 镜像交付说明](../infra/minio/README.md#下载校验与导入)校验 SHA-256 后执行 `docker load`，并确认镜像标签为 `knowledge-assistant-minio:RELEASE.2025-09-07T16-13-09Z-local`、架构为 `linux/amd64`。已持有可信且匹配的本地镜像时可直接使用。
+2. 在仓库根目录将 [`.env.example`](../.env.example) 复制为 `.env`，替换基础设施占位凭据。已有环境保留实际凭据。
+3. 从仓库根目录启动基础设施，等待服务健康。MinIO 使用已导入的镜像，`--build` 用于 Compose 中配置了构建的 Elasticsearch 服务。
 
-```powershell
-docker compose config --quiet
-docker compose up -d --build
-docker compose ps
-```
+   ```powershell
+   docker compose config --quiet
+   docker compose up -d --build --wait
+   docker compose ps
+   ```
 
-新环境通过 MinIO 控制台创建与应用配置一致的 Bucket，默认是 `knowledge-assistant`。已有环境先确认原 Bucket。按 [MinIO 运维说明](../infra/minio/README.md)配置并检查 `staging/` 两天生命周期规则。
+4. 打开 MinIO 控制台 `http://127.0.0.1:9001`，使用 `.env` 中的 MinIO 凭据登录，在 **Buckets** 页面创建默认 Bucket `knowledge-assistant`。已有环境复用与应用配置一致的 Bucket。
+5. 配置并检查 `staging/` 两天生命周期。若使用自定义 Bucket，将下方名称替换为应用配置中的值。[规则与冲突处理](../infra/minio/README.md#配置-staging-生命周期)
+
+   ```powershell
+   python infra/minio/configure-staging-ilm.py --bucket knowledge-assistant
+   python infra/minio/configure-staging-ilm.py --bucket knowledge-assistant --check
+   ```
+
+   检查结果应包含 `verified=true`、`prefix=staging/` 和 `expireDays=2`，然后继续配置应用。
 
 ## 应用配置与启动
 
@@ -49,6 +59,6 @@ mvn spring-boot:run "-Dspring-boot.run.profiles=local"
 - **登录或写请求失败**。确认 Redis 可用；直接调用 API 的客户端需保留 Session Cookie，并使用 `GET /api/v1/auth/csrf` 返回的令牌及对应请求头。
 - **PG 密码错误**。修改 Compose 变量只影响新卷初始化，已有库需使用其实际密码。
 - **导入长时间排队或失败**。检查 Worker 开关、导入任务状态、Bucket 权限、ES / IK 和 Embedding 配置。文件上传成功只表示已接收，待索引发布后才能检索。
-- **MinIO 镜像缺失**。先取得与 Compose 标签一致的本地镜像。交付到空白环境的完整流程待 M5-02 验证。
+- **MinIO 镜像缺失**。确认当前 Docker context 已导入与 Compose 标签一致的镜像，并按[镜像交付说明](../infra/minio/README.md)复核归档。
 
-本流程用于本地开发。Compose 的 Elasticsearch 关闭认证，prod Profile 的 Session Cookie 要求 HTTPS。
+MinIO 镜像仅用于本地学习与开发，不推荐用于公网生产部署。Compose 的 Elasticsearch 关闭认证，prod Profile 的 Session Cookie 要求 HTTPS。
