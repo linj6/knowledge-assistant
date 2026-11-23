@@ -12,7 +12,7 @@
 | 提取码 | `n2ua` |
 | 镜像归档 | `minio-RELEASE.2025-09-07T16-13-09Z.tar` |
 | SHA-256 | `033da3bb0531f4b071310c1ad44cade4017e694ec554dc482d6da38f01fbcd33`（本地导出归档的实测值） |
-| 对应源代码下载 | **待补齐并验证**。上游版本入口见下文。 |
+| 对应源代码下载 | [固定版本源码及许可清单](#源码许可证及第三方声明)。完整对应源码仍有缺项。 |
 
 如已持有原始 tar 文件，在归档所在目录执行以下 PowerShell 命令。若使用其他目录，修改 `$archive` 为实际路径。校验失败时停止导入。已有同名镜像时先确认是否需要导入，避免覆盖既有标签。
 
@@ -73,20 +73,31 @@ Tag或无法确定范围的过滤拒绝自动修改；And含明确前缀时只�
 | `/usr/bin/minio` | `RELEASE.2025-09-07T16-13-09Z` | `07c3a429bfed433e49018cb0f78a52145d4bedeb` |
 | `/usr/bin/mc` | `RELEASE.2025-08-13T08-35-41Z` | `7394ce0dd2a80935aded936b09fa12cbb3cb8096` |
 
-两者均报告 Go 1.24.6、GNU AGPLv3 和 MinIO, Inc. 2015–2025 年版权。实测 SHA-256 与镜像内各自的 `.sha256sum` 一致。用上游发布 Dockerfile 中的公钥验证了两份 `.minisig` 的二进制签名和签名内的文件名。本机两份二进制未发现版本不符或额外修改的证据。完整构建输入、依赖源码和整个镜像的构建证明仍未确认。[MinIO 发布 Dockerfile](https://raw.githubusercontent.com/minio/minio/RELEASE.2025-09-07T16-13-09Z/Dockerfile.release)
+两者均报告 Go 1.24.6、GNU AGPLv3 和 MinIO, Inc. 2015–2025 年版权。实测 SHA-256 与镜像内各自的 `.sha256sum` 一致。用上游发布 Dockerfile 中的公钥验证了两份 `.minisig` 的二进制签名和签名内的文件名。两份已验签二进制的 Go 构建元数据均记录 `vcs.modified=true`，主模块版本均带 `+dirty`。这表明编译时工作树有变更，具体变更及其是否进入产物仍待确认。[MinIO 发布 Dockerfile](https://raw.githubusercontent.com/minio/minio/RELEASE.2025-09-07T16-13-09Z/Dockerfile.release)
 
-镜像标签及层历史指向 Red Hat UBI 9 Micro 9.6，`/etc/os-release` 报告 RHEL 9.6。层历史还显示复制了静态 curl、CA 证书包和入口脚本。实测 curl 8.11.0（musl）报告 libcurl 8.11.0、OpenSSL 3.1.7、zlib 1.3.1、libssh2 1.11.0 和 nghttp2 1.58.0。上游发布脚本通过 `latest` 获取静态 curl。实际命中的资产、补丁及完整构建和声明资料、CA 证书包的具体构建输入，以及 UBI 基础镜像的 Registry digest 仍未确认。[静态 curl 获取脚本](https://raw.githubusercontent.com/minio/minio/RELEASE.2025-09-07T16-13-09Z/dockerscripts/download-static-curl.sh)
+本机镜像首层的 DiffID 与 Red Hat 官方 `ubi9/ubi-micro:9.6-1754467928` 的唯一文件系统层一致。官方 amd64 manifest digest 为 `sha256:f2516e808dd108b17014693eff2be3d29a3c987d845114e506aa0380e488672e`。其余层的历史显示复制了静态 curl、CA 证书包和入口脚本。镜像内 `curl-amd64` 对应文件的实测 SHA-256 与 static-curl v8.11.0 上游发布清单一致。CA 文件的 SHA-256 与历史 Alpine `ca-certificates-bundle-20250619-r0` APK 中的文件一致。多个 Alpine 分支含有同字节文件，构建镜像所用的 Alpine 分支和基础镜像 digest 仍未确认。[静态 curl 发布校验和](https://github.com/moparisthebest/static-curl/releases/download/v8.11.0/sha256sum.txt)
 
 ### 源码、许可证及第三方声明
 
-- 官方发布页关联的完整提交 SHA 与上表一致。可从两个发布页获取对应 tag 的源代码快照。两套源码均提供 Go 模块定义、`Makefile`、`LICENSE` 和 `CREDITS`。MinIO 发布 Dockerfile 下载并验签预编译的 Server 和 mc，再复制到最终镜像。这些入口提供上游源码和构建资料，完整对应源码仍需按实际产物核对。[MinIO Server 源码与发布页](https://github.com/minio/minio/releases/tag/RELEASE.2025-09-07T16-13-09Z) · [mc 源码与发布页](https://github.com/minio/mc/releases/tag/RELEASE.2025-08-13T08-35-41Z)
-- 已有容器可用 `docker cp <容器名>:/licenses ./minio-image-licenses` 和 `docker cp <容器名>:/usr/share/licenses ./minio-system-licenses` 取出随镜像提供的声明。已确认 `/licenses/LICENSE` 为 AGPLv3，`/licenses/CREDITS` 含 Go 标准库等第三方声明，系统目录含 bash、glibc、libgcc 等包的声明。分发资料还应保留上游版权、无担保声明及两套上游的第三方声明。镜像内现有声明对 mc、静态 curl 及其依赖和 CA 证书包的覆盖仍待核对。[Server LICENSE](https://raw.githubusercontent.com/minio/minio/RELEASE.2025-09-07T16-13-09Z/LICENSE) · [Server CREDITS](https://raw.githubusercontent.com/minio/minio/RELEASE.2025-09-07T16-13-09Z/CREDITS) · [mc LICENSE](https://raw.githubusercontent.com/minio/mc/RELEASE.2025-08-13T08-35-41Z/LICENSE) · [mc CREDITS](https://raw.githubusercontent.com/minio/mc/RELEASE.2025-08-13T08-35-41Z/CREDITS)
-- Red Hat 允许按 UBI EULA 再分发 UBI 镜像及适用的 UBI 包。其他 RHEL 包和额外组件须按各自的分发依据和许可证处理。镜像内 RPM 数据库可提供已安装包版本、许可证字段和源 RPM 名称，例如 `bash-5.1.8-9.el9.src.rpm`、`glibc-2.34-168.el9_6.23.src.rpm`。仍需把实际包与 Red Hat 的 UBI 内容及对应源 RPM 逐项匹配，并核对适用声明和源码提供义务。[Red Hat UBI FAQ](https://developers.redhat.com/articles/ubi-faq)
+| 组件 | 实际版本 | 源码及构建资料 | 许可证及核对状态 |
+| --- | --- | --- | --- |
+| MinIO Server | `RELEASE.2025-09-07T16-13-09Z` | [固定提交源码 tar.gz](https://codeload.github.com/minio/minio/tar.gz/07c3a429bfed433e49018cb0f78a52145d4bedeb) | AGPLv3，快照内有 `LICENSE` 和 `CREDITS`，与镜像内两份文件逐字节一致。发布工作树变更待确认。 |
+| mc | `RELEASE.2025-08-13T08-35-41Z` | [固定提交源码 tar.gz](https://codeload.github.com/minio/mc/tar.gz/7394ce0dd2a80935aded936b09fa12cbb3cb8096) | AGPLv3，快照内有 `LICENSE` 和单独的 `CREDITS`。发布工作树变更待确认。 |
+| Red Hat UBI 9 Micro 及基础 RPM | `9.6-1754467928`，包版本见资料包 `ubi-rpms.tsv` | 官方源码容器 `registry.access.redhat.com/ubi9/ubi-micro:9.6-1754467928-source`，已确认 manifest 可访问。[Red Hat 源码获取方式](https://access.redhat.com/articles/3410171) | [UBI EULA 适用范围](https://developers.redhat.com/articles/ubi-faq)及各 RPM 自身许可证。基础层已匹配，源码容器内容与 RPM 清单尚未逐项比对。 |
+| 静态 curl | `v8.11.0` amd64，curl/libcurl 8.11.0 | [静态构建脚本及发布资产](https://github.com/moparisthebest/static-curl/releases/tag/v8.11.0) · [curl 8.11.0 源码](https://curl.se/download/curl-8.11.0.tar.gz) | curl 许可证，构建脚本为 MIT。发布资产哈希已匹配。 |
+| 静态 curl 的链接依赖 | OpenSSL 3.1.7、zlib 1.3.1、libssh2 1.11.0、nghttp2 1.58.0、musl 版本未确认 | 上游版本参考 [OpenSSL](https://github.com/openssl/openssl/tree/openssl-3.1.7) · [zlib](https://github.com/madler/zlib/tree/v1.3.1) · [libssh2](https://github.com/libssh2/libssh2/tree/libssh2-1.11.0) · [nghttp2](https://github.com/nghttp2/nghttp2/tree/v1.58.0) | 已收集前四项的上游许可证，分别为 Apache-2.0、zlib、BSD-3-Clause、MIT。仍需确认 Alpine 历史 APK 修订、补丁及 musl 的实际版本和声明。 |
+| CA 证书包 | 与 Alpine `ca-certificates-bundle-20250619-r0` 字节匹配 | [Alpine 20250619 源码](https://distfiles.alpinelinux.org/distfiles/v3.22/ca-certificates-20250619.tar.bz2) · [固定 APKBUILD](https://raw.githubusercontent.com/alpinelinux/aports/78856465c851ab2ce0cb1e12fe9f57d04204919a/main/ca-certificates/APKBUILD) | 历史 APK 声明 MPL-2.0 和 MIT。源码 SHA-512 与 APKBUILD 一致，源码内保留证书数据及其声明。 |
+
+两个源码压缩包均实际取流并检查，含 `go.mod`、`go.sum`、`Makefile`、`buildscripts/gen-ldflags.go`、`LICENSE` 和 `CREDITS`。解压后可用 Go 1.24.6 在各源码目录执行 `go mod download`，按 `go.sum` 校验模块。二进制中记录的 241 项 Server 模块和 98 项 mc 模块均与各自 `go.sum` 的版本及内容校验值一致。Server 的嵌入式 Console 使用 `github.com/minio/console` 的固定伪版本，获取源码时包括其前端源文件及生成步骤。[Console 源码](https://proxy.golang.org/github.com/minio/console/@v/v1.7.7-0.20250905210349-2017f33b26e1.zip)
+
+镜像内 `/licenses/` 提供 Server 的许可和第三方声明，`/usr/share/licenses/` 提供系统包声明。已有容器可通过 `docker cp` 读取这两个目录。本地资料包另含 mc 的独立声明、上表已收集的静态 curl 许可证、CA 证书包源码、RPM 包记录和两份 Go 构建元数据。维护者可在 Git 忽略目录 `target/minio-redistribution/` 找到 `minio-redistribution-materials.zip` 及相邻的 `SHA256SUMS.txt`。这份资料包可手工附在现有下载说明旁，当前公开下载处还需补齐完整对应源码入口。
+
+AGPLv3 的系统库例外适用于满足其定义的系统库。实测 Server 和 mc 均记录 `CGO_ENABLED=0`，本次无需把 UBI 基础 RPM 纳入两者的对应源码清单。基础 RPM 作为独立分发的组件，仍按各自许可证履行义务，例如为 GPL/LGPL 包核对匹配的源 RPM。静态 curl 的链接依赖也应各自审查并保留声明。[GNU AGPLv3](https://www.gnu.org/licenses/agpl-3.0.en.html)
 
 ### 解除公开再分发阻断所需资料
 
-1. 按已验签的 MinIO Server 和 mc 产物核对并整理完整、可机器读取的对应源码，包括实际依赖、适用补丁及控制构建和安装的脚本。
-2. 用现有 RPM 数据库、上游发布记录和组件哈希核对 UBI 包、静态 curl 及其依赖和 CA 证书包的实际来源。收齐适用的许可证、声明、再分发依据和要求提供的源码。
+1. 向 MinIO 上游取得两次发布的构建输入或工作树差异，确认 `vcs.modified=true` 的原因，补齐进入产物的变更、生成步骤和所需依赖源码。
+2. 用 Red Hat 对应源码容器比对资料包中的源 RPM 名称。用 static-curl 历史 CI 的 Alpine 镜像及构建记录确认实际链接库的 APK 修订和补丁，补齐相关声明。若历史构建记录无法取得，可另行评估由用户从可验证的上游渠道自行获取镜像，或在后续任务中采用可追溯输入构建替代镜像。
 3. 在网盘镜像下载处提供对应源码与许可资料的明确入口，并验证接收方可按 AGPLv3 第 6(d) 节以同等方式获取对应源码，无需额外付费。若源码由另一服务器提供，在镜像下载处指明地址并确保持续可用。[GNU AGPLv3](https://www.gnu.org/licenses/agpl-3.0.en.html)
 
 ## M5-02D 隔离验证记录
