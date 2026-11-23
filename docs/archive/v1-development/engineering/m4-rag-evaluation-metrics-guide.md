@@ -366,8 +366,8 @@ CCR = **Complete Coverage Rank**，项目报告用它回答：“读到第几条
 | Recall / CEC / Hit / MRR / CCR | `src/test/java/com/lnjecit/knowledge/assistant/evaluation/metrics/EvidenceMetrics.java` |
 | Precision / DCG / IDCG / nDCG | `src/test/java/com/lnjecit/knowledge/assistant/evaluation/metrics/RankingMetrics.java` |
 | 五维回答评估 / Whole-case / 分母 | `src/test/java/com/lnjecit/knowledge/assistant/evaluation/metrics/AnswerMetrics.java` |
-| 历史六组检索对照结果 | `docs/engineering/m4-b04-retrieval-evaluation-summary.md` |
-| 回答评估冻结协议 | `docs/engineering/m4-d01-answer-evaluation-protocol.md` |
+| 历史六组检索对照结果 | [m4-b04-retrieval-evaluation-summary.md](m4-b04-retrieval-evaluation-summary.md) |
+| 回答评估冻结协议 | [m4-d01-answer-evaluation-protocol.md](m4-d01-answer-evaluation-protocol.md) |
 | 检索 Gold 与人工 Ranking 标签 | `src/test/resources/retrieval-metrics-v1.json` 及 M4-B03 评审文件 |
 | Answer Gold | `src/test/resources/answer-evaluation-v1.json` |
 | M4-C01 历史输出 | `target/evaluation/m4-c01-offline-v1/`（如已运行生成） |

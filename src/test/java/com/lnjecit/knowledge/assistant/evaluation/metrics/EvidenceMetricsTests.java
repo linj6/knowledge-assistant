@@ -20,7 +20,7 @@ class EvidenceMetricsTests {
         JsonNode fixture = JsonMapper.builder()
                 .build()
                 .readTree(Files.readString(Path.of("src/test/resources/retrieval-metrics-v1.json")));
-        List<String> paths = Files.readAllLines(Path.of("docs/engineering/m4-01-samples.txt"));
+        List<String> paths = Files.readAllLines(Path.of("docs/evaluation/m4-01-samples.txt"));
         double[][] expected = {
             {.583, .750, .750, .468},
             {.667, .833, .875, .746},

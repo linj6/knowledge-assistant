@@ -151,8 +151,8 @@ public final class LiveEvaluationRunner {
     static FrozenRankingEvaluation.Frozen load() throws Exception {
         FrozenRankingEvaluation.Frozen frozen = FrozenRankingEvaluation.freeze(
                 JSON.readTree(Files.readString(Path.of("src/test/resources/retrieval-metrics-v1.json"))),
-                JSON.readTree(Files.readString(Path.of("docs/engineering/m4-b03-review-materials.json"))),
-                JSON.readTree(Files.readString(Path.of("docs/engineering/m4-b03-relevance-judgments.json"))));
+                JSON.readTree(Files.readString(Path.of("docs/evaluation/m4-b03-review-materials.json"))),
+                JSON.readTree(Files.readString(Path.of("docs/evaluation/m4-b03-relevance-judgments.json"))));
         if (!frozen.manifest().fingerprint().equals("4100bec441b6dde69c893246af86313c95e6aa28e8cff789cf4aff6b724e388c"))
             throw new IllegalArgumentException("INPUT_ERROR: 非冻结 v1 输入");
         questions(frozen);
@@ -161,7 +161,7 @@ public final class LiveEvaluationRunner {
 
     static Map<String, String> questions(FrozenRankingEvaluation.Frozen frozen) throws Exception {
         List<GoldQuestion> questions = JSON.readValue(
-                Files.readString(Path.of("docs/engineering/m4-01-gold-evidence.json")),
+                Files.readString(Path.of("docs/evaluation/m4-01-gold-evidence.json")),
                 JSON.getTypeFactory().constructCollectionType(List.class, GoldQuestion.class));
         Map<String, String> queries = new LinkedHashMap<>();
         for (OfflineRetrievalRunResult run : frozen.fixture().runs()) {
@@ -323,8 +323,8 @@ public final class LiveEvaluationRunner {
                         options.authorizeEmbedding(),
                         options.output().toUri().toString()),
                 frozen.manifest(),
-                "docs/engineering/m4-01-gold-evidence.json",
-                hash(Files.readAllBytes(Path.of("docs/engineering/m4-01-gold-evidence.json"))),
+                "docs/evaluation/m4-01-gold-evidence.json",
+                hash(Files.readAllBytes(Path.of("docs/evaluation/m4-01-gold-evidence.json"))),
                 hashes,
                 statuses,
                 results.stream()

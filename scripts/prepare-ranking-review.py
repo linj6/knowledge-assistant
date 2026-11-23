@@ -6,8 +6,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def build():
     fixture = json.loads((ROOT / 'src/test/resources/retrieval-metrics-v1.json').read_text(encoding='utf-8'))
-    gold = {q['questionId']: q for q in json.loads((ROOT / 'docs/engineering/m4-01-gold-evidence.json').read_text(encoding='utf-8'))}
-    paths = (ROOT / 'docs/engineering/m4-01-samples.txt').read_text(encoding='utf-8').splitlines()
+    gold = {q['questionId']: q for q in json.loads((ROOT / 'docs/evaluation/m4-01-gold-evidence.json').read_text(encoding='utf-8'))}
+    paths = (ROOT / 'docs/evaluation/m4-01-samples.txt').read_text(encoding='utf-8').splitlines()
     pools = []
     for q in gold:
         for chunking in ('FIXED_CODE_POINT', 'MARKDOWN_STRUCTURE_AWARE'):
@@ -36,7 +36,7 @@ def build():
     return dict(instructions='人工结合答案要点评审：3 DIRECT，2 SUPPORTING，1 TOPICAL，0 IRRELEVANT；不得依据来源重叠或检索分数自动评分。proposedRelevance/rationale/reviewer 待人工填写；全部完成方可冻结。新增池外候选必须新建版本。来源范围为零基 Unicode 码点左闭右开。', pools=pools)
 
 if __name__ == '__main__':
-    output = ROOT / 'docs/engineering/m4-b03-review-materials.json'
+    output = ROOT / 'docs/evaluation/m4-b03-review-materials.json'
     rendered = json.dumps(build(), ensure_ascii=False, indent=2) + '\n'
     import sys
     if '--check' in sys.argv:

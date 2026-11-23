@@ -4,4 +4,4 @@
 
 [v1-development](v1-development/) 延续原有五类目录。文档中的实现状态、版本、配置和操作步骤记录的是各自撰写时的情况，不代表当前版本实现或部署要求。
 
-M4 的九份评估数据仍位于 [docs/engineering](../engineering/)，保留原有路径以供评估工具和测试读取。
+M4 的九份评估数据位于 [docs/evaluation](../evaluation/)，公开说明见 [M4 评估](../evaluation.md)。M5-03 的验收记录见 [M5-03 最终工程验收](v1-development/engineering/m5-03-final-validation.md)。

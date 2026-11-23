@@ -26,7 +26,7 @@ class OfflineEvaluationRunnerTests {
         JsonMapper json = JsonMapper.builder().build();
         ObjectNode metrics = (ObjectNode) json.readTree(Files.readString(first.resolve("metrics.json")));
         JsonNode baseline =
-                json.readTree(Files.readString(Path.of("docs/engineering/m4-b03-frozen-ranking-evaluation.json")));
+                json.readTree(Files.readString(Path.of("docs/evaluation/m4-b03-frozen-ranking-evaluation.json")));
         double[][] expected = {
             {7, 9, 7, 9, 7, 9, 337.0 / 60},
             {8.5, 10.5, 8, 10, 9, 11, 179.0 / 20},

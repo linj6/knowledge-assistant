@@ -28,9 +28,9 @@ final class RetrievalExperimentCorpus {
         List<Document> result = new ArrayList<>();
         JsonNode gold = JsonMapper.builder()
                 .build()
-                .readTree(Files.readString(Path.of("docs/engineering/m4-01-gold-evidence.json")));
+                .readTree(Files.readString(Path.of("docs/evaluation/m4-01-gold-evidence.json")));
         List<String> oversize = new ArrayList<>();
-        for (String path : Files.readAllLines(Path.of("docs/engineering/m4-01-samples.txt"))) {
+        for (String path : Files.readAllLines(Path.of("docs/evaluation/m4-01-samples.txt"))) {
             byte[] bytes = Files.readAllBytes(EvaluationCorpus.resolve(path));
             String sha = HexFormat.of()
                     .formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));

@@ -17,7 +17,7 @@ EmbeddingService 将 DocumentChunk::getContent 批量传入向量化，不拼接
 入口：src/test/java/com/lnjecit/knowledge/assistant/ChunkingBaselineTests.java。清单每行一个文件路径，可替换为任意本地 Markdown 文件清单；相对路径以执行目录为基准。样本清单 m4-00-samples.txt 默认要求两个来源仓库位于同级目录。
 
 ```powershell
-mvn '-Dtest=ChunkingBaselineTests' '-Dchunking.manifest=docs/engineering/m4-00-samples.txt' test
+mvn '-Dtest=ChunkingBaselineTests' '-Dchunking.manifest=docs/evaluation/m4-00-samples.txt' test
 ```
 
 输出 target/chunking-baseline/summary.tsv 和 sample-N.txt（完整 Chunk、码点范围、HeadingPath、跨标题候选）。范围统一为零基、左闭右开，Chunk 序号零基。完整正文仅在 target 下生成，不纳入提交。入口断言原文一致、窗口位置、120 码点重叠和全文覆盖；跨标题自动检测仅为 Potential。人工确认案例见下文，不把候选当成语义缺陷。

@@ -53,7 +53,7 @@ class RealRetrievalComparisonIT extends ElasticsearchIT {
         assertThat(data.manifest().configFingerprint()).isEqualTo(EmbeddingSnapshotGenerator.CONFIG_FINGERPRINT);
         var json = tools.jackson.databind.json.JsonMapper.builder().build();
         var questions = json.readTree(
-                java.nio.file.Files.readString(java.nio.file.Path.of("docs/engineering/m4-01-gold-evidence.json")));
+                java.nio.file.Files.readString(java.nio.file.Path.of("docs/evaluation/m4-01-gold-evidence.json")));
         java.nio.file.Path output = java.nio.file.Path.of("target/m4-02d/results.jsonl");
         java.nio.file.Files.createDirectories(output.getParent());
         java.nio.file.Files.writeString(output, "");

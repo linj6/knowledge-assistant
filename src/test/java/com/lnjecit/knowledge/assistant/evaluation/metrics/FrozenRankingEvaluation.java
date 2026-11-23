@@ -174,7 +174,7 @@ public final class FrozenRankingEvaluation {
             }
         }
         require(candidates.keySet().equals(pools.keySet()), "INVALID_POOL", "Fixture 池集合不一致");
-        List<String> paths = Files.readAllLines(Path.of("docs/engineering/m4-01-samples.txt"));
+        List<String> paths = Files.readAllLines(Path.of("docs/evaluation/m4-01-samples.txt"));
         List<RetrievalFixturePoolJudgmentsItem> adaptedLabels = new ArrayList<>();
         List<FrozenPool> frozenPools = new ArrayList<>();
         int total = 0;
@@ -464,8 +464,8 @@ public final class FrozenRankingEvaluation {
 
     public static void main(String[] args) throws Exception {
         JsonNode f = JSON.readTree(Files.readString(Path.of("src/test/resources/retrieval-metrics-v1.json")));
-        JsonNode m = JSON.readTree(Files.readString(Path.of("docs/engineering/m4-b03-review-materials.json")));
-        JsonNode j = JSON.readTree(Files.readString(Path.of("docs/engineering/m4-b03-relevance-judgments.json")));
+        JsonNode m = JSON.readTree(Files.readString(Path.of("docs/evaluation/m4-b03-review-materials.json")));
+        JsonNode j = JSON.readTree(Files.readString(Path.of("docs/evaluation/m4-b03-relevance-judgments.json")));
         ObjectNode result = evaluate(freeze(f, m, j));
         Path output = Path.of("target/m4-b03-ranking-evaluation.json");
         Files.createDirectories(output.getParent());

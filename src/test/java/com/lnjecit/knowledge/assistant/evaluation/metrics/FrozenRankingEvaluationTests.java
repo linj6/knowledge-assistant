@@ -26,11 +26,11 @@ class FrozenRankingEvaluationTests {
     }
 
     private JsonNode materials() throws Exception {
-        return read("docs/engineering/m4-b03-review-materials.json");
+        return read("docs/evaluation/m4-b03-review-materials.json");
     }
 
     private JsonNode labels() throws Exception {
-        return read("docs/engineering/m4-b03-relevance-judgments.json");
+        return read("docs/evaluation/m4-b03-relevance-judgments.json");
     }
 
     @Test
@@ -47,7 +47,7 @@ class FrozenRankingEvaluationTests {
         assertThat(FrozenRankingEvaluation.manifestJson(frozen).path("pools").size())
                 .isEqualTo(24);
         ObjectNode result = FrozenRankingEvaluation.evaluate(frozen);
-        assertThat(result).isEqualTo(read("docs/engineering/m4-b03-frozen-ranking-evaluation.json"));
+        assertThat(result).isEqualTo(read("docs/evaluation/m4-b03-frozen-ranking-evaluation.json"));
         assertThat(result).isEqualTo(FrozenRankingEvaluation.evaluate(FrozenRankingEvaluation.freeze(f, m, j)));
         Map<String, Double> ideals = new HashMap<>();
         for (JsonNode run : result.path("runs"))

@@ -78,8 +78,8 @@ public final class EmbeddingSnapshotGenerator {
                 }
             }
         }
-        JsonNode questions = JSON.readTree(Files.readString(Path.of("docs/engineering/m4-01-gold-evidence.json")));
-        JsonNode protocol = JSON.readTree(Files.readString(Path.of("docs/engineering/m4-02c1-gold-protocol.json")));
+        JsonNode questions = JSON.readTree(Files.readString(Path.of("docs/evaluation/m4-01-gold-evidence.json")));
+        JsonNode protocol = JSON.readTree(Files.readString(Path.of("docs/evaluation/m4-02c1-gold-protocol.json")));
         int queryIndex = 0;
         for (JsonNode q : questions) {
             String text = q.path("question").asString();

@@ -35,8 +35,8 @@ public final class OfflineEvaluationRunner {
     static final Path OUTPUT = Path.of("target/evaluation/m4-c01-offline-v1");
     private static final List<String> INPUTS = List.of(
             "src/test/resources/retrieval-metrics-v1.json",
-            "docs/engineering/m4-b03-review-materials.json",
-            "docs/engineering/m4-b03-relevance-judgments.json");
+            "docs/evaluation/m4-b03-review-materials.json",
+            "docs/evaluation/m4-b03-relevance-judgments.json");
     private static final List<String> ARTIFACTS = List.of("retrieval-results.jsonl", "metrics.json", "report.md");
 
     private OfflineEvaluationRunner() {}

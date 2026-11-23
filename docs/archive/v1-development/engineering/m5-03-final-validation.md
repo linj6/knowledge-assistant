@@ -17,7 +17,7 @@
 | Java | PASS | 535 项通过，3 项条件跳过。 |
 | JavaScript | PASS | 212 项通过。 |
 | Python | PASS | 6 项通过。 |
-| M4 冻结评估 | PASS | 使用冻结候选、Gold 和标签完成 OFFLINE 复算，复算指纹与冻结结果一致。该过程无在线模型调用。参见[评估说明](../evaluation.md)及[冻结结果](m4-b03-frozen-ranking-evaluation.json)。 |
+| M4 冻结评估 | PASS | 使用冻结候选、Gold 和标签完成 OFFLINE 复算，复算指纹与冻结结果一致。该过程无在线模型调用。参见[评估说明](../../../evaluation.md)及[冻结结果](../../../evaluation/m4-b03-frozen-ranking-evaluation.json)。 |
 
 自动化结果沿用第一轮隔离环境验收记录。真实 HTTP 证据来自第二轮运行中的服务，包含浏览器请求及第二账号会话下直接访问资源的权限检查。真实浏览器证据来自页面交互和 DOM 状态。在线模型证据来自真实发布产物、检索诊断及问答终态。
 
@@ -50,4 +50,4 @@
 
 **ENGINEERING READY**。两轮验收期间未发现新的已确认产品缺陷，真实业务验证覆盖了文档发布、四策略检索、两轮有引用问答、取消及账号隔离。
 
-**PUBLIC NOT READY**。MinIO 镜像公开再分发合规仍是独立的发布阻断项。参见 [MinIO 镜像交付说明](../../infra/minio/README.md)。
+**PUBLIC NOT READY**。MinIO 镜像公开再分发合规仍是独立的发布阻断项。参见 [MinIO 镜像交付说明](../../../../infra/minio/README.md)。

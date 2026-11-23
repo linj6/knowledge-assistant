@@ -39,7 +39,7 @@ class ChunkingComparisonTests {
         Files.createDirectories(output);
         JsonMapper json = JsonMapper.builder().build();
         Gold[] gold =
-                json.readValue(Files.readString(Path.of("docs/engineering/m4-01-gold-evidence.json")), Gold[].class);
+                json.readValue(Files.readString(Path.of("docs/evaluation/m4-01-gold-evidence.json")), Gold[].class);
         StringBuilder statistics = new StringBuilder(
                 "sample\tstrategy\tsha256\tsourceLength\tcount\taverage\tp50\tp90\tmin\tmax\tshort\tshortRatio\toversize\ttotal\trepeatRatio\tfenceCuts\ttableCuts\titemCuts\tcrossHeading\tdegraded\n");
         StringBuilder evidence = new StringBuilder("question\tstrategy\tintervalCandidate\tcontainingChunks\n");

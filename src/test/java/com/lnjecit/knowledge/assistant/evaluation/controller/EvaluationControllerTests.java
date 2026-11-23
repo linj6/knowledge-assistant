@@ -65,7 +65,7 @@ class EvaluationControllerTests {
     @Test
     void runtimeArchivesRemainIdenticalToFrozenInputs() throws Exception {
         for (String path : java.util.List.of(
-                "src/test/resources/retrieval-metrics-v1.json", "docs/engineering/m4-01-gold-evidence.json")) {
+                "src/test/resources/retrieval-metrics-v1.json", "docs/evaluation/m4-01-gold-evidence.json")) {
             byte[] runtime = new org.springframework.core.io.ClassPathResource(
                             "evaluation/" + Path.of(path).getFileName())
                     .getContentAsByteArray();

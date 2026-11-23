@@ -16,7 +16,7 @@
 |LIVE `target/evaluation/m4-c02-live-bm25-v1/`|BM25：SUCCESS 12 / EMPTY_RESULT 0 / FAILED 0；52 个返回位置|Embedding 0|COMPLETED|
 |LIVE `target/evaluation/m4-c02-live-vector-rrf-v1/`|VECTOR 与 HYBRID_RRF 各 SUCCESS 12 / EMPTY_RESULT 0 / FAILED 0，各 60 个返回位置|共享 Query Embedding 12，成功 12、失败 0|COMPLETED|
 
-依据：[C01 说明](m4-c01-offline-runner.md)、[C02 说明](m4-c02-live-runner.md)、[B02](m4-b02-evidence-metrics-acceptance.md)、[B03 原始归档](../../../engineering/m4-b03-frozen-ranking-evaluation.json)、[B04](m4-b04-retrieval-evaluation-summary.md)，以及 Runner / 定向测试。C02 说明中的“真实联调未执行”描述代码交付时状态；后续已获授权的 BM25 和向量/混合联调由本验收补充，不改写历史说明。
+依据：[C01 说明](m4-c01-offline-runner.md)、[C02 说明](m4-c02-live-runner.md)、[B02](m4-b02-evidence-metrics-acceptance.md)、[B03 原始归档](../../../evaluation/m4-b03-frozen-ranking-evaluation.json)、[B04](m4-b04-retrieval-evaluation-summary.md)，以及 Runner / 定向测试。C02 说明中的“真实联调未执行”描述代码交付时状态；后续已获授权的 BM25 和向量/混合联调由本验收补充，不改写历史说明。
 
 既有本机日志：`target/m4-c02-live-bm25-validation.log`、`target/m4-c02-live-vector-rrf-validation.log`，均 BUILD SUCCESS，Maven 总耗时分别 19.874 / 47.244 秒。两次真实运行均使用 local Profile 和非 Web Spring 上下文；未执行 Chat/Rerank。Embedding 次数依据单次服务调用路径、零重试配置和逐题共享 Diagnostics 核对，未独立取得供应商计费账单或 HTTP 审计；两策略各有一份 EMBEDDING 阶段记录，合计 24 条记录不等于 24 次请求。
 

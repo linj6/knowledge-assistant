@@ -21,7 +21,7 @@ class RetrievalMetricsFixtureTests {
             assertThat(fixture.path("protocol").asString()).isEqualTo("retrieval-metrics-v1");
             assertThat(fixture.path("gold"))
                     .isEqualTo(
-                            mapper.readTree(Files.readString(Path.of("docs/engineering/m4-02c1-gold-protocol.json"))));
+                            mapper.readTree(Files.readString(Path.of("docs/evaluation/m4-02c1-gold-protocol.json"))));
             Set<String> questions = new HashSet<>();
             for (JsonNode question : fixture.path("gold").path("questions")) {
                 assertThat(questions.add(question.path("questionId").asString()))

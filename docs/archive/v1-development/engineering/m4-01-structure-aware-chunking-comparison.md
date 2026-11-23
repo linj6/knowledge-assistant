@@ -9,7 +9,7 @@
 M4-00 文件读取、原文断言和统计方式沿用到专门的对照测试，保持原基线入口不变。A 直接调用生产 FixedCodePointSplitter 800/120；B 为测试目录内 MarkdownStructureExperiment，不加入生产枚举或 Spring。
 
 ```powershell
-mvn '-Dtest=ChunkingComparisonTests,DocumentParserTests,DocumentSplitterTests,ChunkingStrategyTests' '-Dchunking.comparisonManifest=docs/engineering/m4-01-samples.txt' test
+mvn '-Dtest=ChunkingComparisonTests,DocumentParserTests,DocumentSplitterTests,ChunkingStrategyTests' '-Dchunking.comparisonManifest=docs/evaluation/m4-01-samples.txt' test
 ```
 
 两个来源仓库默认位于项目同级目录，可替换清单路径；输出目录通过 `chunking.comparisonOutput` 指定，默认 `target/chunking-comparison`。输出每篇/每策略完整 JSON（连续原文、范围、路径、辅助信息、原因、overlap），statistics.tsv 和 evidence-candidates.tsv。完整原文只留在 target；提交产物只含简短必要证据片段、清单、统计和审查结果。未指定清单时只跳过真实样本测试，合成边界测试仍执行。
@@ -50,7 +50,7 @@ S1–S6 复用原样本，字节 SHA-256 与 M4-00 一致。S7/S8 补充本地�
 
 ## 完整统计
 
-所有长度为 Unicode Code Point。P50/P90 为排序后 nearest-rank；短块阈值 <200 是本次约定，不是行业标准。重复开销=(总Chunk字符量−原文长度)/原文长度，不包含辅助元数据。详细逐篇机器结果见 [m4-01-statistics.tsv](../../../engineering/m4-01-statistics.tsv)。
+所有长度为 Unicode Code Point。P50/P90 为排序后 nearest-rank；短块阈值 <200 是本次约定，不是行业标准。重复开销=(总Chunk字符量−原文长度)/原文长度，不包含辅助元数据。详细逐篇机器结果见 [m4-01-statistics.tsv](../../../evaluation/m4-01-statistics.tsv)。
 
 |指标|A 固定800/120|B 结构800/1200|
 |---|---:|---:|
@@ -105,9 +105,9 @@ S1–S6 复用原样本，字节 SHA-256 与 M4-00 一致。S7/S8 补充本地�
 
 ## Gold Evidence 与语义结果
 
-固定12题，后端8题、AI4题；8篇均被覆盖。[Gold 标注](../../../engineering/m4-01-gold-evidence.json) 保存 questionId、路径、字节哈希、问题、答案点及必要原文范围/文本；多区间分别保存，不绑定Chunk。标注在首次对照运行前建立，未根据结果更改证据范围；Q03答案点后补明确列名/索引，未改证据。
+固定12题，后端8题、AI4题；8篇均被覆盖。[Gold 标注](../../../evaluation/m4-01-gold-evidence.json) 保存 questionId、路径、字节哈希、问题、答案点及必要原文范围/文本；多区间分别保存，不绑定Chunk。标注在首次对照运行前建立，未根据结果更改证据范围；Q03答案点后补明确列名/索引，未改证据。
 
-[审查记录](../../../engineering/m4-01-evidence-review.json) 分别记录 A/B 状态、实际Chunk序号和范围、审查理由及审查者身份。自动入口验证哈希与原文回取，只输出区间候选，不生成语义标签。INSUFFICIENT 表示选取的块集合仍缺必要且可理解证据，本次按完整离线候选池审查，没有这种情况；这不表示真实Top-K永远充足。
+[审查记录](../../../evaluation/m4-01-evidence-review.json) 分别记录 A/B 状态、实际Chunk序号和范围、审查理由及审查者身份。自动入口验证哈希与原文回取，只输出区间候选，不生成语义标签。INSUFFICIENT 表示选取的块集合仍缺必要且可理解证据，本次按完整离线候选池审查，没有这种情况；这不表示真实Top-K永远充足。
 
 |题号|问题要点|A语义判定/Chunk|B语义判定/Chunk|说明|
 |---|---|---|---|---|

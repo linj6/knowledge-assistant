@@ -83,8 +83,7 @@ class RankingMetricsTests {
     @Test
     void realFixtureAndMaterials() throws Exception {
         JsonNode f = mapper.readTree(Files.readString(Path.of("src/test/resources/retrieval-metrics-v1.json")));
-        JsonNode materials =
-                mapper.readTree(Files.readString(Path.of("docs/engineering/m4-b03-review-materials.json")));
+        JsonNode materials = mapper.readTree(Files.readString(Path.of("docs/evaluation/m4-b03-review-materials.json")));
         assertThat(f.path("runs").size()).isEqualTo(72);
         int count = 0;
         int hits = 0;

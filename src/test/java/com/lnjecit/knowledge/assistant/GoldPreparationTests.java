@@ -15,8 +15,8 @@ class GoldPreparationTests {
     @Test
     void validateFrozenEvidence() throws Exception {
         JsonMapper json = JsonMapper.builder().build();
-        JsonNode gold = json.readTree(Files.readString(Path.of("docs/engineering/m4-01-gold-evidence.json")));
-        JsonNode protocol = json.readTree(Files.readString(Path.of("docs/engineering/m4-02c1-gold-protocol.json")));
+        JsonNode gold = json.readTree(Files.readString(Path.of("docs/evaluation/m4-01-gold-evidence.json")));
+        JsonNode protocol = json.readTree(Files.readString(Path.of("docs/evaluation/m4-02c1-gold-protocol.json")));
         assertThat(gold.size()).isEqualTo(12);
         assertThat(protocol.path("questions").size()).isEqualTo(12);
         Set<String> ids = new HashSet<>();

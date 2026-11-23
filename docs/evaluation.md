@@ -2,7 +2,7 @@
 
 ## 数据集、Gold 与人工确认
 
-检索实验使用同一来源快照的 8 篇文档和 12 道问题，比较固定代码点切分与 Markdown 结构感知切分。必要证据 Gold 以来源文档和原文区间表示，便于在切分改变时比较覆盖。冻结 fixture 保存两种切分 × 三种策略 × 12 题的 72 条检索记录。每题每种切分取三路 Top-5 并集形成候选池，共 24 池、186 条确认标签。候选相关性按 0–3 分级，标注先由 Codex 提议，再经用户重点复核、修订及整体批准。另有逐题的完整、部分、缺失语义覆盖判定。[证据 Gold](engineering/m4-01-gold-evidence.json) · [相关性标签](engineering/m4-b03-relevance-judgments.json) · [冻结候选与排名结果](engineering/m4-b03-frozen-ranking-evaluation.json)
+检索实验使用同一来源快照的 8 篇文档和 12 道问题，比较固定代码点切分与 Markdown 结构感知切分。必要证据 Gold 以来源文档和原文区间表示，便于在切分改变时比较覆盖。冻结 fixture 保存两种切分 × 三种策略 × 12 题的 72 条检索记录。每题每种切分取三路 Top-5 并集形成候选池，共 24 池、186 条确认标签。候选相关性按 0–3 分级，标注先由 Codex 提议，再经用户重点复核、修订及整体批准。另有逐题的完整、部分、缺失语义覆盖判定。[证据 Gold](evaluation/m4-01-gold-evidence.json) · [相关性标签](evaluation/m4-b03-relevance-judgments.json) · [冻结候选与排名结果](evaluation/m4-b03-frozen-ranking-evaluation.json)
 
 回答 Gold v1 含 12 道可答题和 4 道不可答题，共 45 条必要事实和 1 条可选事实。事实、限定条件与拒答边界经用户整体批准冻结。实际回答另按适切性、事实正确性、完整性、引用有效性和引用语义支持五维评审，再判定整例。适用维度的质量分母只计 PASS 与 FAIL。目前仓库有协议、评分和工作台验证记录，未发布正式回答通过率。[回答 Gold](../src/main/resources/evaluation/answer-evaluation-v1.json) · [回答评审协议](archive/v1-development/engineering/m4-d01-answer-evaluation-protocol.md) · [评分口径](archive/v1-development/engineering/m4-d02-answer-metrics.md)
 
