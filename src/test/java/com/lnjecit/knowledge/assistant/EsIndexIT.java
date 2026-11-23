@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
+import com.lnjecit.knowledge.assistant.auth.KnowledgeBaseOwnerFixture;
 import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsChunkDocument;
 import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsChunkFields;
 import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsIndexRepository;
@@ -74,8 +75,7 @@ class EsIndexIT extends ElasticsearchIT {
             ElasticsearchClient client = new ElasticsearchClient(transport);
             org.springframework.jdbc.core.JdbcTemplate jdbc =
                     context.getBean(org.springframework.jdbc.core.JdbcTemplate.class);
-            jdbc.update(
-                    "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'fixture-owner','test-only','ACTIVE')");
+            KnowledgeBaseOwnerFixture.insertDefaultOwner(jdbc);
             jdbc.update("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES(101,'test',1)");
             jdbc.update(
                     "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key) VALUES(102,101,'a.txt','hash','key')");

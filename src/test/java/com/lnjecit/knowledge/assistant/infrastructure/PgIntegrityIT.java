@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.lnjecit.knowledge.assistant.KnowledgeAssistantApplication;
+import com.lnjecit.knowledge.assistant.auth.KnowledgeBaseOwnerFixture;
 import com.lnjecit.knowledge.assistant.ingestion.verification.PgIntegrityService;
 import java.util.Arrays;
 import java.util.List;
@@ -35,8 +36,7 @@ class PgIntegrityIT {
                 "--spring.datasource.password=" + postgres.getPassword())) {
             JdbcTemplate jdbc = context.getBean(JdbcTemplate.class);
             PgIntegrityService service = context.getBean(PgIntegrityService.class);
-            jdbc.update(
-                    "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'fixture-owner','test-only','ACTIVE')");
+            KnowledgeBaseOwnerFixture.insertDefaultOwner(jdbc);
             jdbc.update("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES(1,'test',1)");
             jdbc.update(
                     "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key) VALUES(2,1,'a','hash','key')");

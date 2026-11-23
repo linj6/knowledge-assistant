@@ -51,15 +51,6 @@ class ImportTaskIT {
                 "--assistant.elasticsearch.enabled=false");
     }
 
-    private void seed(JdbcTemplate jdbc, long id) {
-        jdbc.update(
-                "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key) VALUES(?,1,'a.txt',?,'key')",
-                id,
-                "hash" + id);
-        jdbc.update("INSERT INTO document_index_version(id,document_id,chunking_config) VALUES(?,?, '{}')", id, id);
-        jdbc.update("INSERT INTO document_import_task(id,document_id,index_version_id) VALUES(?,?,?)", id, id, id);
-    }
-
     @Test
     void realPostgresClaimsAndRecovery() throws Exception {
         try (ConfigurableApplicationContext context = start()) {
@@ -67,7 +58,7 @@ class ImportTaskIT {
             TaskService service = context.getBean(TaskService.class);
             assertThat(context.getBeansOfType(TaskScheduler.class)).isEmpty();
             assertThat(service.claimNext("a")).isEmpty();
-            seed(jdbc, 1);
+            ImportTaskFixture.insertPendingTask(jdbc, 1, "hash" + 1);
             assertThat(jdbc.queryForObject("SELECT status FROM document_import_task WHERE id=1", String.class))
                     .isEqualTo("PENDING");
             try (ExecutorService executor = Executors.newFixedThreadPool(4)) {
@@ -115,8 +106,8 @@ class ImportTaskIT {
                 assertThat(service.claimNext("a")).isEmpty();
                 assertThatThrownBy(() -> service.claimById(999L, "a")).hasMessage("NOT_FOUND");
                 assertThatThrownBy(() -> service.claimById(1L, "a")).hasMessage("NOT_CLAIMABLE");
-                seed(jdbc, 2);
-                seed(jdbc, 3);
+                ImportTaskFixture.insertPendingTask(jdbc, 2, "hash" + 2);
+                ImportTaskFixture.insertPendingTask(jdbc, 3, "hash" + 3);
                 TransactionTemplate tx = new TransactionTemplate(context.getBean(PlatformTransactionManager.class));
                 tx.executeWithoutResult(status -> {
                     jdbc.queryForList("SELECT * FROM document_import_task WHERE id=2 FOR UPDATE");
@@ -139,7 +130,7 @@ class ImportTaskIT {
                 assertThatThrownBy(() -> service.fail(incremented)).hasMessage("AUTHORITY_EXPIRED");
                 assertThat(service.claimNext("a")).isEmpty();
                 assertThatThrownBy(() -> service.claimById(2L, "a")).hasMessage("ALREADY_CLAIMED");
-                for (long i = 10; i < 30; i++) seed(jdbc, i);
+                for (long i = 10; i < 30; i++) ImportTaskFixture.insertPendingTask(jdbc, i, "hash" + i);
                 List<Future<Optional<ClaimedTask>>> futures = new ArrayList<>();
                 for (int i = 0; i < 20; i++) futures.add(executor.submit(() -> service.claimNext("multi")));
                 Set<Long> ids = new HashSet<>();
@@ -149,7 +140,7 @@ class ImportTaskIT {
                                     .taskId()))
                             .isTrue();
                 assertThat(ids).hasSize(20);
-                seed(jdbc, 35);
+                ImportTaskFixture.insertPendingTask(jdbc, 35, "hash" + 35);
                 tx.executeWithoutResult(status -> {
                     jdbc.queryForList("SELECT * FROM document WHERE id=35 FOR UPDATE");
                     jdbc.queryForList("SELECT * FROM document_index_version WHERE id=35 FOR UPDATE");
@@ -163,7 +154,7 @@ class ImportTaskIT {
                         throw new RuntimeException(failure);
                     }
                 });
-                seed(jdbc, 40);
+                ImportTaskFixture.insertPendingTask(jdbc, 40, "hash" + 40);
                 jdbc.update("UPDATE document_index_version SET document_id=999 WHERE id=40");
                 assertThatThrownBy(() -> service.claimNext("bad")).hasMessage("OWNERSHIP_INVALID");
                 assertThat(jdbc.queryForObject("SELECT claim_epoch FROM document_import_task WHERE id=40", Long.class))

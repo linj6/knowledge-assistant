@@ -3,6 +3,7 @@ package com.lnjecit.knowledge.assistant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.lnjecit.knowledge.assistant.auth.KnowledgeBaseOwnerFixture;
 import com.lnjecit.knowledge.assistant.ingestion.task.ClaimedTask;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,8 +49,7 @@ class RetrievalFoundationIT {
                     c.getBean(com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshotService.class);
             assertThatThrownBy(() -> s.read(1L))
                     .isInstanceOf(com.lnjecit.knowledge.assistant.common.error.BusinessException.class);
-            j.update(
-                    "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'fixture-owner','test-only','ACTIVE')");
+            KnowledgeBaseOwnerFixture.insertDefaultOwner(j);
             j.update("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES(1,'a',1),(2,'b',1)");
             assertThat(s.read(1L).documents()).isEmpty();
             j.update(
@@ -93,8 +93,7 @@ class RetrievalFoundationIT {
             com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportService service =
                     c.getBean(com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportService.class);
             ImportPersistenceTests.TestStore store = c.getBean(ImportPersistenceTests.TestStore.class);
-            j.update(
-                    "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'fixture-owner','test-only','ACTIVE')");
+            KnowledgeBaseOwnerFixture.insertDefaultOwner(j);
             j.update("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES(1,'a',1),(2,'b',1)");
             j.update(
                     "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key) SELECT n,1,'seed',n::text,'seed' FROM generate_series(1,999) n");

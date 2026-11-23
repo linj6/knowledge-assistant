@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
+import com.lnjecit.knowledge.assistant.auth.KnowledgeBaseOwnerFixture;
 import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsChunkDocument;
 import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsIndexRepository;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkRepository;
@@ -62,8 +63,7 @@ class IndexVerificationIT extends ElasticsearchIT {
                             .map(p -> p.version())
                             .toList())
                     .contains("8.18.0");
-            jdbc.update(
-                    "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'fixture-owner','test-only','ACTIVE')");
+            KnowledgeBaseOwnerFixture.insertDefaultOwner(jdbc);
             long sequence = 100;
             for (String scenario : List.of(
                     "success",

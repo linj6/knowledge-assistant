@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
+import com.lnjecit.knowledge.assistant.auth.KnowledgeBaseOwnerFixture;
 import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsChunkDocument;
 import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsIndexRepository;
 import com.lnjecit.knowledge.assistant.retrieval.keyword.KeywordChunkRepository;
@@ -43,8 +44,7 @@ class KeywordSearchIT extends ElasticsearchIT {
                 "--spring.datasource.password=" + postgres.getPassword())) {
             org.springframework.jdbc.core.JdbcTemplate jdbc =
                     context.getBean(org.springframework.jdbc.core.JdbcTemplate.class);
-            jdbc.update(
-                    "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'fixture-owner','test-only','ACTIVE')");
+            KnowledgeBaseOwnerFixture.insertDefaultOwner(jdbc);
             jdbc.update("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES(301,'bm25',1)");
             jdbc.update(
                     "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key) VALUES(302,301,'a.txt','hash','key')");

@@ -39,16 +39,8 @@ class ChunkPersistenceIT {
                 "--assistant.model.enabled=false",
                 "--assistant.rerank.enabled=false")) {
             JdbcTemplate jdbc = context.getBean(JdbcTemplate.class);
-            jdbc.update(
-                    "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'fixture-owner','test-only','ACTIVE')");
-            jdbc.update("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES(1,'test',1)");
-            jdbc.update(
-                    "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key) VALUES(2,1,'a.txt','hash','key')");
             String config = "{\"version\":1,\"strategy\":\"FIXED_CODE_POINT\",\"chunkSize\":800,\"chunkOverlap\":120}";
-            jdbc.update(
-                    "INSERT INTO document_index_version(id,document_id,chunking_config) VALUES(3,2,?),(4,2,?)",
-                    config,
-                    config);
+            DocumentPersistenceFixture.insertDocumentWithTwoVersions(jdbc, config);
             ChunkService service = context.getBean(ChunkService.class);
             ParsedDocument parsed =
                     new TxtDocumentParser().parse("中😀".repeat(801).getBytes(StandardCharsets.UTF_8));

@@ -40,15 +40,6 @@ class TaskRecoveryIT {
                 "--assistant.elasticsearch.enabled=false");
     }
 
-    void seed(JdbcTemplate j, long id) {
-        j.update(
-                "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key) VALUES(?,1,'a.txt',?,'key')",
-                id,
-                "h" + id);
-        j.update("INSERT INTO document_index_version(id,document_id,chunking_config) VALUES(?,?, '{}')", id, id);
-        j.update("INSERT INTO document_import_task(id,document_id,index_version_id) VALUES(?,?,?)", id, id, id);
-    }
-
     void due(JdbcTemplate j, long id) {
         j.update(
                 "UPDATE document_import_task SET next_retry_at=statement_timestamp()-interval '1 second' WHERE id=?",
@@ -60,7 +51,7 @@ class TaskRecoveryIT {
         try (ConfigurableApplicationContext c = start()) {
             JdbcTemplate jdbc = c.getBean(JdbcTemplate.class);
             TaskService tasks = c.getBean(TaskService.class);
-            seed(jdbc, 90);
+            ImportTaskFixture.insertPendingTask(jdbc, 90, "h" + 90);
             java.util.concurrent.CountDownLatch entered = new java.util.concurrent.CountDownLatch(1);
             java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
             java.util.concurrent.atomic.AtomicReference<ClaimedTask> original =
@@ -135,7 +126,7 @@ class TaskRecoveryIT {
             assertThat(j.queryForObject("SHOW server_version", String.class)).startsWith("17.6");
             assertThat(j.queryForObject("SELECT extversion FROM pg_extension WHERE extname='vector'", String.class))
                     .isEqualTo("0.8.0");
-            seed(j, 1);
+            ImportTaskFixture.insertPendingTask(j, 1, "h" + 1);
             long[] lower = {4, 12, 36};
             long[] upper = {6, 18, 54};
             for (int attempt = 1; attempt <= 4; attempt++) {
@@ -165,14 +156,14 @@ class TaskRecoveryIT {
                     assertThat(tasks.claimNext("other")).isEmpty();
                 }
             }
-            seed(j, 2);
+            ImportTaskFixture.insertPendingTask(j, 2, "h" + 2);
             ClaimedTask permanent = tasks.claimById(2L, "worker").orElseThrow();
             tasks.fail(permanent, TaskExecutionException.Code.INVALID_CONTENT);
             assertThat(j.queryForObject(
                             "SELECT next_retry_at IS NULL FROM document_import_task WHERE id=2", Boolean.class))
                     .isTrue();
             assertThat(tasks.claimNext("other")).isEmpty();
-            seed(j, 3);
+            ImportTaskFixture.insertPendingTask(j, 3, "h" + 3);
             ClaimedTask timed = tasks.claimById(3L, "worker").orElseThrow();
             WorkerProperties properties = new WorkerProperties();
             properties.setMaxTaskDuration(Duration.ofMillis(1));
@@ -190,7 +181,7 @@ class TaskRecoveryIT {
                             "SELECT status='FAILED' AND next_retry_at IS NOT NULL FROM document_import_task WHERE id=3",
                             Boolean.class))
                     .isTrue();
-            seed(j, 4);
+            ImportTaskFixture.insertPendingTask(j, 4, "h" + 4);
             ClaimedTask claim = tasks.claimById(4L, "owner").orElseThrow();
             assertThatThrownBy(() -> tasks.fail(
                             new ClaimedTask(4L, 4L, 4L, "wrong", claim.claimEpoch()),
@@ -207,7 +198,7 @@ class TaskRecoveryIT {
                     .hasMessage("AUTHORITY_EXPIRED");
             assertThat(j.queryForObject("SELECT status FROM document_import_task WHERE id=4", String.class))
                     .isEqualTo("RUNNING");
-            seed(j, 5);
+            ImportTaskFixture.insertPendingTask(j, 5, "h" + 5);
             ClaimedTask unknown = tasks.claimById(5L, "worker").orElseThrow();
             new TaskWorker(tasks, (task, context) -> {
                         throw new IllegalStateException("supplier secret document");
@@ -230,7 +221,7 @@ class TaskRecoveryIT {
             JdbcTemplate j = c.getBean(JdbcTemplate.class);
             TaskService tasks = c.getBean(TaskService.class);
             for (long id = 10; id <= 13; id++) {
-                seed(j, id);
+                ImportTaskFixture.insertPendingTask(j, id, "h" + id);
                 tasks.claimById(id, id == 12 ? "current" : "old");
             }
             j.update(

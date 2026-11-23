@@ -164,13 +164,7 @@ class DatabaseIT {
     @Test
     void submitsAndExecutesConversationTurns() throws Exception {
         try (ConfigurableApplicationContext context = start()) {
-            JdbcTemplate jdbc = new JdbcTemplate(context.getBean(DataSource.class));
-            jdbc.update(
-                    """
-                    INSERT INTO app_user (id, username, password_hash, status)
-                    VALUES (1, 'owner', 'hash', 'ACTIVE'), (2, 'other', 'hash', 'ACTIVE')
-                    """);
-            jdbc.update("INSERT INTO knowledge_base (id, name, owner_user_id) VALUES (3, 'test', 1)");
+            JdbcTemplate jdbc = conversationFixtures(context);
             ConversationService conversations = context.getBean(ConversationService.class);
             ConversationRepository repository = context.getBean(ConversationRepository.class);
             RagService rag = mock(RagService.class);

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
+import com.lnjecit.knowledge.assistant.auth.KnowledgeBaseOwnerFixture;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.RerankResult;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.Reranker;
 import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsChunkDocument;
@@ -84,8 +85,7 @@ class RetrievalServiceIT extends ElasticsearchIT {
                                 .build(),
                         new JacksonJsonpMapper())) {
             JdbcTemplate jdbc = context.getBean(JdbcTemplate.class);
-            jdbc.update(
-                    "INSERT INTO app_user(id,username,password_hash,status) VALUES (1,'fixture-owner','test-only','ACTIVE')");
+            KnowledgeBaseOwnerFixture.insertDefaultOwner(jdbc);
             jdbc.update("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES(601,'primary',1),(611,'other',1)");
             jdbc.update(
                     "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key) VALUES(602,601,'a','a','a'),(605,601,'b','b','b'),(608,601,'unpublished','c','c'),(612,611,'other','d','d')");
