@@ -43,6 +43,7 @@ export function initializeConversations(root, node, evidence, appendCitations) {
     panel.className = 'conversation-panel';
     const create = node('button', '新建会话');
     const list = node('ul');
+    list.setAttribute('aria-label', '会话列表');
     const status = node('p');
     const retry = node('button', '重试');
     const draftNotice = node('p');
@@ -64,6 +65,7 @@ export function initializeConversations(root, node, evidence, appendCitations) {
     const send = node('button', '发送');
     send.type = 'submit';
     const cancel = node('button', '取消生成');
+    cancel.className = 'cancel-action';
     cancel.type = 'button';
     form.append(label, question, send, cancel);
     panel.append(form);
@@ -137,14 +139,23 @@ export function initializeConversations(root, node, evidence, appendCitations) {
         let article = items.get(key);
         if (!article) {
             article = node('article');
-            article.className = 'chat-turn';
+            article.className = message.role === 'USER' ? 'chat-turn user-message' : 'chat-turn';
             items.set(key, article);
             history.append(article);
         }
         article.replaceChildren(node('h3', message.role === 'USER' ? '你' : '助手'));
         if (message.content) article.append(node('p', message.content));
-        if (message.status) article.append(node('p', statuses[message.status]));
-        if (message.errorCode) article.append(node('p', '错误码：' + message.errorCode));
+        if (message.status) {
+            const state = node('p', statuses[message.status]);
+            state.className = 'message-state';
+            state.setAttribute('role', 'status');
+            article.append(state);
+        }
+        if (message.errorCode) {
+            const error = node('p', '错误码：' + message.errorCode);
+            error.className = 'operation-error';
+            article.append(error);
+        }
         appendCitations(article, kb, message.citations);
     }
 

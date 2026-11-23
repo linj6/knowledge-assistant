@@ -52,6 +52,7 @@ export function initializeImport(root, refreshDocuments) {
     taskText.setAttribute('role', 'status');
     const upload = node('button', '上传文件');
     upload.type = 'button';
+    upload.className = 'primary-action';
     const manual = node('button', '刷新任务状态');
     manual.type = 'button';
     const chat = node('a', '进入 AI 问答');
@@ -83,6 +84,7 @@ export function initializeImport(root, refreshDocuments) {
     }
     function accept(value) {
         task = validateTask(value);
+        taskText.className = task.status === 'FAILED' ? 'operation-error' : '';
         taskText.textContent = `任务 ${task.importTaskId} · ${task.status}${task.failureCode ? ' · ' + task.failureCode : ''}`;
         chat.hidden = task.status !== 'READY';
         if (['READY', 'FAILED'].includes(task.status)) refreshDocuments();
@@ -141,6 +143,7 @@ export function initializeImport(root, refreshDocuments) {
         stop();
         failures = 0;
         task = null;
+        taskText.className = '';
         taskText.textContent = '';
         chat.hidden = true;
         uploading = true;

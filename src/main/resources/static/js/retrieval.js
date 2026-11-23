@@ -124,12 +124,12 @@ export function initializeRetrieval() {
     const choices = node('fieldset');
     choices.append(node('legend', '检索策略'));
     const checks = strategies.map((s) => {
-        const l = node('label', s);
+        const l = node('label');
         const c = node('input');
         c.type = 'checkbox';
         c.value = s;
         c.checked = s === 'HYBRID_RRF';
-        l.append(c);
+        l.append(c, node('span', s));
         choices.append(l);
         return c;
     });
@@ -169,6 +169,7 @@ export function initializeRetrieval() {
     send.type = 'submit';
     const cancel = node('button', '取消等待');
     cancel.type = 'button';
+    cancel.className = 'cancel-action';
     const status = node('p');
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');
@@ -262,10 +263,14 @@ export function initializeRetrieval() {
                     node('h2', d.requestedStrategy),
                     node('p', `实际策略：${d.actualStrategy ?? '不适用'} · ${d.status} · ${r.chunks.length} Chunks`),
                 );
-                if (d.status !== 'SUCCESS')
-                    card.append(
-                        node('p', d.status === 'EMPTY_RESULT' ? '没有找到匹配内容' : '该策略执行失败：' + d.error),
+                if (d.status !== 'SUCCESS') {
+                    const feedback = node(
+                        'p',
+                        d.status === 'EMPTY_RESULT' ? '没有找到匹配内容' : '该策略执行失败：' + d.error,
                     );
+                    feedback.className = d.status === 'EMPTY_RESULT' ? 'empty' : 'operation-error';
+                    card.append(feedback);
+                }
                 const detail = node('details');
                 detail.append(node('summary', 'Diagnostics'));
                 for (const k of ['requestedStrategy', 'actualStrategy', 'degraded', 'status', 'snapshotHash', 'error'])
