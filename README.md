@@ -28,8 +28,10 @@ Knowledge Assistant 是一个基于 Java / Spring AI 的个人知识库与 RAG �
 | [当前架构](docs/architecture.md) | 模块、数据存储和关键流程 |
 | [核心功能](docs/core-features.md) | 权限、导入、检索、引用与会话 |
 | [M4 评估](docs/evaluation.md) | 冻结实验、历史联调与复现 |
+| [代码风格与验证](docs/code-style.md) | 格式化、变更验证和提交规则 |
+| [Java 包结构](docs/package-structure.md) | 模块职责、类的归属和依赖 |
 | [历史资料](docs/archive/README.md) | 开发过程与阶段验证记录 |
 
 ## 当前限制
 
-MinIO 固定镜像的分发、模型调用授权及新环境端到端部署待 M5-02 验证。完整导入与问答需要模型配置，真实请求可能计费。现有多轮上下文限于单个会话。跨会话长期记忆、Agent、Workflow、MCP、Skills 和 Harness 均未实现。评估工作台的 HTTP 路由在当前安全配置中禁用。
+MinIO 固定镜像的获取、校验和导入流程见[镜像交付说明](infra/minio/README.md)。新环境端到端部署仍待验证。完整导入与问答需要模型配置，在线模型调用默认关闭并要求显式授权，真实请求可能计费。现有多轮上下文限于单个会话。跨会话长期记忆、Agent、Workflow、MCP、Skills 和 Harness 均未实现。评估工作台的 HTTP 路由在当前安全配置中禁用。
