@@ -5,6 +5,8 @@ import co.elastic.clients.elasticsearch._types.FieldValue;
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
+import co.elastic.clients.elasticsearch.indices.IndexSettings;
+import co.elastic.clients.elasticsearch.indices.IndexState;
 import co.elastic.clients.json.JsonData;
 import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsChunkDocument;
 import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsIndexNames;
@@ -13,9 +15,13 @@ import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedDocument;
 import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshot;
 import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionTerms;
 import com.lnjecit.knowledge.assistant.retrieval.snapshot.TermsLimitExceededException;
+import jakarta.json.JsonNumber;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonString;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
 
@@ -25,7 +31,7 @@ public class KeywordSearchRepository {
     private final ElasticsearchClient client;
     private final String index;
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public KeywordSearchRepository(ElasticsearchClient client) {
         this(client, EsIndexNames.CHUNKS);
     }
@@ -54,7 +60,7 @@ public class KeywordSearchRepository {
                     .get("chunk_id")
                     .keyword()
                     .docValues())) throw new IllegalStateException();
-            co.elastic.clients.elasticsearch.indices.IndexState settings = client.indices()
+            IndexState settings = client.indices()
                     .getSettings(r -> r.index(index).includeDefaults(true))
                     .result()
                     .get(index);
@@ -86,11 +92,11 @@ public class KeywordSearchRepository {
             for (Hit<JsonData> hit : response.hits().hits()) {
                 if (hit.source() == null || hit.score() == null || !Double.isFinite(hit.score()) || hit.score() < 0)
                     throw new IllegalStateException();
-                jakarta.json.JsonObject raw = hit.source().toJson().asJsonObject();
+                JsonObject raw = hit.source().toJson().asJsonObject();
                 for (String field :
                         List.of("chunk_id", "knowledge_base_id", "document_id", "index_version_id", "content"))
-                    if (!(raw.get(field) instanceof jakarta.json.JsonString)) throw new IllegalStateException();
-                if (!(raw.get("chunk_order") instanceof jakarta.json.JsonNumber order) || !order.isIntegral())
+                    if (!(raw.get(field) instanceof JsonString)) throw new IllegalStateException();
+                if (!(raw.get("chunk_order") instanceof JsonNumber order) || !order.isIntegral())
                     throw new IllegalStateException();
                 EsChunkDocument source = hit.source().to(EsChunkDocument.class);
                 Long id = id(source.chunk_id()),
@@ -114,7 +120,7 @@ public class KeywordSearchRepository {
     }
 
     // ES 设置响应通常将 index 包装为一层对象；缺失安全值时拒绝检索。
-    private static Integer termsLimit(co.elastic.clients.elasticsearch.indices.IndexSettings settings) {
+    private static Integer termsLimit(IndexSettings settings) {
         if (settings == null) return null;
         Integer nested = settings.index() == null ? null : settings.index().maxTermsCount();
         return nested != null ? nested : settings.maxTermsCount();

@@ -3,6 +3,7 @@ package com.lnjecit.knowledge.assistant.rag.validation;
 import com.lnjecit.knowledge.assistant.rag.generation.RawGenerationResult;
 import java.util.ArrayList;
 import java.util.List;
+import tools.jackson.core.JacksonException;
 import tools.jackson.core.StreamReadFeature;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
@@ -41,7 +42,7 @@ public final class StructuredOutputParser {
             if (answer.isBlank() || (answerable ? citations.isEmpty() : !citations.isEmpty()))
                 throw new IllegalArgumentException();
             return new ParsedOutput(answerable, answer, citations);
-        } catch (tools.jackson.core.JacksonException | IllegalArgumentException invalid) {
+        } catch (JacksonException | IllegalArgumentException invalid) {
             // 保留解析位置和原因，凭据保护由统一日志输出负责。
             throw new InvalidOutputException(invalid);
         }

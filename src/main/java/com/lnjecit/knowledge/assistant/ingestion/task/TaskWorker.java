@@ -1,12 +1,16 @@
 package com.lnjecit.knowledge.assistant.ingestion.task;
 
+import com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog;
+import java.time.Duration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 public class TaskWorker {
-    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(TaskWorker.class);
+    private static final Logger LOG = LoggerFactory.getLogger(TaskWorker.class);
     private final TaskService tasks;
     private final TaskProcessor processor;
-    private final java.time.Duration duration;
+    private final Duration duration;
 
     public TaskWorker(TaskService tasks, TaskProcessor processor) {
         this(tasks, processor, new WorkerProperties());
@@ -32,7 +36,7 @@ public class TaskWorker {
             TaskExecutionException.Code code = failure instanceof TaskExecutionException known
                     ? known.code()
                     : TaskExecutionException.Code.EXECUTION_FAILED;
-            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
+            FailureLog.error(
                     LOG,
                     "TaskWorker errorCode=" + code.name() + " taskId=" + task.taskId() + " documentId="
                             + task.documentId() + " indexVersionId=" + task.indexVersionId(),

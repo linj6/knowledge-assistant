@@ -1,5 +1,8 @@
 package com.lnjecit.knowledge.assistant.evaluation.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.lnjecit.knowledge.assistant.retrieval.model.RankedChunk;
+import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalParameters;
 import java.util.List;
 import java.util.Map;
 
@@ -46,7 +49,7 @@ public final class RetrievalRunData {
             Long knowledgeBaseId,
             String chunking,
             List<String> strategies,
-            com.lnjecit.knowledge.assistant.retrieval.model.RetrievalParameters parameters,
+            RetrievalParameters parameters,
             Boolean authorizeEmbedding,
             String output) {}
 
@@ -56,27 +59,17 @@ public final class RetrievalRunData {
             String dataset,
             String mode,
             String status,
-            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-                    Map<String, String> inputSha256,
-            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-                    FrozenPools frozenPool,
+            @JsonInclude(JsonInclude.Include.NON_NULL) Map<String, String> inputSha256,
+            @JsonInclude(JsonInclude.Include.NON_NULL) FrozenPools frozenPool,
             Map<String, String> artifactSha256,
-            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-                    LiveConfiguration configuration,
-            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-                    FrozenPools frozenInputs,
-            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-                    String questionSource,
-            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-                    String questionSourceSha256,
-            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-                    Map<String, String> sourceContentHashes,
-            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-                    Map<String, Long> retrievalStatuses,
-            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-                    List<String> snapshots,
-            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-                    Map<String, Long> metricStatuses) {}
+            @JsonInclude(JsonInclude.Include.NON_NULL) LiveConfiguration configuration,
+            @JsonInclude(JsonInclude.Include.NON_NULL) FrozenPools frozenInputs,
+            @JsonInclude(JsonInclude.Include.NON_NULL) String questionSource,
+            @JsonInclude(JsonInclude.Include.NON_NULL) String questionSourceSha256,
+            @JsonInclude(JsonInclude.Include.NON_NULL) Map<String, String> sourceContentHashes,
+            @JsonInclude(JsonInclude.Include.NON_NULL) Map<String, Long> retrievalStatuses,
+            @JsonInclude(JsonInclude.Include.NON_NULL) List<String> snapshots,
+            @JsonInclude(JsonInclude.Include.NON_NULL) Map<String, Long> metricStatuses) {}
 
     public record OfflineMetricsReportRunsItemAt3(
             String status, Double precision, Double dcg, Double idcg, Double ndcg) {}
@@ -142,8 +135,8 @@ public final class RetrievalRunData {
             String strategy,
             String status,
             String snapshotHash,
-            com.lnjecit.knowledge.assistant.retrieval.model.RetrievalParameters parameters,
-            List<com.lnjecit.knowledge.assistant.retrieval.model.RankedChunk> chunks,
+            RetrievalParameters parameters,
+            List<RankedChunk> chunks,
             Map<String, String> semantic) {}
 
     public record LiveMetricsReportRunsItem(
@@ -187,7 +180,7 @@ public final class RetrievalRunData {
             Boolean degraded,
             String status,
             String snapshotHash,
-            com.lnjecit.knowledge.assistant.retrieval.model.RetrievalParameters parameters,
+            RetrievalParameters parameters,
             List<LiveRetrievalRunResultDiagnosticsStagesItem> stages,
             String error) {}
 
@@ -198,13 +191,13 @@ public final class RetrievalRunData {
             String chunking,
             String strategy,
             String requestedStrategy,
-            com.lnjecit.knowledge.assistant.retrieval.model.RetrievalParameters parameters,
+            RetrievalParameters parameters,
             LiveRetrievalRunResultDiagnostics diagnostics,
             String status,
             String actualStrategy,
             String error,
             String snapshotHash,
-            List<com.lnjecit.knowledge.assistant.retrieval.model.RankedChunk> chunks) {}
+            List<RankedChunk> chunks) {}
 
     public record RetrievalFixtureSource(String path, String sha256, String baseline) {}
 

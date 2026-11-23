@@ -1,8 +1,13 @@
 package com.lnjecit.knowledge.assistant.infrastructure.ai;
 
+import com.openai.errors.OpenAIInvalidDataException;
+import com.openai.errors.OpenAIIoException;
 import com.openai.errors.OpenAIServiceException;
+import java.io.IOException;
 import java.net.SocketTimeoutException;
+import java.net.http.HttpTimeoutException;
 import java.util.concurrent.TimeoutException;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 
 public final class ModelFailures {
     public enum Kind {
@@ -56,12 +61,11 @@ public final class ModelFailures {
         int depth = 0;
         for (Throwable cause = failure; cause != null && depth++ < 16; cause = cause.getCause()) {
             if (cause instanceof SafeModelException safe) return safe.kind;
-            if (cause instanceof org.springframework.beans.factory.NoSuchBeanDefinitionException)
-                return Kind.CONFIGURATION;
+            if (cause instanceof NoSuchBeanDefinitionException) return Kind.CONFIGURATION;
             if (configurationCode(cause) != null) return Kind.CONFIGURATION;
             if (cause instanceof SocketTimeoutException
                     || cause instanceof TimeoutException
-                    || cause instanceof java.net.http.HttpTimeoutException) return Kind.TIMEOUT;
+                    || cause instanceof HttpTimeoutException) return Kind.TIMEOUT;
             if (cause instanceof OpenAIServiceException service) {
                 int status = service.statusCode();
                 if (status == 401 || status == 403) return Kind.AUTHENTICATION;
@@ -70,12 +74,11 @@ public final class ModelFailures {
                 if (status >= 400) return Kind.REQUEST_REJECTED;
             }
             if (cause instanceof ModelResponseChecks.InvalidResponseException
-                    || cause instanceof com.openai.errors.OpenAIInvalidDataException) return Kind.INVALID_RESPONSE;
+                    || cause instanceof OpenAIInvalidDataException) return Kind.INVALID_RESPONSE;
         }
         depth = 0;
         for (Throwable cause = failure; cause != null && depth++ < 16; cause = cause.getCause()) {
-            if (cause instanceof java.io.IOException || cause instanceof com.openai.errors.OpenAIIoException)
-                return Kind.CONNECTION;
+            if (cause instanceof IOException || cause instanceof OpenAIIoException) return Kind.CONNECTION;
         }
         return Kind.OTHER;
     }

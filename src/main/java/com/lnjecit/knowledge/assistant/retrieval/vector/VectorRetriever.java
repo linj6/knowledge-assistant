@@ -1,5 +1,6 @@
 package com.lnjecit.knowledge.assistant.retrieval.vector;
 
+import com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog;
 import com.lnjecit.knowledge.assistant.retrieval.embedding.QueryEmbeddingService;
 import com.lnjecit.knowledge.assistant.retrieval.embedding.QueryVector;
 import com.lnjecit.knowledge.assistant.retrieval.model.RankedChunk;
@@ -8,6 +9,7 @@ import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalDiagnostics;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStatus;
 import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
@@ -29,9 +31,8 @@ public class VectorRetriever {
         }
 
         public RetrievalStatus status() {
-            return failure != null
-                    ? RetrievalStatus.FAILED
-                    : chunks.isEmpty() ? RetrievalStatus.EMPTY_RESULT : RetrievalStatus.SUCCESS;
+            if (failure != null) return RetrievalStatus.FAILED;
+            return chunks.isEmpty() ? RetrievalStatus.EMPTY_RESULT : RetrievalStatus.SUCCESS;
         }
     }
 
@@ -42,8 +43,7 @@ public class VectorRetriever {
         try {
             vector = embedding.getObject().embed(context.query());
         } catch (RuntimeException failure) {
-            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
-                    org.slf4j.LoggerFactory.getLogger(getClass()), "VectorRetriever", failure);
+            FailureLog.error(LoggerFactory.getLogger(getClass()), "VectorRetriever", failure);
             return new Recall(
                     List.of(),
                     List.of(stage(RetrievalDiagnostics.Phase.EMBEDDING, start, List.of())),
@@ -92,8 +92,7 @@ public class VectorRetriever {
                             RetrievalDiagnostics.Phase.VECTOR, queryElapsedMillis, candidates.size(), candidates)),
                     null);
         } catch (RuntimeException failure) {
-            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
-                    org.slf4j.LoggerFactory.getLogger(getClass()), "VectorRetriever", failure);
+            FailureLog.error(LoggerFactory.getLogger(getClass()), "VectorRetriever", failure);
             return new Recall(
                     List.of(),
                     List.of(stage(RetrievalDiagnostics.Phase.VECTOR, start, List.of())),

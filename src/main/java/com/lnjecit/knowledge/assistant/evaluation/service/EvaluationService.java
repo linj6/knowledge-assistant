@@ -1,5 +1,6 @@
 package com.lnjecit.knowledge.assistant.evaluation.service;
 
+import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.document.entity.Document;
 import com.lnjecit.knowledge.assistant.document.mapper.DocumentMapper;
 import com.lnjecit.knowledge.assistant.evaluation.EvaluationCorpus;
@@ -9,6 +10,9 @@ import com.lnjecit.knowledge.assistant.evaluation.model.AnswerEvaluationRun;
 import com.lnjecit.knowledge.assistant.evaluation.model.RunStatus;
 import com.lnjecit.knowledge.assistant.evaluation.store.EvaluationFiles;
 import com.lnjecit.knowledge.assistant.evaluation.store.EvaluationRunStore;
+import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelConfiguration;
+import com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties;
+import com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog;
 import com.lnjecit.knowledge.assistant.rag.RagService;
 import com.lnjecit.knowledge.assistant.rag.model.RagStatus;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalParameters;
@@ -16,12 +20,18 @@ import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStrategy;
 import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedDocument;
 import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshot;
 import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshotService;
+import com.lnjecit.knowledge.assistant.retrieval.snapshot.SnapshotInvalidException;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -30,7 +40,7 @@ import org.springframework.web.server.ResponseStatusException;
 /** 本地单题评估编排；不计算质量分数。 */
 @Service
 public class EvaluationService {
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(EvaluationService.class);
+    private static final Logger log = LoggerFactory.getLogger(EvaluationService.class);
 
     private final RagService rag;
     private final PublishedVersionSnapshotService snapshots;
@@ -38,7 +48,7 @@ public class EvaluationService {
     private final Environment environment;
     private final EvaluationRunStore store;
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public EvaluationService(
             RagService rag,
             PublishedVersionSnapshotService snapshots,
@@ -128,15 +138,14 @@ public class EvaluationService {
             else status = RunStatus.COMPLETED.name();
         } catch (PrecheckRejected rejected) {
             error = rejected.code;
-        } catch (com.lnjecit.knowledge.assistant.common.error.BusinessException failure) {
+        } catch (BusinessException failure) {
             error = "KB_NOT_AVAILABLE";
-        } catch (com.lnjecit.knowledge.assistant.retrieval.snapshot.SnapshotInvalidException failure) {
+        } catch (SnapshotInvalidException failure) {
             error = "PUBLISHED_SNAPSHOT_INVALID";
-        } catch (java.io.IOException failure) {
+        } catch (IOException failure) {
             error = "SOURCE_UNAVAILABLE";
         } catch (RuntimeException failure) {
-            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
-                    log, "EVALUATION_PRECHECK errorCode=PRECHECK_UNAVAILABLE", failure);
+            FailureLog.error(log, "EVALUATION_PRECHECK errorCode=PRECHECK_UNAVAILABLE", failure);
             error = "PRECHECK_UNAVAILABLE";
         }
         save(runId, request, selected, strategy, fingerprint, snapshot, trace, status, error);
@@ -154,9 +163,16 @@ public class EvaluationService {
             String status,
             String error) {
         AnswerEvaluationRun.Results results = new AnswerEvaluationRun.Results(selected, trace);
-        String stage = trace == null
-                ? "PRECHECK"
-                : trace.context() == null ? "RETRIEVAL" : trace.answer() == null ? "GENERATION" : "ANSWER_RESULT";
+        String stage;
+        if (trace == null) {
+            stage = "PRECHECK";
+        } else if (trace.context() == null) {
+            stage = "RETRIEVAL";
+        } else if (trace.answer() == null) {
+            stage = "GENERATION";
+        } else {
+            stage = "ANSWER_RESULT";
+        }
         AnswerEvaluationRun.Manifest manifest = new AnswerEvaluationRun.Manifest(
                 EvaluationFiles.RUN_PROTOCOL,
                 1,
@@ -177,7 +193,7 @@ public class EvaluationService {
 
     /** 发布身份、来源字节和费用授权全部通过后才允许进入执行链。 */
     private PublishedVersionSnapshot precheck(Request request, GoldCase selected, RetrievalStrategy strategy)
-            throws java.io.IOException {
+            throws IOException {
         // 原文字节和发布版本均需匹配；只凭 KB ID 或文件名不能确认适用性。
         PublishedVersionSnapshot snapshot = snapshots.read(request.knowledgeBaseId());
         if (snapshot.documents().isEmpty()) throw new PrecheckRejected("KB_NOT_PUBLISHED");
@@ -198,16 +214,12 @@ public class EvaluationService {
                 || !environment.getProperty("assistant.model.enabled", Boolean.class, false)
                 || !environment.getProperty("assistant.model.online-authorized", Boolean.class, false))
             throw new PrecheckRejected("MODEL_COST_NOT_AUTHORIZED");
-        com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties model =
-                org.springframework.boot.context.properties.bind.Binder.get(environment)
-                        .bind(
-                                "assistant.model",
-                                com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties.class)
-                        .orElseThrow(() -> new PrecheckRejected("MODEL_CONFIGURATION_INVALID"));
+        ModelProperties model = Binder.get(environment)
+                .bind("assistant.model", ModelProperties.class)
+                .orElseThrow(() -> new PrecheckRejected("MODEL_CONFIGURATION_INVALID"));
         try {
-            com.lnjecit.knowledge.assistant.infrastructure.ai.ModelConfiguration.validateChat(model);
-            if (strategy != RetrievalStrategy.BM25)
-                com.lnjecit.knowledge.assistant.infrastructure.ai.ModelConfiguration.validateEmbedding(model);
+            ModelConfiguration.validateChat(model);
+            if (strategy != RetrievalStrategy.BM25) ModelConfiguration.validateEmbedding(model);
         } catch (RuntimeException invalid) {
             throw new PrecheckRejected("MODEL_CONFIGURATION_INVALID");
         }
@@ -224,7 +236,7 @@ public class EvaluationService {
         }
     }
 
-    static String hash(Path path) throws java.io.IOException {
+    static String hash(Path path) throws IOException {
         return Sha256.file(path);
     }
 }

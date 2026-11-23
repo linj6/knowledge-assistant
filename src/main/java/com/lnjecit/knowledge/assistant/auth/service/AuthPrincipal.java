@@ -1,5 +1,6 @@
 package com.lnjecit.knowledge.assistant.auth.service;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.io.Serializable;
 import java.security.Principal;
 import org.springframework.http.HttpStatus;
@@ -18,7 +19,7 @@ public record AuthPrincipal(Long id, String username) implements Principal, Seri
         throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
     }
 
-    @com.fasterxml.jackson.annotation.JsonIgnore
+    @JsonIgnore
     @Override
     public String getName() {
         return username;

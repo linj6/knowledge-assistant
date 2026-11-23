@@ -3,6 +3,7 @@ package com.lnjecit.knowledge.assistant.retrieval;
 import com.lnjecit.knowledge.assistant.common.RequestIdContext;
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
+import com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog;
 import com.lnjecit.knowledge.assistant.retrieval.embedding.QueryEmbeddingService;
 import com.lnjecit.knowledge.assistant.retrieval.embedding.QueryVector;
 import com.lnjecit.knowledge.assistant.retrieval.fusion.RrfFusionService;
@@ -26,8 +27,10 @@ import com.lnjecit.knowledge.assistant.retrieval.vector.VectorRetriever;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.event.Level;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
@@ -73,48 +76,60 @@ public class RetrievalService {
             snapshot = snapshots.read(knowledgeBaseId);
         } catch (BusinessException failure) {
             if (failure.getErrorCode() == CommonErrorCode.KNOWLEDGE_BASE_NOT_FOUND) throw failure;
-            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
-                    LOG, "SNAPSHOT_READ_FAILED", failure);
+            FailureLog.error(LOG, "SNAPSHOT_READ_FAILED", failure);
             return failedSnapshot(knowledgeBaseId, requested, parameters, Failure.SNAPSHOT_READ_FAILED);
         } catch (SnapshotInvalidException failure) {
-            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(LOG, "SNAPSHOT_INVALID", failure);
+            FailureLog.error(LOG, "SNAPSHOT_INVALID", failure);
             return failedSnapshot(knowledgeBaseId, requested, parameters, Failure.SNAPSHOT_INVALID);
         } catch (RuntimeException failure) {
-            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
-                    org.slf4j.LoggerFactory.getLogger(RetrievalService.class), "RetrievalService", failure);
+            FailureLog.error(LoggerFactory.getLogger(RetrievalService.class), "RetrievalService", failure);
             return failedSnapshot(knowledgeBaseId, requested, parameters, Failure.SNAPSHOT_READ_FAILED);
         }
         Output empty = new Output(List.of(), List.of(), null);
         if (snapshot.documents().isEmpty())
-            return results(knowledgeBaseId, requested, parameters, snapshot.snapshotHash(), empty, empty, empty, empty);
+            return results(
+                    knowledgeBaseId,
+                    requested,
+                    parameters,
+                    snapshot.snapshotHash(),
+                    new StrategyOutputs(empty, empty, empty, empty));
         boolean hybrid =
                 requested.contains(RetrievalStrategy.HYBRID_RRF) || requested.contains(RetrievalStrategy.HYBRID_RERANK);
         // 固定顺序执行便于诊断和测试；共享向量避免同一问题重复请求模型。
-        Output vector = requested.contains(RetrievalStrategy.VECTOR) || hybrid
-                ? vector(query, parameters, snapshot, hybrid ? RetrievalStrategy.HYBRID_RRF : RetrievalStrategy.VECTOR)
-                : empty;
-        Output keyword = requested.contains(RetrievalStrategy.BM25) || hybrid
-                ? keyword(query, parameters, snapshot, hybrid ? RetrievalStrategy.HYBRID_RRF : RetrievalStrategy.BM25)
-                : empty;
+        Output vector = empty;
+        if (requested.contains(RetrievalStrategy.VECTOR) || hybrid) {
+            RetrievalStrategy strategy = hybrid ? RetrievalStrategy.HYBRID_RRF : RetrievalStrategy.VECTOR;
+            vector = vector(query, parameters, snapshot, strategy);
+        }
+        Output keyword = empty;
+        if (requested.contains(RetrievalStrategy.BM25) || hybrid) {
+            RetrievalStrategy strategy = hybrid ? RetrievalStrategy.HYBRID_RRF : RetrievalStrategy.BM25;
+            keyword = keyword(query, parameters, snapshot, strategy);
+        }
         Output fused = hybrid ? fuse(vector, keyword, parameters) : empty;
         Output reranked =
                 requested.contains(RetrievalStrategy.HYBRID_RERANK) ? rerank(query, fused, parameters) : empty;
         return results(
-                knowledgeBaseId, requested, parameters, snapshot.snapshotHash(), vector, keyword, fused, reranked);
+                knowledgeBaseId,
+                requested,
+                parameters,
+                snapshot.snapshotHash(),
+                new StrategyOutputs(vector, keyword, fused, reranked));
     }
 
     private static void validate(
             Long kb, String query, List<RetrievalStrategy> strategies, RetrievalParameters parameters) {
-        if (kb == null
-                || kb <= 0
-                || query == null
-                || query.isBlank()
-                || strategies == null
+        if (kb == null || kb <= 0 || query == null || query.isBlank()) {
+            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT);
+        }
+        if (strategies == null
                 || strategies.isEmpty()
                 || strategies.size() > 4
-                || strategies.stream().anyMatch(java.util.Objects::isNull)
-                || new HashSet<>(strategies).size() != strategies.size()
-                || parameters == null) throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT);
+                || strategies.stream().anyMatch(Objects::isNull)
+                || new HashSet<>(strategies).size() != strategies.size()) {
+            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT);
+        }
+        if (parameters == null) throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT);
         try {
             for (RetrievalStrategy strategy : strategies) parameters.validate(strategy);
         } catch (RuntimeException failure) {
@@ -133,8 +148,7 @@ public class RetrievalService {
         try {
             vector = embeddings.getObject().embed(query);
         } catch (RuntimeException failure) {
-            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
-                    org.slf4j.LoggerFactory.getLogger(RetrievalService.class), "EMBEDDING", failure);
+            FailureLog.error(LoggerFactory.getLogger(RetrievalService.class), "EMBEDDING", failure);
             return new Output(List.of(), List.of(stage(Phase.EMBEDDING, start, List.of())), Failure.EMBEDDING_FAILED);
         }
         stages.add(stage(Phase.EMBEDDING, start, List.of()));
@@ -146,8 +160,7 @@ public class RetrievalService {
             stages.addAll(recall.stages());
             return new Output(recall.chunks(), stages, recall.failure());
         } catch (RuntimeException failure) {
-            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
-                    org.slf4j.LoggerFactory.getLogger(RetrievalService.class), "VECTOR", failure);
+            FailureLog.error(LoggerFactory.getLogger(RetrievalService.class), "VECTOR", failure);
             stages.add(stage(Phase.VECTOR, start, List.of()));
             return new Output(List.of(), stages, Failure.INTERNAL_ERROR);
         }
@@ -167,8 +180,7 @@ public class RetrievalService {
                     new RetrievalContext(RequestIdContext.current(), query, contextStrategy, parameters, snapshot));
             return new Output(recall.chunks(), recall.stages(), recall.failure());
         } catch (RuntimeException failure) {
-            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
-                    org.slf4j.LoggerFactory.getLogger(RetrievalService.class), "BM25", failure);
+            FailureLog.error(LoggerFactory.getLogger(RetrievalService.class), "BM25", failure);
             return new Output(List.of(), List.of(stage(Phase.BM25, start, List.of())), Failure.INTERNAL_ERROR);
         }
     }
@@ -185,8 +197,7 @@ public class RetrievalService {
             stages.add(stage(Phase.FUSION, start, candidates(chunks, false)));
             return new Output(chunks, stages, null);
         } catch (RuntimeException failure) {
-            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
-                    org.slf4j.LoggerFactory.getLogger(RetrievalService.class), "FUSION", failure);
+            FailureLog.error(LoggerFactory.getLogger(RetrievalService.class), "FUSION", failure);
             stages.add(stage(Phase.FUSION, start, List.of()));
             return new Output(List.of(), stages, Failure.FUSION_FAILED);
         }
@@ -202,8 +213,7 @@ public class RetrievalService {
             stages.add(stage(Phase.RERANK, start, candidates(chunks, true)));
             return new Output(chunks, stages, null);
         } catch (RuntimeException failure) {
-            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
-                    org.slf4j.LoggerFactory.getLogger(RetrievalService.class), "RERANK", failure);
+            FailureLog.error(LoggerFactory.getLogger(RetrievalService.class), "RERANK", failure);
             stages.add(stage(Phase.RERANK, start, List.of()));
             return new Output(List.of(), stages, Failure.RERANK_FAILED);
         }
@@ -224,32 +234,34 @@ public class RetrievalService {
     private List<RetrievalResult> failedSnapshot(
             Long kb, List<RetrievalStrategy> requested, RetrievalParameters parameters, Failure failure) {
         Output failed = new Output(List.of(), List.of(), failure);
-        return results(kb, requested, parameters, null, failed, failed, failed, failed);
+        return results(kb, requested, parameters, null, new StrategyOutputs(failed, failed, failed, failed));
     }
+
+    private record StrategyOutputs(Output vector, Output keyword, Output fused, Output reranked) {}
 
     private List<RetrievalResult> results(
             Long kb,
             List<RetrievalStrategy> requested,
             RetrievalParameters parameters,
             String hash,
-            Output vector,
-            Output keyword,
-            Output fused,
-            Output reranked) {
+            StrategyOutputs outputs) {
         List<RetrievalResult> results = new ArrayList<>();
         for (RetrievalStrategy strategy : requested) {
             Output output =
                     switch (strategy) {
-                        case VECTOR -> vector;
-                        case BM25 -> keyword;
-                        case HYBRID_RRF -> fused;
-                        case HYBRID_RERANK -> reranked;
+                        case VECTOR -> outputs.vector();
+                        case BM25 -> outputs.keyword();
+                        case HYBRID_RRF -> outputs.fused();
+                        case HYBRID_RERANK -> outputs.reranked();
                     };
             List<RankedChunk> chunks =
                     output.failure() == null ? finish(output.chunks(), parameters.finalTopK()) : List.of();
-            RetrievalStatus status = output.failure() != null
-                    ? RetrievalStatus.FAILED
-                    : chunks.isEmpty() ? RetrievalStatus.EMPTY_RESULT : RetrievalStatus.SUCCESS;
+            RetrievalStatus status;
+            if (output.failure() != null) {
+                status = RetrievalStatus.FAILED;
+            } else {
+                status = chunks.isEmpty() ? RetrievalStatus.EMPTY_RESULT : RetrievalStatus.SUCCESS;
+            }
             RetrievalDiagnostics diagnostics = new RetrievalDiagnostics(
                     strategy,
                     output.failure() == null ? strategy : null,
@@ -259,7 +271,7 @@ public class RetrievalService {
                     parameters,
                     output.stages(),
                     output.failure());
-            LOG.atLevel(status == RetrievalStatus.FAILED ? org.slf4j.event.Level.DEBUG : org.slf4j.event.Level.INFO)
+            LOG.atLevel(status == RetrievalStatus.FAILED ? Level.DEBUG : Level.INFO)
                     .log(
                             "requestId={} knowledgeBaseId={} requestedStrategy={} actualStrategy={} degraded=false status={} error={}",
                             RequestIdContext.current(),
@@ -269,7 +281,7 @@ public class RetrievalService {
                             status,
                             output.failure());
             for (Stage stage : output.stages())
-                LOG.atLevel(status == RetrievalStatus.FAILED ? org.slf4j.event.Level.DEBUG : org.slf4j.event.Level.INFO)
+                LOG.atLevel(status == RetrievalStatus.FAILED ? Level.DEBUG : Level.INFO)
                         .log(
                                 "requestId={} knowledgeBaseId={} requestedStrategy={} actualStrategy={} degraded=false status={} phase={} elapsedMillis={} candidateCount={} error={}",
                                 RequestIdContext.current(),

@@ -24,12 +24,14 @@ import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalResult;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStatus;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStrategy;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.JacksonException;
 
 @Service
 public class RagService {
@@ -110,7 +112,7 @@ public class RagService {
             String question,
             RetrievalStrategy strategy,
             RetrievalParameters parameters,
-            java.util.function.Consumer<RetrievalResult> retrievalCheck) {
+            Consumer<RetrievalResult> retrievalCheck) {
         Observation observation = new Observation();
         observation.retrievalCheck = retrievalCheck;
         try {
@@ -130,7 +132,7 @@ public class RagService {
             RetrievalResult retrieval, AssembledContext context, RagAnswer answer, String failureType) {}
 
     private static final class Observation {
-        private java.util.function.Consumer<RetrievalResult> retrievalCheck = result -> {};
+        private Consumer<RetrievalResult> retrievalCheck = result -> {};
         private int selectedCount;
         private RetrievalResult retrieval;
         private AssembledContext context;
@@ -181,7 +183,7 @@ public class RagService {
         } catch (ContextBuilder.InconsistentEvidenceException failure) {
             logContextFailure(RagError.CONTEXT_DATA_INCONSISTENT, failure);
             return response(result, RagStatus.FAILED, null, List.of(), RagError.CONTEXT_DATA_INCONSISTENT, null);
-        } catch (tools.jackson.core.JacksonException failure) {
+        } catch (JacksonException failure) {
             logContextFailure(RagError.CONTEXT_BUILD_FAILED, failure);
             return response(result, RagStatus.FAILED, null, List.of(), RagError.CONTEXT_BUILD_FAILED, null);
         }

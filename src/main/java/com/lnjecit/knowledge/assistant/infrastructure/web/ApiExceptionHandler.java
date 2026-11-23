@@ -3,6 +3,7 @@ package com.lnjecit.knowledge.assistant.infrastructure.web;
 import com.lnjecit.knowledge.assistant.common.RequestIdContext;
 import com.lnjecit.knowledge.assistant.common.api.Result;
 import com.lnjecit.knowledge.assistant.common.error.*;
+import com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.*;
@@ -26,24 +27,20 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                             ? CommonErrorCode.INTERNAL_ERROR
                             : CommonErrorCode.INVALID_ARGUMENT;
                 };
-        if (status.is5xxServerError())
-            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
-                    LOG, "API_HTTP_" + status.value(), ex);
+        if (status.is5xxServerError()) FailureLog.error(LOG, "API_HTTP_" + status.value(), ex);
         return new ResponseEntity<>(error(code), headers, status);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Result<Void>> unexpected(Exception ex) {
-        com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(LOG, "API_INTERNAL_ERROR", ex);
+        FailureLog.error(LOG, "API_INTERNAL_ERROR", ex);
         return ResponseEntity.status(500).body(error(CommonErrorCode.INTERNAL_ERROR));
     }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Result<Void>> business(BusinessException ex) {
         ErrorCode code = ex.getErrorCode();
-        if (code == CommonErrorCode.INTERNAL_ERROR)
-            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
-                    LOG, "API_BUSINESS_INTERNAL_ERROR", ex);
+        if (code == CommonErrorCode.INTERNAL_ERROR) FailureLog.error(LOG, "API_BUSINESS_INTERNAL_ERROR", ex);
         else LOG.warn("requestId={} code={}", RequestIdContext.current(), code.getCode());
         return ResponseEntity.status(statusFor(code)).body(error(code));
     }

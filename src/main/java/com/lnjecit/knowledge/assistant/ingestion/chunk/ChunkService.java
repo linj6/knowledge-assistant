@@ -4,6 +4,7 @@ import com.lnjecit.knowledge.assistant.document.entity.Document;
 import com.lnjecit.knowledge.assistant.document.entity.DocumentChunk;
 import com.lnjecit.knowledge.assistant.document.entity.IndexVersion;
 import com.lnjecit.knowledge.assistant.document.entity.IndexVersionStatus;
+import com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingProperties;
 import com.lnjecit.knowledge.assistant.ingestion.parser.ParsedDocument;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,12 +17,9 @@ import tools.jackson.databind.json.JsonMapper;
 public class ChunkService {
     private final ChunkRepository repository;
     private final JsonMapper json;
-    private final com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingProperties embeddingProperties;
+    private final EmbeddingProperties embeddingProperties;
 
-    public ChunkService(
-            ChunkRepository repository,
-            JsonMapper json,
-            com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingProperties embeddingProperties) {
+    public ChunkService(ChunkRepository repository, JsonMapper json, EmbeddingProperties embeddingProperties) {
         this.repository = repository;
         this.json = json;
         this.embeddingProperties = embeddingProperties;

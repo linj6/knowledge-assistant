@@ -5,11 +5,14 @@ import com.lnjecit.knowledge.assistant.document.entity.IndexVersion;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelResponseChecks;
 import com.lnjecit.knowledge.assistant.infrastructure.persistence.VectorSchema;
+import com.lnjecit.knowledge.assistant.ingestion.task.ImportEvents;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.embedding.Embedding;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingOptions;
@@ -25,7 +28,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
         name = {"assistant.model.enabled", "assistant.model.online-authorized"},
         havingValue = "true")
 public class EmbeddingService {
-    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(EmbeddingService.class);
+    private static final Logger LOG = LoggerFactory.getLogger(EmbeddingService.class);
     private final EmbeddingModel model;
     private final EmbeddingRepository repository;
     private final EmbeddingProperties properties;
@@ -140,7 +143,7 @@ public class EmbeddingService {
             int batchCount,
             int size,
             long started) {
-        com.lnjecit.knowledge.assistant.ingestion.task.ImportEvents.info(
+        ImportEvents.info(
                 LOG,
                 "event={} documentId={} indexVersionId={} model={} batchIndex={} batchCount={} batchSize={} elapsedMs={}",
                 event,
@@ -150,6 +153,6 @@ public class EmbeddingService {
                 batchIndex,
                 batchCount,
                 size,
-                com.lnjecit.knowledge.assistant.ingestion.task.ImportEvents.elapsed(started));
+                ImportEvents.elapsed(started));
     }
 }

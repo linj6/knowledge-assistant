@@ -24,7 +24,9 @@ import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.TransactionSystemException;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
@@ -211,8 +213,7 @@ public class IngestionTaskProcessor implements TaskProcessor {
         String outcome = confirmed ? "EXISTING_FACTS_CONFIRMED" : "FIRST_PUBLISH";
         try {
             publisher.publish(task);
-        } catch (org.springframework.transaction.TransactionSystemException
-                | org.springframework.dao.DataAccessResourceFailureException uncertain) {
+        } catch (TransactionSystemException | DataAccessResourceFailureException uncertain) {
             ImportEvents.warn(
                     LOG,
                     "event=IMPORT_PUBLISH_OUTCOME_UNKNOWN taskId={} documentId={} indexVersionId={} errorCode=PUBLISH_OUTCOME_UNKNOWN exceptionType={}",

@@ -1,11 +1,20 @@
 package com.lnjecit.knowledge.assistant.infrastructure.storage;
 
+import com.lnjecit.knowledge.assistant.ingestion.task.TaskExecutionException;
+import com.lnjecit.knowledge.assistant.ingestion.upload.UploadProperties;
+import io.minio.CopyObjectArgs;
+import io.minio.CopySource;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
+import java.time.Duration;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -16,21 +25,16 @@ public class MinioOriginalFileStore implements OriginalFileStore {
     private final int maxFileBytes;
 
     public MinioOriginalFileStore(String endpoint, String accessKey, String secretKey, String bucket) {
-        this(
-                endpoint,
-                accessKey,
-                secretKey,
-                bucket,
-                new com.lnjecit.knowledge.assistant.ingestion.upload.UploadProperties());
+        this(endpoint, accessKey, secretKey, bucket, new UploadProperties());
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public MinioOriginalFileStore(
             @Value("${assistant.minio.endpoint}") String endpoint,
             @Value("${assistant.minio.access-key}") String accessKey,
             @Value("${assistant.minio.secret-key}") String secretKey,
             @Value("${assistant.minio.bucket}") String bucket,
-            com.lnjecit.knowledge.assistant.ingestion.upload.UploadProperties uploads) {
+            UploadProperties uploads) {
         uploads.afterPropertiesSet();
         this.maxFileBytes = uploads.getMaxFileBytes();
         this.bucket = bucket;
@@ -41,10 +45,10 @@ public class MinioOriginalFileStore implements OriginalFileStore {
                         .endpoint(endpoint)
                         .credentials(accessKey, secretKey)
                         .httpClient(new okhttp3.OkHttpClient.Builder()
-                                .connectTimeout(java.time.Duration.ofSeconds(5))
-                                .readTimeout(java.time.Duration.ofSeconds(30))
-                                .writeTimeout(java.time.Duration.ofSeconds(30))
-                                .callTimeout(java.time.Duration.ofSeconds(60))
+                                .connectTimeout(Duration.ofSeconds(5))
+                                .readTimeout(Duration.ofSeconds(30))
+                                .writeTimeout(Duration.ofSeconds(30))
+                                .callTimeout(Duration.ofSeconds(60))
                                 .build())
                         .build();
     }
@@ -63,10 +67,10 @@ public class MinioOriginalFileStore implements OriginalFileStore {
                 || targetKey.length() == ObjectKeyPrefixes.ORIGINALS.length())
             throw new IllegalArgumentException("Invalid object copy prefixes");
         try {
-            client().copyObject(io.minio.CopyObjectArgs.builder()
+            client().copyObject(CopyObjectArgs.builder()
                     .bucket(bucket)
                     .object(targetKey)
-                    .source(io.minio.CopySource.builder()
+                    .source(CopySource.builder()
                             .bucket(bucket)
                             .object(sourceKey)
                             .build())
@@ -92,17 +96,14 @@ public class MinioOriginalFileStore implements OriginalFileStore {
                         GetObjectArgs.builder().bucket(bucket).object(key).build())) {
             return readLimited(stream, maxFileBytes);
         } catch (Exception ex) {
-            if (ex instanceof java.net.SocketTimeoutException || ex instanceof java.net.ConnectException)
-                throw new com.lnjecit.knowledge.assistant.ingestion.task.TaskExecutionException(
-                        com.lnjecit.knowledge.assistant.ingestion.task.TaskExecutionException.Code
-                                .INFRASTRUCTURE_TEMPORARY,
-                        ex);
+            if (ex instanceof SocketTimeoutException || ex instanceof ConnectException)
+                throw new TaskExecutionException(TaskExecutionException.Code.INFRASTRUCTURE_TEMPORARY, ex);
             throw new IllegalStateException("Object read failed", ex);
         }
     }
 
     // 多读一个字节即可判定超限，避免损坏或异常对象耗尽堆内存。
-    static byte[] readLimited(InputStream stream, int maximum) throws java.io.IOException {
+    static byte[] readLimited(InputStream stream, int maximum) throws IOException {
         byte[] bytes = stream.readNBytes(maximum + 1);
         if (bytes.length > maximum) throw new IllegalStateException("Object exceeds upload limit");
         return bytes;

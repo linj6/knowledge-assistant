@@ -1,5 +1,7 @@
 package com.lnjecit.knowledge.assistant.ingestion.task;
 
+import com.lnjecit.knowledge.assistant.common.RequestIdContext;
+import com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -31,7 +33,7 @@ public class TaskScheduler {
 
     @Scheduled(fixedDelayString = "${assistant.worker.scan-interval:5s}")
     public synchronized void scan() {
-        com.lnjecit.knowledge.assistant.common.RequestIdContext.clear();
+        RequestIdContext.clear();
         // 整轮串行执行；只有上一轮处理函数退出后才换 owner，仍在执行的任务不会被本进程恢复。
         String owner = UUID.randomUUID().toString();
         // 没有安全生产处理器时连领取也不执行，避免无意义地消耗租约。
@@ -58,8 +60,7 @@ public class TaskScheduler {
                         ImportEvents.elapsed(started));
                 new TaskWorker(tasks, processor, properties).execute(claimed);
             } catch (RuntimeException failure) {
-                com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
-                        LOG, "IMPORT_TASK_SCAN", failure);
+                FailureLog.error(LOG, "IMPORT_TASK_SCAN", failure);
                 ImportEvents.warn(
                         LOG,
                         "event=IMPORT_TASK_SCAN_FAILED errorCode=SCAN_FAILED exceptionType={}",

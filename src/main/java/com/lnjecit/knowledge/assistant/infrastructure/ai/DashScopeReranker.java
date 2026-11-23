@@ -11,7 +11,13 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Flow;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -85,16 +91,15 @@ public final class DashScopeReranker implements Reranker {
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(body))
                     .build();
-            java.util.concurrent.CompletableFuture<HttpResponse<byte[]>> pending =
-                    client.sendAsync(request, info -> limitedBody());
+            CompletableFuture<HttpResponse<byte[]>> pending = client.sendAsync(request, info -> limitedBody());
             HttpResponse<byte[]> response;
             try {
                 // 总时限覆盖响应体读取，防止只收到响应头后持续阻塞。
-                response = pending.get(timeout.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS);
-            } catch (java.util.concurrent.TimeoutException ex) {
+                response = pending.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            } catch (TimeoutException ex) {
                 pending.cancel(true);
                 throw ModelFailures.rerankFailure(ModelFailures.Kind.TIMEOUT, ex);
-            } catch (java.util.concurrent.ExecutionException ex) {
+            } catch (ExecutionException ex) {
                 throw ModelFailures.rerankFailure(ModelFailures.classify(ex), ex);
             } catch (InterruptedException ex) {
                 pending.cancel(true);
@@ -133,7 +138,7 @@ public final class DashScopeReranker implements Reranker {
         JsonNode root;
         try {
             root = mapper.readTree(body);
-        } catch (tools.jackson.core.JacksonException ex) {
+        } catch (JacksonException ex) {
             // 只有解析响应时的 JSON 错误属于协议失败，不能把任意运行时异常都归入此类。
             throw (ModelFailures.SafeModelException) invalid().initCause(ex);
         }
@@ -177,7 +182,7 @@ public final class DashScopeReranker implements Reranker {
             private Flow.Subscription subscription;
             private long size;
 
-            public java.util.concurrent.CompletionStage<byte[]> getBody() {
+            public CompletionStage<byte[]> getBody() {
                 return delegate.getBody();
             }
 

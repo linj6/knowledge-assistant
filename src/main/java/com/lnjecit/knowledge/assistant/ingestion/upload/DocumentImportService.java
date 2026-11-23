@@ -4,6 +4,7 @@ import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
 import com.lnjecit.knowledge.assistant.document.entity.Document;
 import com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties;
+import com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.ObjectKeyPrefixes;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingProperties;
@@ -11,7 +12,9 @@ import com.lnjecit.knowledge.assistant.ingestion.dto.ImportTaskResponse;
 import com.lnjecit.knowledge.assistant.ingestion.task.ImportEvents;
 import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTask;
 import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -23,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 import tools.jackson.databind.json.JsonMapper;
@@ -62,7 +66,7 @@ public class DocumentImportService {
 
     /** 由已完成授权的 HTTP 入口或可信内部调用接收导入。 */
     public Outcome receive(Long kbId, MultipartFile file) throws Exception {
-        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive())
+        if (TransactionSynchronizationManager.isActualTransactionActive())
             throw new IllegalStateException("Upload cannot execute inside transaction");
         long started = System.nanoTime();
         knowledge.get(kbId);
@@ -143,8 +147,7 @@ public class DocumentImportService {
             if (!repository.isObjectReferenced(finalKey)) cleanup(finalKey);
             else ImportEvents.warn(LOG, "code=ORIGINAL_OBJECT_REFERENCED_AFTER_COMMIT_ERROR objectKey={}", finalKey);
         } catch (RuntimeException checkFailure) {
-            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(
-                    LOG, "DocumentImportService", checkFailure);
+            FailureLog.error(LOG, "DocumentImportService", checkFailure);
             // 查询本身失败时保留对象，避免误删已经提交的业务文件。
             ImportEvents.warn(LOG, "code=ORIGINAL_OBJECT_REFERENCE_UNKNOWN objectKey={}", finalKey);
         }
@@ -165,7 +168,7 @@ public class DocumentImportService {
         if (file.isEmpty() || file.getSize() > upload.getMaxFileBytes()) invalid();
         byte[] bytes;
         // 按上限读取，避免依赖上传方声明的大小；BOM 原样保留且纳入哈希。
-        try (java.io.InputStream stream = file.getInputStream()) {
+        try (InputStream stream = file.getInputStream()) {
             bytes = stream.readNBytes(upload.getMaxFileBytes() + 1);
         }
         if (bytes.length == 0 || bytes.length > upload.getMaxFileBytes()) invalid();
@@ -175,7 +178,7 @@ public class DocumentImportService {
                     .onMalformedInput(CodingErrorAction.REPORT)
                     .onUnmappableCharacter(CodingErrorAction.REPORT)
                     .decode(ByteBuffer.wrap(bytes));
-        } catch (java.nio.charset.CharacterCodingException ex) {
+        } catch (CharacterCodingException ex) {
             invalid();
         }
         return new ValidatedUpload(filename, bytes);
@@ -198,7 +201,7 @@ public class DocumentImportService {
         try {
             store.delete(key);
         } catch (RuntimeException ex) {
-            com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog.error(LOG, "MINIO_COMPENSATION", ex);
+            FailureLog.error(LOG, "MINIO_COMPENSATION", ex);
             ImportEvents.warn(
                     LOG,
                     "code={} objectKey={}",

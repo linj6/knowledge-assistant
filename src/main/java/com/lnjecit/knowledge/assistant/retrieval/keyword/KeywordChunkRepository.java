@@ -1,5 +1,6 @@
 package com.lnjecit.knowledge.assistant.retrieval.keyword;
 
+import com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsChunkDocument;
 import com.lnjecit.knowledge.assistant.retrieval.model.RankedChunk;
 import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedDocument;
 import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshot;
@@ -31,7 +32,7 @@ public class KeywordChunkRepository {
         List<RankedChunk> result = new ArrayList<>();
         // 按 ES 原排名补全，PG 返回顺序不影响相关性和并列排序。
         for (KeywordSearchRepository.Candidate candidate : candidates) {
-            com.lnjecit.knowledge.assistant.infrastructure.elasticsearch.EsChunkDocument source = candidate.source();
+            EsChunkDocument source = candidate.source();
             KeywordChunkMapper.Row row = rows.get(Long.valueOf(source.chunk_id()));
             if (row == null
                     || !Objects.equals(row.knowledgeBaseId(), snapshot.knowledgeBaseId())

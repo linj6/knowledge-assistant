@@ -2,6 +2,12 @@ package com.lnjecit.knowledge.assistant.infrastructure.logging;
 
 import com.lnjecit.knowledge.assistant.common.RequestIdContext;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.sql.SQLException;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.slf4j.Logger;
 import org.springframework.core.env.Environment;
@@ -29,7 +35,7 @@ public final class FailureLog {
                 String value = environment.getProperty(key);
                 if (value != null && !value.isBlank()) {
                     SECRETS.addIfAbsent(value);
-                    SECRETS.addIfAbsent(java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8));
+                    SECRETS.addIfAbsent(URLEncoder.encode(value, StandardCharsets.UTF_8));
                 }
             } catch (RuntimeException unresolvedConfiguration) {
                 // 脱敏初始化不能改变原有配置校验及启动失败语义。
@@ -71,9 +77,9 @@ public final class FailureLog {
     }
 
     private static String sqlState(Throwable failure) {
-        java.util.Set<Throwable> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         for (Throwable current = failure; current != null && seen.add(current); current = current.getCause()) {
-            if (current instanceof java.sql.SQLException sql) return sql.getSQLState();
+            if (current instanceof SQLException sql) return sql.getSQLState();
         }
         return null;
     }

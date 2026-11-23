@@ -15,6 +15,10 @@ import jakarta.json.JsonNumber;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonValue;
 import java.io.IOException;
+import java.net.ConnectException;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -58,10 +62,10 @@ public class EsIntegrityService {
                     validateExpectedChunks(knowledgeBaseId, documentId, indexVersionId, expectedChunks);
             return refreshAndVerifySnapshot(indexName, knowledgeBaseId, documentId, indexVersionId, expectedChunksById);
         } catch (IOException failure) {
-            if (failure instanceof java.net.SocketTimeoutException
-                    || failure instanceof java.net.ConnectException
-                    || failure instanceof java.net.UnknownHostException
-                    || failure instanceof java.net.SocketException)
+            if (failure instanceof SocketTimeoutException
+                    || failure instanceof ConnectException
+                    || failure instanceof UnknownHostException
+                    || failure instanceof SocketException)
                 throw new IllegalStateException("ES_CONNECTION_OUTCOME_UNKNOWN", failure);
             throw new IllegalStateException("ES_VERIFICATION_FAILED", failure);
         } catch (RuntimeException failure) {

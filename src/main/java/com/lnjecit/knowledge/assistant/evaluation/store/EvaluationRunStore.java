@@ -5,22 +5,31 @@ import com.lnjecit.knowledge.assistant.evaluation.dataset.Sha256;
 import com.lnjecit.knowledge.assistant.evaluation.model.AnswerEvaluationRun;
 import com.lnjecit.knowledge.assistant.evaluation.model.EvaluationRunResponse;
 import com.lnjecit.knowledge.assistant.evaluation.model.RetrievalRunData;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /** 本地工作台；固定目录和文件白名单。 */
-@org.springframework.stereotype.Component
+@Component
 public class EvaluationRunStore {
     private final Path root;
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public EvaluationRunStore() {
         this(EvaluationFiles.ROOT);
     }
@@ -38,7 +47,7 @@ public class EvaluationRunStore {
     public List<Object> list() throws Exception {
         List<Object> result = new ArrayList<>();
         if (!Files.isDirectory(root)) return result;
-        try (java.util.stream.Stream<Path> paths = Files.list(root)) {
+        try (Stream<Path> paths = Files.list(root)) {
             for (Path path : paths.sorted().toList()) {
                 try {
                     result.add(read(path.getFileName().toString()));
@@ -121,12 +130,12 @@ public class EvaluationRunStore {
                     gold(manifest));
         } catch (ResponseStatusException invalid) {
             throw invalid;
-        } catch (java.nio.file.NoSuchFileException missing) {
+        } catch (NoSuchFileException missing) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "MISSING_FILE");
-        } catch (tools.jackson.core.JacksonException | IllegalArgumentException invalid) {
+        } catch (JacksonException | IllegalArgumentException invalid) {
             throw new ResponseStatusException(
                     HttpStatus.UNPROCESSABLE_ENTITY, "INVALID_RECORD_JSON_OR_PROTOCOL", invalid);
-        } catch (java.io.IOException failure) {
+        } catch (IOException failure) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "RUN_READ_FAILED", failure);
         } catch (Exception failure) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "RUN_READ_FAILED", failure);
@@ -154,9 +163,7 @@ public class EvaluationRunStore {
     /** 历史路径仅作为冻结输入哈希的键，不作为运行时加载位置。 */
     private GoldResponse gold(RetrievalRunData.RetrievalRunManifest manifest) {
         try {
-            byte[] fixtureBytes = new org.springframework.core.io.ClassPathResource(
-                            "evaluation/retrieval-metrics-v1.json")
-                    .getContentAsByteArray();
+            byte[] fixtureBytes = new ClassPathResource("evaluation/retrieval-metrics-v1.json").getContentAsByteArray();
             RetrievalRunData.RetrievalFixture fixture =
                     json.readValue(fixtureBytes, RetrievalRunData.RetrievalFixture.class);
             if (!manifest.mode().equals("LIVE")
@@ -164,15 +171,14 @@ public class EvaluationRunStore {
                             .equals(manifest.inputSha256().get("src/test/resources/retrieval-metrics-v1.json")))
                 throw new IllegalArgumentException();
             RetrievalRunData.GoldQuestion[] questions = json.readValue(
-                    new org.springframework.core.io.ClassPathResource("evaluation/m4-01-gold-evidence.json")
-                            .getContentAsByteArray(),
+                    new ClassPathResource("evaluation/m4-01-gold-evidence.json").getContentAsByteArray(),
                     RetrievalRunData.GoldQuestion[].class);
             List<RetrievalRunData.GoldQuestion> verified = new ArrayList<>();
             for (RetrievalRunData.GoldQuestion question : questions) {
                 for (RetrievalRunData.GoldQuestionIdentity frozen :
                         fixture.gold().questions()) {
                     if (!question.questionId().equals(frozen.questionId())) continue;
-                    if (!Sha256.digest(question.question().getBytes(java.nio.charset.StandardCharsets.UTF_8))
+                    if (!Sha256.digest(question.question().getBytes(StandardCharsets.UTF_8))
                                     .equals(frozen.querySha256())
                             || !question.sha256().equals(frozen.sourceSha256())
                             || !question.documentPath().equals(frozen.documentPath())
@@ -214,7 +220,7 @@ public class EvaluationRunStore {
                     EvaluationFiles.REPORT,
                     hash(temporary.resolve(EvaluationFiles.REPORT))));
             Files.writeString(temporary.resolve(EvaluationFiles.MANIFEST), json.writeValueAsString(manifest));
-            Files.move(temporary, root.resolve(manifest.runId()), java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+            Files.move(temporary, root.resolve(manifest.runId()), StandardCopyOption.ATOMIC_MOVE);
         } catch (Exception failure) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "RUN_PERSISTENCE_FAILED", failure);
         }

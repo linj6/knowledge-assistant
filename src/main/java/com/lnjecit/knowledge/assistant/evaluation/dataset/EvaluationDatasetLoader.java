@@ -4,6 +4,8 @@ import com.lnjecit.knowledge.assistant.evaluation.model.AnswerEvaluationDataset;
 import com.lnjecit.knowledge.assistant.evaluation.service.EvaluationService.Dataset;
 import com.lnjecit.knowledge.assistant.evaluation.store.EvaluationFiles;
 import org.springframework.core.io.ClassPathResource;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /** JSON 仅在加载边界使用，业务层消费已验证的类型化数据。 */
@@ -15,7 +17,7 @@ public final class EvaluationDatasetLoader {
 
     public Loaded load() throws Exception {
         byte[] bytes = resource.getContentAsByteArray();
-        tools.jackson.databind.JsonNode frozen = json.readTree(bytes);
+        JsonNode frozen = json.readTree(bytes);
         String fingerprint = FrozenFingerprint.answer(frozen);
         if (!EvaluationFiles.FINGERPRINT.equals(fingerprint)) {
             return new Loaded(null, null, "GOLD_FINGERPRINT_MISMATCH", null);
@@ -27,7 +29,7 @@ public final class EvaluationDatasetLoader {
         if (full.cases().stream().anyMatch(item -> !item.confirmed()))
             return new Loaded(null, null, "GOLD_UNCONFIRMED", null);
         Dataset dataset = json.readerFor(Dataset.class)
-                .without(tools.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .without(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .readValue(frozen);
         if (!EvaluationFiles.ANSWER_PROTOCOL.equals(dataset.protocol())
                 || dataset.schemaVersion() != 1

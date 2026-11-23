@@ -211,7 +211,7 @@ public class AnswerReviewService {
                 input.datasetVersion(),
                 input.freezeFingerprint(),
                 run.manifest().status().name(),
-                failed ? "FAILED" : answer == null ? "" : answer.status().name(),
+                answerStatus(failed, answer),
                 answer == null ? null : answer.answer(),
                 answer == null || answer.answer() == null,
                 citations(run),
@@ -233,5 +233,10 @@ public class AnswerReviewService {
                 coverage,
                 input.claims() == null ? List.of() : input.claims());
         return AnswerMetrics.calculate(datasetInput, material.gold(), review);
+    }
+
+    private static String answerStatus(boolean failed, RagAnswer answer) {
+        if (failed) return "FAILED";
+        return answer == null ? "" : answer.status().name();
     }
 }

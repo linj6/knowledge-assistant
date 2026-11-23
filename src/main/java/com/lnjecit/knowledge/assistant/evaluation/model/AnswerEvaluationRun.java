@@ -1,5 +1,6 @@
 package com.lnjecit.knowledge.assistant.evaluation.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.lnjecit.knowledge.assistant.evaluation.service.EvaluationService;
 import com.lnjecit.knowledge.assistant.rag.RagService.RagExecutionResult;
 import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshot;
@@ -43,9 +44,7 @@ public final class AnswerEvaluationRun {
         }
     }
 
-    public record Results(
-            @com.fasterxml.jackson.annotation.JsonProperty("case") EvaluationService.GoldCase goldCase,
-            RagExecutionResult execution) {}
+    public record Results(@JsonProperty("case") EvaluationService.GoldCase goldCase, RagExecutionResult execution) {}
 
     public record Response(String runId, Manifest manifest, Results results) implements EvaluationRunResponse {}
 }

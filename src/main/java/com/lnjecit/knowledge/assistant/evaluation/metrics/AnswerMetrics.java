@@ -23,6 +23,7 @@ import com.lnjecit.knowledge.assistant.evaluation.model.AnswerEvaluationDataset.
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -121,7 +122,7 @@ public final class AnswerMetrics {
                     claim.path("correctness").asString(),
                     claim.path("support").asString(),
                     new ArrayList<>(strings(claim.path("citationIds")))));
-        Map<String, String> coverage = new java.util.LinkedHashMap<>();
+        Map<String, String> coverage = new LinkedHashMap<>();
         review.path("factCoverage")
                 .properties()
                 .forEach(e -> coverage.put(e.getKey(), e.getValue().asString()));
@@ -154,7 +155,8 @@ public final class AnswerMetrics {
     }
 
     private static State judgment(String value) {
-        return PASS.equals(value) ? State.PASS : FAIL.equals(value) ? State.FAIL : State.PENDING;
+        if (PASS.equals(value)) return State.PASS;
+        return FAIL.equals(value) ? State.FAIL : State.PENDING;
     }
 
     private static State all(List<State> values) {
@@ -286,7 +288,9 @@ public final class AnswerMetrics {
     }
 
     private static State completeness(AnswerReview review, boolean knowledge) {
-        return !knowledge ? State.NA : !review.answered() ? State.FAIL : all(review.coverage());
+        if (!knowledge) return State.NA;
+        if (!review.answered()) return State.FAIL;
+        return all(review.coverage());
     }
 
     private static State validity(AnswerReview review) {
@@ -322,7 +326,12 @@ public final class AnswerMetrics {
             supported.add(State.PENDING);
         }
         State correctness = factual.isEmpty() ? State.NA : all(factual);
-        State support = !review.answered() ? State.NA : supported.isEmpty() ? State.PENDING : all(supported);
+        State support;
+        if (!review.answered()) {
+            support = State.NA;
+        } else {
+            support = supported.isEmpty() ? State.PENDING : all(supported);
+        }
         if (review.answered() && inventoryComplete && support != State.PENDING && !used.containsAll(actual))
             support = State.FAIL;
         return new ClaimScores(correctness, support);
@@ -380,7 +389,7 @@ public final class AnswerMetrics {
             else if (result.reviewComplete()) reviewed++;
             else pending++;
         }
-        Map<String, Metric> metrics = new java.util.LinkedHashMap<>();
+        Map<String, Metric> metrics = new LinkedHashMap<>();
         for (String dimension :
                 List.of("appropriateness", "correctness", "completeness", "validity", "support", "wholeCase")) {
             Map<State, Integer> counts = new EnumMap<>(State.class);

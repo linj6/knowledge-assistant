@@ -1,8 +1,10 @@
 package com.lnjecit.knowledge.assistant.ingestion.chunk;
 
+import com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingProperties;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.beans.factory.InitializingBean;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
@@ -11,11 +13,11 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConfigurationProperties("assistant.chunking")
 public class ChunkingProperties implements InitializingBean {
-    @org.springframework.beans.factory.annotation.Autowired
-    private com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingProperties embeddingProperties;
+    @Autowired
+    private EmbeddingProperties embeddingProperties;
 
     private int version;
-    private com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy strategy;
+    private ChunkingStrategy strategy;
     private int chunkSize;
     private int chunkOverlap;
 

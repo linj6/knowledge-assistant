@@ -15,6 +15,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.metadata.EmptyUsage;
+import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
@@ -133,9 +135,8 @@ public class AnswerGenerator {
             if (response != null && response.getMetadata() != null) {
                 if (response.getMetadata().getModel() != null)
                     modelId = response.getMetadata().getModel();
-                org.springframework.ai.chat.metadata.Usage source =
-                        response.getMetadata().getUsage();
-                if (source != null && !(source instanceof org.springframework.ai.chat.metadata.EmptyUsage))
+                Usage source = response.getMetadata().getUsage();
+                if (source != null && !(source instanceof EmptyUsage))
                     usage = new RawGenerationResult.Usage(
                             source.getPromptTokens(), source.getCompletionTokens(), source.getTotalTokens());
             }
