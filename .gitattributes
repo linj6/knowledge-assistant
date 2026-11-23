@@ -1,0 +1,4 @@
+/src/main/resources/static/**/*.html text eol=lf
+/src/main/resources/static/**/*.css text eol=lf
+/src/main/resources/static/**/*.js text eol=lf
+/src/test/js/**/*.mjs text eol=lf
