@@ -20,7 +20,15 @@ Knowledge Assistant 是一个基于 Java / Spring AI 的个人知识库与 RAG �
 
 ## 快速启动
 
-先按[开始使用](docs/getting-started.md)准备 JDK、Maven、基础设施镜像和本地配置。使用 local Profile 启动后访问 `http://localhost:8080/api/index.html`。
+推荐在 Windows 上启动 Docker Desktop，切换到 Linux amd64 容器模式，然后在仓库根目录运行：
+
+```powershell
+.\start.ps1
+```
+
+首次运行时，输入 `YES` 显式授权在线调用及可能产生的费用，再按隐藏输入提示填写阿里云百炼 API Key。输入 `NO` 也可继续部署，在线模型和导入 Worker 保持关闭。脚本会构建镜像、启动应用和基础设施、执行 Flyway 迁移、初始化 MinIO Bucket 和生命周期规则，并在健康检查通过后打开 `http://127.0.0.1:8080/api/index.html`。
+
+完整参数、资源实测和排查方法见 [Windows 一键部署](docs/getting-started.md#windows-一键部署)。需要使用 JDK、Maven 或 IDEA 调试时，参见[开发模式的环境准备](docs/getting-started.md#环境与基础设施)和 [local Profile 启动说明](docs/getting-started.md#应用配置与启动)。
 
 | 文档 | 内容 |
 | --- | --- |
@@ -34,4 +42,8 @@ Knowledge Assistant 是一个基于 Java / Spring AI 的个人知识库与 RAG �
 
 ## 当前限制
 
-MinIO 固定镜像的获取、校验和导入流程见[镜像交付说明](infra/minio/README.md)。新环境端到端部署仍待验证。完整导入与问答需要模型配置，在线模型调用默认关闭并要求显式授权，真实请求可能计费。现有多轮上下文限于单个会话。跨会话长期记忆、Agent、Workflow、MCP、Skills 和 Harness 均未实现。评估工作台的 HTTP 路由在当前安全配置中禁用。
+Windows Docker Desktop 下的独立空引擎已通过冷部署验收，初始镜像、构建缓存和数据卷均为空。真实在线业务 E2E 已通过，百炼请求经计数网关转发。标准 Compose 网络下已验证百炼 Endpoint 配置及 DNS、TCP、TLS 直连，带密钥直连的 Chat 和 Embedding 尚未实测。
+
+完整导入与问答需要模型配置。在线模型默认关闭，须显式授权，真实请求可能计费。首次构建需为镜像、缓存及持久化卷预留资源，实测耗时和资源用量见 [Windows 一键部署](docs/getting-started.md#windows-一键部署)。MinIO 固定镜像的获取、校验和导入流程见[镜像交付说明](infra/minio/README.md)。
+
+现有多轮上下文限于单个会话。跨会话长期记忆、Agent、Workflow、MCP、Skills 和 Harness 均未实现。评估工作台的 HTTP 路由在当前安全配置中禁用。
