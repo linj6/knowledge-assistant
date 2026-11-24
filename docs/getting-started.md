@@ -14,6 +14,10 @@
 
 已有匹配的 MinIO 本地镜像会直接复用。否则，脚本从固定的 MinIO Server 和 mc 上游 GitHub 提交获取源码，校验 SHA-256 后在 Docker 中编译。首次构建还需访问 GitHub 和 Go 模块下载源。
 
+全新环境需要下载基础镜像和构建依赖，并编译 MinIO 和应用。耗时受网络、CPU 和磁盘速度影响。一次 Windows Docker Desktop 验收使用了独立的 Linux amd64 Docker Engine 29.10.0，起始镜像、构建缓存和数据卷均为空。三次脚本执行合计约 21 分钟，包含两次仓库认证失败及其后续续跑，且续跑保留了当次下载的层和构建产物。
+
+该引擎可用资源为 8 个逻辑 CPU、约 7.7 GiB 内存，验收后引擎报告镜像约 4.3 GB、构建缓存约 8.8 GB。以上为一次实测，耗时和资源占用会随环境变化。请为镜像、构建缓存和持久化数据预留磁盘空间。
+
 应用健康检查通过后，脚本打开 `http://127.0.0.1:8080/api/index.html`。使用 `-NoBrowser` 可跳过打开浏览器。端口被占用时可调整 `.env.onboarding` 中的 `KA_WEB_PORT`。基础设施端口仅在 Compose 网络内可达。
 
 保留 `.env.onboarding` 以复用凭据，并与数据卷一起备份。脚本在检测到已有部署资源而配置缺失时会停止。原有 IDEA 开发环境继续使用下文的配置及项目。
@@ -26,6 +30,12 @@
 - 运行 `./start.ps1 -RevokeModelAuthorization` 会停止旧应用容器、清除本地密钥，并以在线模型和 Worker 关闭的配置启动。该操作只撤销本部署的授权。若要作废密钥本身，请在阿里云百炼控制台处理。
 
 密钥和授权一起原子写入 Git 忽略的 `.onboarding-model/online.properties`。文件以明文保存在 Windows 本地，通过只读绑定挂载交给 Spring。Compose 环境变量只携带配置路径和非敏感版本号，`docker inspect` 可看到挂载路径。能读取宿主机文件或可通过 Docker 访问容器文件的用户仍可读取密钥。请限制该目录的访问权限，并避免分享配置文件。脚本仅检查密钥格式，实际可用性由后续在线调用验证。
+
+### 一键部署故障排查
+
+- 构建在 Docker Hub 匿名认证或镜像下载阶段超时时，检查 Windows 与 Docker Linux 引擎到 `auth.docker.io` 和镜像仓库的网络。两侧的网络路径可能不同。恢复构建客户端和引擎所需的网络访问后，重新运行 `.\start.ps1`，保留已生成的配置和数据卷。
+- 如脚本提示 Web 端口不可用，调整 `.env.onboarding` 的 `KA_WEB_PORT` 后重试。若应用仍未启动，先用 `docker ps -a --filter label=com.docker.compose.project=knowledge-assistant-onboarding` 查看容器状态，再检查失败容器的日志。MinIO 初始化报告规则冲突时，按 [MinIO 生命周期说明](../infra/minio/README.md) 核对 Bucket 和现有规则。
+- 可在应用容器内对 `https://dashscope.aliyuncs.com/compatible-mode/v1/models` 发起不带凭据的 HTTPS GET。证书校验通过且收到 HTTP 401 表明 DNS、TCP 和 TLS 路径已连通。密钥有效性与真实 Chat、Embedding 调用仍需另行验证。
 
 ## 环境与基础设施
 
