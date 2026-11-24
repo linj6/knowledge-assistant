@@ -21,6 +21,12 @@ public class UserMemoryRepository {
         return mapper.selectList(owned(userId).orderByDesc(UserMemory::getUpdatedAt, UserMemory::getId));
     }
 
+    public List<UserMemory> listEnabledOwned(long userId) {
+        return mapper.selectList(owned(userId)
+                .eq(UserMemory::getEnabled, true)
+                .orderByDesc(UserMemory::getUpdatedAt, UserMemory::getId));
+    }
+
     public long countOwned(long userId) {
         return mapper.selectCount(owned(userId));
     }

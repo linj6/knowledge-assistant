@@ -7,6 +7,10 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.lnjecit.knowledge.assistant.KnowledgeAssistantApplication;
+import com.lnjecit.knowledge.assistant.memory.dto.RecalledMemory;
+import com.lnjecit.knowledge.assistant.memory.entity.MemoryType;
+import com.lnjecit.knowledge.assistant.memory.service.MemoryRecallService;
+import com.lnjecit.knowledge.assistant.memory.service.MemoryService;
 import javax.sql.DataSource;
 import org.apache.ibatis.annotations.Mapper;
 import org.junit.jupiter.api.Test;
@@ -28,6 +32,46 @@ class MybatisCompatibilityTests {
                             "pgvector/pgvector:0.8.0-pg17@sha256:40b404964359299eefdd5f8518facf1886c562848cf4de13b6eaf91cb70c2b87")
                     .asCompatibleSubstituteFor("postgres"))
             .withImagePullPolicy(image -> false);
+
+    @Test
+    void memoryRecallReadsOnlyLatestEnabledOwnedRowsInStableOrder() {
+        SpringApplication application = new SpringApplication(KnowledgeAssistantApplication.class);
+        application.setWebApplicationType(WebApplicationType.NONE);
+        try (ConfigurableApplicationContext context = application.run(
+                "--spring.datasource.url=" + postgres.getJdbcUrl(),
+                "--spring.datasource.username=" + postgres.getUsername(),
+                "--spring.datasource.password=" + postgres.getPassword(),
+                "--assistant.model.enabled=false",
+                "--assistant.rerank.enabled=false")) {
+            JdbcTemplate jdbc = new JdbcTemplate(context.getBean(DataSource.class));
+            jdbc.execute(
+                    """
+                    INSERT INTO app_user(id, username, password_hash, status, memory_enabled)
+                    VALUES (1, 'recall-owner', 'test-only', 'ACTIVE', true),
+                           (2, 'recall-other', 'test-only', 'ACTIVE', true)
+                    """);
+            jdbc.execute(
+                    """
+                    INSERT INTO user_memory(id, user_id, type, content, source_type, enabled, updated_at)
+                    VALUES (10, 1, 'BACKGROUND', 'first', 'MANUAL', true, '2025-02-01T00:00:00Z'),
+                           (11, 1, 'BACKGROUND', 'second', 'MANUAL', true, '2025-02-01T00:00:00Z'),
+                           (12, 1, 'BACKGROUND', 'disabled', 'MANUAL', false, '2025-03-01T00:00:00Z'),
+                           (13, 2, 'BACKGROUND', 'other user', 'MANUAL', true, '2025-03-01T00:00:00Z'),
+                           (14, 1, 'BACKGROUND', 'older', 'MANUAL', true, '2025-01-01T00:00:00Z')
+                    """);
+
+            MemoryRecallService recall = context.getBean(MemoryRecallService.class);
+            MemoryService management = context.getBean(MemoryService.class);
+            assertThat(recall.recall(1, "Java")).extracting(RecalledMemory::id).containsExactly(11L, 10L, 14L);
+
+            management.update(1, 14, MemoryType.LEARNING_GOAL, "updated", " java ", true);
+            assertThat(recall.recall(1, "Java").getFirst())
+                    .isEqualTo(new RecalledMemory(14, MemoryType.LEARNING_GOAL, "updated"));
+            management.update(1, 14, MemoryType.LEARNING_GOAL, "updated", " java ", false);
+            management.delete(1, 10);
+            assertThat(recall.recall(1, "Java")).extracting(RecalledMemory::id).containsExactly(11L);
+        }
+    }
 
     @TableName("compatibility_probe")
     public static class Probe {

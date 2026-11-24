@@ -36,6 +36,10 @@ spring:
     enabled: true
     baseline-on-migrate: false
 assistant:
+  memory:
+    recall:
+      max-memories: 10
+      estimated-token-budget: 1000
   rag:
     query-rewrite:
       enabled: false
