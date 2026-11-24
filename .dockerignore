@@ -1,0 +1,15 @@
+**
+!Dockerfile
+!pom.xml
+!src/
+!src/**
+!infra/
+!infra/minio/
+!infra/minio/Dockerfile.init
+!infra/minio/Dockerfile.source
+!infra/minio/configure-staging-ilm.py
+**/.env
+**/.env.*
+**/application-secrets.*
+**/application-local.*
+!src/main/resources/application-local.yml

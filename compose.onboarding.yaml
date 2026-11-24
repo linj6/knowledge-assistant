@@ -1,0 +1,59 @@
+services:
+  redis:
+    ports: !reset []
+  postgres:
+    ports: !reset []
+  elasticsearch:
+    image: knowledge-assistant-onboarding-elasticsearch:8.18.0-ik8.18.0
+    ports: !reset []
+  minio:
+    image: ${KA_ONBOARDING_MINIO_IMAGE:?Run start.ps1}
+    ports: !reset []
+  minio-init:
+    build:
+      context: .
+      dockerfile: infra/minio/Dockerfile.init
+      args:
+        MINIO_IMAGE: ${KA_ONBOARDING_MINIO_IMAGE:?Run start.ps1}
+    environment:
+      MINIO_ROOT_USER: ${KA_INFRA_MINIO_USER:?Run start.ps1}
+      MINIO_ROOT_PASSWORD: ${KA_INFRA_MINIO_PASSWORD:?Run start.ps1}
+      KA_MINIO_BUCKET: ${KA_MINIO_BUCKET:-knowledge-assistant}
+    command: [--initialize]
+    depends_on:
+      minio:
+        condition: service_healthy
+  app:
+    build: .
+    ports: ["127.0.0.1:${KA_WEB_PORT:-8080}:8080"]
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_SERVLET_SESSION_COOKIE_SECURE: "false"
+      KA_DB_URL: jdbc:postgresql://postgres:5432/ka
+      KA_DB_USERNAME: ka
+      KA_DB_PASSWORD: ${KA_INFRA_PG_PASSWORD:?Run start.ps1}
+      KA_REDIS_HOST: redis
+      ASSISTANT_ELASTICSEARCH_ENABLED: "true"
+      KA_ES_ENDPOINT: http://elasticsearch:9200
+      KA_MINIO_ENDPOINT: http://minio:9000
+      KA_INFRA_MINIO_USER: ${KA_INFRA_MINIO_USER:?Run start.ps1}
+      KA_INFRA_MINIO_PASSWORD: ${KA_INFRA_MINIO_PASSWORD:?Run start.ps1}
+      KA_MINIO_BUCKET: ${KA_MINIO_BUCKET:-knowledge-assistant}
+      ASSISTANT_MODEL_ENABLED: "false"
+      ASSISTANT_MODEL_EMBEDDING_MODEL: text-embedding-v4
+      ASSISTANT_RERANK_ENABLED: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, curl, -fsS, http://127.0.0.1:8080/api/index.html]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 24

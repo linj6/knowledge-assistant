@@ -1,6 +1,7 @@
-"""Run against the existing Compose MinIO, or an explicitly selected test container."""
+"""Configure staging ILM from the deployment init container or through Docker exec."""
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -51,19 +52,29 @@ def main():
     parser.add_argument("--bucket", default="knowledge-assistant")
     parser.add_argument("--container", help="Test container ID; otherwise use docker compose exec minio")
     parser.add_argument("--check", action="store_true", help="Read-only deployment check")
+    parser.add_argument("--initialize", action="store_true", help="Create bucket and configure ILM from the Compose init container")
     args = parser.parse_args()
+    if args.initialize:
+        if args.container or args.check:
+            parser.error("--initialize cannot be combined with --container or --check")
+        args.bucket = os.getenv("KA_MINIO_BUCKET", args.bucket)
     if not re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", args.bucket):
         raise RuntimeError("Invalid bucket name")
-    base = ["docker", "exec", args.container] if args.container else ["docker", "compose", "exec", "-T", "minio"]
+    base = []
+    endpoint = "http://minio:9000" if args.initialize else "http://localhost:9000"
+    if not args.initialize:
+        base = ["docker", "exec", args.container] if args.container else ["docker", "compose", "exec", "-T", "minio"]
 
     def run(command):
         return subprocess.run(base + command, capture_output=True, text=True)
 
     # Credentials expand only inside the container; never print command output on errors.
-    alias = run(["sh", "-c", 'mc alias set ka-ilm http://localhost:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null'])
+    alias = run(["sh", "-c", 'mc alias set ka-ilm "$1" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"', "sh", endpoint])
     if alias.returncode:
         raise RuntimeError("MinIO alias setup failed")
     target = "ka-ilm/" + args.bucket
+    if args.initialize and run(["mc", "mb", "--ignore-existing", target]).returncode:
+        raise RuntimeError("Bucket initialization failed")
 
     def export():
         result = run(["mc", "--json", "ilm", "rule", "export", target])

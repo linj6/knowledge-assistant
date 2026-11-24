@@ -52,7 +52,7 @@ class StagingIlmTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "review manually|rejected"):
                     ilm.validate({"Rules": [rule(), conflict]})
 
-    def run_cli(self, config, check=False):
+    def run_cli(self, config, check=False, initialize=False):
         calls = []
 
         def run(command, **kwargs):
@@ -64,9 +64,25 @@ class StagingIlmTests(unittest.TestCase):
             return subprocess.CompletedProcess(command, 0, "", "")
 
         args = ["configure-staging-ilm.py", "--bucket", "knowledge-assistant"] + (["--check"] if check else [])
-        with patch.object(ilm.subprocess, "run", side_effect=run), patch("sys.argv", args), patch("builtins.print"):
+        if initialize:
+            args.append("--initialize")
+        with (
+            patch.object(ilm.subprocess, "run", side_effect=run),
+            patch("sys.argv", args),
+            patch("builtins.print"),
+            patch.dict("os.environ", {"KA_MINIO_BUCKET": "onboarding-bucket"}),
+        ):
             ilm.main()
         return calls
+
+    def test_initialize_creates_bucket_before_checking_lifecycle(self):
+        config = {"Rules": []}
+        calls = self.run_cli(config, initialize=True)
+        self.assertEqual(calls[0][-1], "http://minio:9000")
+        self.assertEqual(calls[1], ["mc", "mb", "--ignore-existing", "ka-ilm/onboarding-bucket"])
+        self.assertEqual(calls[2][-1], "ka-ilm/onboarding-bucket")
+        self.assertTrue(ilm.validate(config))
+        self.assertFalse(any("add" in c for c in self.run_cli(config, initialize=True)))
 
     def test_repeated_configuration_preserves_other_rules(self):
         for initial in ([], [rule("archive/", 30)], [rule("", 1, "Disabled")]):

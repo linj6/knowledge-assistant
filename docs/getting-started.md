@@ -1,5 +1,25 @@
 # 开始使用
 
+## Windows 一键部署预览（P1-01）
+
+启动 Docker Desktop 并切换到 Linux amd64 容器模式。在仓库根目录运行：
+
+```powershell
+.\start.ps1
+```
+
+如果 Windows PowerShell 因本机执行策略拒绝运行 Git 检出的脚本，可使用 `powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File .\start.ps1`，策略仅应用于该进程。
+
+脚本生成 Git 忽略的 `.env.onboarding`，检查 Web 端口，准备 MinIO 镜像并构建应用，然后启动独立的 `knowledge-assistant-onboarding` Compose 项目。首次构建需要访问镜像仓库、Maven 仓库及 IK 安装包下载源。JDK、Maven 和 ILM 所需的 Python 随容器提供。PostgreSQL、Redis、Elasticsearch 和 MinIO 使用该项目的持久化卷。MinIO 初始化服务沿用 `staging/` 两天过期规则，发现冲突时停止启动并保留现有规则。数据库由应用启动时的 Flyway 迁移初始化。
+
+已有匹配的 MinIO 本地镜像会直接复用。否则，脚本从固定的 MinIO Server 和 mc 上游 GitHub 提交获取源码，校验 SHA-256 后在 Docker 中编译。首次构建还需访问 GitHub 和 Go 模块下载源。
+
+应用健康检查通过后，脚本打开 `http://127.0.0.1:8080/api/index.html`。使用 `-NoBrowser` 可跳过打开浏览器。端口被占用时可调整 `.env.onboarding` 中的 `KA_WEB_PORT`。基础设施端口仅在 Compose 网络内可达。
+
+保留 `.env.onboarding` 以复用凭据，并与数据卷一起备份。脚本在检测到已有部署资源而配置缺失时会停止。原有 IDEA 开发环境继续使用下文的配置及项目。
+
+当前阶段保持在线模型和导入 Worker 关闭。首次 API Key 配置、费用授权及真实在线检索与 RAG 验证将在后续阶段完成。
+
 ## 环境与基础设施
 
 准备 JDK 21、Maven 3.9、Docker 与 Compose v2。执行 MinIO 生命周期脚本还需 Python 3。[Compose](../compose.yaml) 使用 PostgreSQL 17 / pgvector 0.8.0（固定 digest）、Redis 7.4.11、Elasticsearch 8.18.0 / IK 8.18.0，以及本地 MinIO 镜像。ES 构建需要获取基础镜像和 [IK 安装包](../infra/elasticsearch/Dockerfile)。Compose 将 PG、Redis、ES、MinIO API 和控制台分别绑定到回环地址的 5432、6379、9200、9000、9001 端口。

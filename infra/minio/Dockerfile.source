@@ -1,0 +1,22 @@
+# syntax=docker/dockerfile:1
+FROM golang:1.24.6-bookworm AS build
+ENV CGO_ENABLED=0 GOTOOLCHAIN=local
+
+WORKDIR /src/minio
+ADD --checksum=sha256:8819e3e7817e46b7b3798f8f200ead208562e571563c2e040352378031abe9f2 https://codeload.github.com/minio/minio/tar.gz/07c3a429bfed433e49018cb0f78a52145d4bedeb /tmp/minio.tar.gz
+RUN tar -xzf /tmp/minio.tar.gz --strip-components=1 && \
+    go build -mod=readonly -trimpath -tags kqueue -o /out/minio .
+
+WORKDIR /src/mc
+ADD --checksum=sha256:95cd293c7119f16921a6dc515a1fb74a2227f19fd994b9c8b770a154e802ac44 https://codeload.github.com/minio/mc/tar.gz/7394ce0dd2a80935aded936b09fa12cbb3cb8096 /tmp/mc.tar.gz
+RUN tar -xzf /tmp/mc.tar.gz --strip-components=1 && \
+    go build -mod=readonly -trimpath -tags kqueue -o /out/mc .
+
+FROM debian:bookworm-slim
+RUN apt-get -o Acquire::Retries=3 update && \
+    apt-get -o Acquire::Retries=3 install -y --no-install-recommends ca-certificates curl && \
+    rm -rf /var/lib/apt/lists/*
+COPY --from=build /out/minio /out/mc /usr/bin/
+COPY --from=build /src/minio/LICENSE /src/minio/CREDITS /usr/share/doc/minio/
+COPY --from=build /src/mc/LICENSE /src/mc/CREDITS /usr/share/doc/mc/
+ENTRYPOINT ["/usr/bin/minio"]

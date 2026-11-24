@@ -1,0 +1,6 @@
+ARG MINIO_IMAGE=knowledge-assistant-onboarding-minio:2025-09-07-source
+FROM ${MINIO_IMAGE} AS minio
+FROM python:3.13-slim
+COPY --from=minio /usr/bin/mc /usr/local/bin/mc
+COPY infra/minio/configure-staging-ilm.py /configure-staging-ilm.py
+ENTRYPOINT ["python", "/configure-staging-ilm.py"]
