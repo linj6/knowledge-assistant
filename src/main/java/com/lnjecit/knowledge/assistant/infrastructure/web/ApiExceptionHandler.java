@@ -49,11 +49,15 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         // 公共码显式映射；领域自定义码默认 400，后续按实际需要在 Web 层扩展。
         if (!(code instanceof CommonErrorCode commonCode)) return HttpStatus.BAD_REQUEST;
         return switch (commonCode) {
-            case NOT_FOUND, KNOWLEDGE_BASE_NOT_FOUND, CONVERSATION_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case NOT_FOUND, KNOWLEDGE_BASE_NOT_FOUND, CONVERSATION_NOT_FOUND, MEMORY_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case METHOD_NOT_ALLOWED -> HttpStatus.METHOD_NOT_ALLOWED;
             case UNSUPPORTED_MEDIA_TYPE -> HttpStatus.UNSUPPORTED_MEDIA_TYPE;
             case INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
-            case USERNAME_EXISTS, TURN_ID_CONFLICT, TURN_IN_PROGRESS -> HttpStatus.CONFLICT;
+            case USERNAME_EXISTS,
+                    TURN_ID_CONFLICT,
+                    TURN_IN_PROGRESS,
+                    MEMORY_DUPLICATE,
+                    MEMORY_LIMIT_REACHED -> HttpStatus.CONFLICT;
             case INVALID_ARGUMENT -> HttpStatus.BAD_REQUEST;
         };
     }

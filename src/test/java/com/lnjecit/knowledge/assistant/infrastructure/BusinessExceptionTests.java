@@ -61,8 +61,12 @@ class BusinessExceptionTests {
         for (CommonErrorCode code : codes) {
             int expectedStatus =
                     switch (code) {
-                        case KNOWLEDGE_BASE_NOT_FOUND, CONVERSATION_NOT_FOUND, NOT_FOUND -> 404;
-                        case USERNAME_EXISTS, TURN_ID_CONFLICT, TURN_IN_PROGRESS -> 409;
+                        case KNOWLEDGE_BASE_NOT_FOUND, CONVERSATION_NOT_FOUND, MEMORY_NOT_FOUND, NOT_FOUND -> 404;
+                        case USERNAME_EXISTS,
+                                TURN_ID_CONFLICT,
+                                TURN_IN_PROGRESS,
+                                MEMORY_DUPLICATE,
+                                MEMORY_LIMIT_REACHED -> 409;
                         case INVALID_ARGUMENT -> 400;
                         case METHOD_NOT_ALLOWED -> 405;
                         case UNSUPPORTED_MEDIA_TYPE -> 415;

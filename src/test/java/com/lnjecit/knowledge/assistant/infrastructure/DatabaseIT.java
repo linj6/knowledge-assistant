@@ -706,6 +706,8 @@ class DatabaseIT {
         List<String> before = existingRows(jdbc);
         try (ConfigurableApplicationContext context = start()) {
             assertThat(existingRows(jdbc)).isEqualTo(before);
+            assertThat(jdbc.queryForObject("SELECT memory_enabled FROM app_user WHERE id = 1", Boolean.class))
+                    .isFalse();
             assertThat(jdbc.queryForObject(
                             "SELECT count(*) FROM flyway_schema_history WHERE version = '8' AND success",
                             Integer.class))
@@ -823,7 +825,7 @@ class DatabaseIT {
     private List<String> existingRows(JdbcTemplate jdbc) {
         return jdbc.queryForList(
                 """
-                SELECT to_jsonb(r)::text FROM app_user r
+                SELECT (to_jsonb(r) - 'memory_enabled')::text FROM app_user r
                 UNION ALL SELECT to_jsonb(r)::text FROM knowledge_base r
                 UNION ALL SELECT to_jsonb(r)::text FROM document r
                 UNION ALL SELECT to_jsonb(r)::text FROM document_index_version r

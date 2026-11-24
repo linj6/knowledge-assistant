@@ -3,6 +3,9 @@ package com.lnjecit.knowledge.assistant.common.error;
 public enum CommonErrorCode implements ErrorCode {
     KNOWLEDGE_BASE_NOT_FOUND(40401, "知识库不存在"),
     CONVERSATION_NOT_FOUND(40402, "会话不存在"),
+    MEMORY_NOT_FOUND(40403, "记忆不存在"),
+    MEMORY_DUPLICATE(40903, "相同记忆已存在"),
+    MEMORY_LIMIT_REACHED(40904, "记忆数量已达上限"),
     USERNAME_EXISTS(40900, "用户名已存在"),
     TURN_ID_CONFLICT(40901, "Turn ID 已用于其他问题"),
     TURN_IN_PROGRESS(40902, "会话已有正在执行的 Turn"),

@@ -23,4 +23,5 @@ public class User {
     private UserStatus status;
 
     private Instant createdAt;
+    private Boolean memoryEnabled;
 }

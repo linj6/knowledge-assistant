@@ -39,6 +39,11 @@ class AuthBusinessHttpTests {
     private final JsonMapper json = JsonMapper.builder().build();
 
     private ConfigurableApplicationContext start(PostgreSQLContainer pg, int redis, String namespace) {
+        return start(pg.getJdbcUrl(), pg.getUsername(), pg.getPassword(), redis, namespace);
+    }
+
+    private ConfigurableApplicationContext start(
+            String url, String username, String password, int redis, String namespace) {
         SpringApplication application = new SpringApplication(KnowledgeAssistantApplication.class);
         application.addInitializers(context -> ((GenericApplicationContext) context)
                 .registerBean(
@@ -61,9 +66,9 @@ class AuthBusinessHttpTests {
         });
         return application.run(
                 "--server.port=0",
-                "--spring.datasource.url=" + pg.getJdbcUrl(),
-                "--spring.datasource.username=" + pg.getUsername(),
-                "--spring.datasource.password=" + pg.getPassword(),
+                "--spring.datasource.url=" + url,
+                "--spring.datasource.username=" + username,
+                "--spring.datasource.password=" + password,
                 "--spring.data.redis.port=" + redis,
                 "--spring.session.data.redis.namespace=" + namespace,
                 "--assistant.model.enabled=false",
@@ -412,6 +417,123 @@ class AuthBusinessHttpTests {
                                 + "Content-Type: text/markdown\r\n\r\nowned upload\r\n--auth04--\r\n"))
                 .build();
         return client.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    @Test
+    void managesExplicitMemoryWithOwnershipAndCapacity() throws Exception {
+        try (PostgreSQLContainer pg = new PostgreSQLContainer(DockerImageName.parse(
+                                        "pgvector/pgvector:0.8.0-pg17@sha256:40b404964359299eefdd5f8518facf1886c562848cf4de13b6eaf91cb70c2b87")
+                                .asCompatibleSubstituteFor("postgres"))
+                        .withImagePullPolicy(image -> false);
+                GenericContainer<?> redis = new GenericContainer<>("redis:7.4.11")
+                        .withExposedPorts(6379)
+                        .withImagePullPolicy(image -> false)) {
+            pg.start();
+            redis.start();
+            try (ConfigurableApplicationContext app =
+                    start(pg, redis.getMappedPort(6379), "mem01:" + UUID.randomUUID())) {
+                verifyMemory(app);
+            }
+        }
+    }
+
+    private void verifyMemory(ConfigurableApplicationContext app) throws Exception {
+        String memories = "memories";
+        String settings = "memory/settings";
+        error(send(app, "GET", memories, null, null, null), 401);
+        String owner = registerAndLogin(app, "memoryowner");
+        String other = registerAndLogin(app, "memoryother");
+        String csrf = token(send(app, "GET", "auth/csrf", owner, null, null));
+        String otherCsrf = token(send(app, "GET", "auth/csrf", other, null, null));
+        String body =
+                """
+                {"type":"BACKGROUND","content":"  Java  ","keywords":"jvm","userId":"1","enabled":false}
+                """;
+        error(send(app, "POST", memories, owner, null, body), 403);
+        assertThat(memoryData(send(app, "GET", settings, owner, null, null))
+                        .path("memoryEnabled")
+                        .asBoolean())
+                .isFalse();
+        error(send(app, "PUT", settings, owner, csrf, "{}"), 400);
+        for (boolean enabled : new boolean[] {true, false}) {
+            assertThat(memoryData(send(app, "PUT", settings, owner, csrf, "{\"memoryEnabled\":" + enabled + "}"))
+                            .path("memoryEnabled")
+                            .asBoolean())
+                    .isEqualTo(enabled);
+        }
+        error(send(app, "POST", memories, owner, csrf, body.replace("Java", "")), 400);
+        error(send(app, "POST", memories, owner, csrf, body.replace("Java", "x".repeat(501))), 400);
+        error(send(app, "POST", memories, owner, csrf, body.replace("jvm", "x".repeat(201))), 400);
+        error(send(app, "POST", memories, owner, csrf, body.replace("BACKGROUND", "UNKNOWN")), 400);
+        JsonNode created = memoryData(send(app, "POST", memories, owner, csrf, body));
+        assertThat(created.path("content").asString()).isEqualTo("Java");
+        assertThat(created.path("enabled").asBoolean()).isTrue();
+        assertThat(created.path("sourceType").asString()).isEqualTo("MANUAL");
+        assertThat(created.path("id").isString()).isTrue();
+        String path = memories + "/" + created.path("id").asString();
+        assertError(send(app, "POST", memories, owner, csrf, body), 409, 40903);
+        String update =
+                """
+                {"type":"TECH_PREFERENCE","content":"Spring","enabled":false}
+                """;
+        assertThat(memoryData(send(app, "GET", memories, other, null, null)).size())
+                .isZero();
+        assertError(send(app, "PUT", path, other, otherCsrf, update), 404, 40403);
+        assertError(send(app, "DELETE", path, other, otherCsrf, null), 404, 40403);
+        error(send(app, "PUT", path, owner, csrf, body.replace(",\"enabled\":false", "")), 400);
+        JsonNode updated = memoryData(send(app, "PUT", path, owner, csrf, update));
+        assertThat(updated.path("enabled").asBoolean()).isFalse();
+        assertThat(updated.path("keywords").isNull()).isTrue();
+        assertThat(updated.path("updatedAt").asString())
+                .isNotEqualTo(created.path("updatedAt").asString());
+        JsonNode second = memoryData(send(app, "POST", memories, owner, csrf, body));
+        assertError(send(app, "PUT", memories + "/" + second.path("id").asString(), owner, csrf, update), 409, 40903);
+        assertThat(memoryData(send(app, "GET", memories, owner, null, null))
+                        .path(0)
+                        .path("id"))
+                .isEqualTo(second.path("id"));
+        memoryData(send(app, "DELETE", memories + "/" + second.path("id").asString(), owner, csrf, null));
+
+        JdbcTemplate jdbc = app.getBean(JdbcTemplate.class);
+        jdbc.update(
+                """
+                INSERT INTO user_memory(id,user_id,type,content,source_type)
+                SELECT n, app_user.id, 'OTHER', 'seed-' || n, 'MANUAL'
+                FROM app_user CROSS JOIN generate_series(1,48) AS n
+                WHERE username='memoryowner'
+                """);
+        // 已停用的记忆也计入容量。两个并发请求竞争最后一个名额。
+        try (java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            java.util.concurrent.CountDownLatch gate = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.Future<Integer> first = executor.submit(() -> {
+                gate.await();
+                return send(app, "POST", memories, owner, csrf, body).statusCode();
+            });
+            java.util.concurrent.Future<Integer> secondWrite = executor.submit(() -> {
+                gate.await();
+                return send(app, "POST", memories, owner, csrf, body.replace("Java", "Kotlin"))
+                        .statusCode();
+            });
+            gate.countDown();
+            assertThat(List.of(first.get(), secondWrite.get())).containsExactlyInAnyOrder(200, 409);
+        }
+        assertError(send(app, "POST", memories, owner, csrf, body), 409, 40904);
+        assertThat(memoryData(send(app, "GET", memories, owner, null, null)).size())
+                .isEqualTo(50);
+    }
+
+    private String registerAndLogin(ConfigurableApplicationContext app, String username) throws Exception {
+        String credentials = "{\"username\":\"" + username + "\",\"password\":\"secret123\"}";
+        HttpResponse<String> csrf = send(app, "GET", "auth/csrf", null, null, null);
+        memoryData(send(app, "POST", "auth/register", cookie(csrf), token(csrf), credentials));
+        HttpResponse<String> login = send(app, "POST", "auth/login", cookie(csrf), token(csrf), credentials);
+        memoryData(login);
+        return cookie(login);
+    }
+
+    private JsonNode memoryData(HttpResponse<String> response) {
+        assertThat(response.statusCode()).isEqualTo(200);
+        return json.readTree(response.body()).path("data");
     }
 
     @Test
