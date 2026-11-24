@@ -10,6 +10,7 @@ application-local.properties
 application-secrets.yml
 application-secrets.yaml
 application-secrets.properties
+/.onboarding-model/
 
 # classpath local 仅保存非敏感默认值；外部同名文件仍被忽略。
 !/src/main/resources/application-local.yml

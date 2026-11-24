@@ -26,8 +26,17 @@ services:
   app:
     build: .
     ports: ["127.0.0.1:${KA_WEB_PORT:-8080}:8080"]
+    volumes:
+      - type: bind
+        source: ./.onboarding-model/online.properties
+        target: /run/ka/online.properties
+        read_only: true
+        bind:
+          create_host_path: false
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/run/ka/online.properties
+      KA_ONBOARDING_MODEL_REVISION: ${KA_ONBOARDING_MODEL_REVISION:?Run start.ps1}
       SERVER_SERVLET_SESSION_COOKIE_SECURE: "false"
       KA_DB_URL: jdbc:postgresql://postgres:5432/ka
       KA_DB_USERNAME: ka
@@ -39,8 +48,6 @@ services:
       KA_INFRA_MINIO_USER: ${KA_INFRA_MINIO_USER:?Run start.ps1}
       KA_INFRA_MINIO_PASSWORD: ${KA_INFRA_MINIO_PASSWORD:?Run start.ps1}
       KA_MINIO_BUCKET: ${KA_MINIO_BUCKET:-knowledge-assistant}
-      ASSISTANT_MODEL_ENABLED: "false"
-      ASSISTANT_MODEL_EMBEDDING_MODEL: text-embedding-v4
       ASSISTANT_RERANK_ENABLED: "false"
     depends_on:
       postgres:

@@ -1,7 +1,14 @@
-# P1-01: Start the local deployment. Online models stay disabled.
+# Start the local deployment with explicitly authorized online models.
 [CmdletBinding()]
-param([switch]$NoBrowser)
+param(
+    [switch]$NoBrowser,
+    [switch]$ConfigureModel,
+    [switch]$RevokeModelAuthorization
+)
 $ErrorActionPreference = 'Stop'
+if ($ConfigureModel -and $RevokeModelAuthorization) {
+    throw 'Choose either -ConfigureModel or -RevokeModelAuthorization.'
+}
 
 function Invoke-Docker {
     & docker @args
@@ -17,10 +24,74 @@ function New-Password {
     return [BitConverter]::ToString($bytes).Replace('-', '').ToLowerInvariant()
 }
 
+function Get-ModelSettings([string]$Revision, [string]$Key) {
+    $enabled = if ($Key) { 'true' } else { 'false' }
+    @(
+        "# revision=$Revision"
+        "assistant.model.api-key=$Key"
+        "assistant.model.enabled=$enabled"
+        "assistant.model.online-authorized=$enabled"
+        "assistant.worker.enabled=$enabled"
+        'assistant.model.base-url=https://dashscope.aliyuncs.com/compatible-mode/v1'
+        'assistant.model.chat-model=qwen-plus'
+        'assistant.model.embedding-model=text-embedding-v4'
+        'assistant.model.dimensions=1024'
+    )
+}
+
+function Read-ModelState([string]$Path) {
+    if (-not [IO.File]::Exists($Path)) { return }
+    $lines = [IO.File]::ReadAllLines($Path)
+    if ($lines.Length -lt 2 -or $lines[0] -cnotmatch '^# revision=([0-9a-f]{32})$') { return }
+    $revision = $Matches[1]
+    if ($lines[1] -cnotmatch '^assistant\.model\.api-key=(sk-[A-Za-z0-9_-]+)?$') { return }
+    $key = $Matches[1]
+    # Only reuse a complete generated record with a consistent authorization state.
+    $expected = Get-ModelSettings $revision $key
+    if (($lines -join "`n") -ceq ($expected -join "`n")) {
+        [PSCustomObject]@{ Revision = $revision; Enabled = [bool]$key }
+    }
+}
+
+function Read-ModelKey {
+    $secureKey = Read-Host 'Enter your Alibaba Cloud Model Studio API Key (empty cancels)' -AsSecureString
+    try {
+        $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureKey)
+        try {
+            $key = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer)
+            if (-not $key) { return }
+            if ($key -cnotmatch '^sk-[A-Za-z0-9_-]+\z') {
+                throw 'Invalid API Key format. Run start.ps1 again to retry.'
+            }
+            return $key
+        } finally {
+            [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer)
+        }
+    } finally {
+        $secureKey.Dispose()
+    }
+}
+
+function Write-ModelSettings([string]$Path, [string]$Revision, [string]$Key) {
+    [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($Path))
+    $temp = "$Path.$Revision.tmp"
+    try {
+        [IO.File]::WriteAllLines($temp, [string[]](Get-ModelSettings $Revision $Key))
+        if ([IO.File]::Exists($Path)) {
+            [IO.File]::Replace($temp, $Path, [NullString]::Value)
+        } else {
+            [IO.File]::Move($temp, $Path)
+        }
+    } finally {
+        if ([IO.File]::Exists($temp)) { [IO.File]::Delete($temp) }
+    }
+}
+
 $project = 'knowledge-assistant-onboarding'
 $mutex = New-Object Threading.Mutex($false, 'Local\knowledge-assistant-onboarding')
 $locked = $false
 $minioImageSet = $false
+$modelRevisionSet = $false
 Push-Location -LiteralPath $PSScriptRoot
 try {
     try { $locked = $mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $locked = $true }
@@ -37,7 +108,7 @@ try {
 
     # Compose gives shell variables precedence over the dedicated env file.
     foreach ($name in @('KA_INFRA_PG_PASSWORD', 'KA_INFRA_MINIO_USER', 'KA_INFRA_MINIO_PASSWORD',
-        'KA_MINIO_BUCKET', 'KA_WEB_PORT', 'KA_ONBOARDING_MINIO_IMAGE')) {
+        'KA_MINIO_BUCKET', 'KA_WEB_PORT', 'KA_ONBOARDING_MINIO_IMAGE', 'KA_ONBOARDING_MODEL_REVISION')) {
         if (Test-Path "Env:$name") { throw "Unset the process variable $name before running start.ps1." }
     }
 
@@ -72,6 +143,36 @@ try {
     $minioImageSet = $true
     if ($localInfo -eq $digest) { $env:KA_ONBOARDING_MINIO_IMAGE = $legacy }
 
+    $modelPath = Join-Path $PSScriptRoot '.onboarding-model/online.properties'
+    $modelState = Read-ModelState $modelPath
+    if (-not $modelState -or $ConfigureModel -or $RevokeModelAuthorization) {
+        $key = $null
+        if (-not $RevokeModelAuthorization) {
+            Write-Host 'Online calls may incur charges and send questions and document content to Alibaba Cloud Model Studio.'
+            $consent = Read-Host 'Type YES to authorize online calls and charges, NO to decline, or press Enter to cancel'
+            if ($consent -eq 'YES') {
+                $key = Read-ModelKey
+                if (-not $key) { Write-Host 'Model setup cancelled.'; return }
+            } elseif ($consent -ne 'NO' -or $ConfigureModel) {
+                Write-Host 'Model setup cancelled. Use -RevokeModelAuthorization to disable an existing setup.'
+                return
+            }
+        }
+
+        $revision = [Guid]::NewGuid().ToString('N')
+        # Stop the old app before removing authorization, even if the next build fails.
+        if (-not $key) {
+            $existingApps = @(Invoke-Docker ps -q --filter "label=com.docker.compose.project=$project" `
+                --filter 'label=com.docker.compose.service=app')
+            if ($existingApps) { Invoke-Docker stop @existingApps }
+        }
+        try { Write-ModelSettings $modelPath $revision $key } finally { $key = $null }
+        $modelState = Read-ModelState $modelPath
+        if (-not $modelState) { throw 'Could not verify the saved online model configuration.' }
+    }
+    $env:KA_ONBOARDING_MODEL_REVISION = $modelState.Revision
+    $modelRevisionSet = $true
+
     Invoke-Docker @composeArgs config --quiet
     $portRecords = @(Invoke-Docker @composeArgs config --format json |
         ConvertFrom-Json | ForEach-Object { $_.services.app.ports })
@@ -102,11 +203,13 @@ try {
         throw
     }
     $url = "http://127.0.0.1:$port/api/index.html"
-    Write-Host "Knowledge Assistant is ready at $url (online models disabled)."
+    $modelStatus = if ($modelState.Enabled) { 'online models authorized' } else { 'online models disabled' }
+    Write-Host "Knowledge Assistant is ready at $url ($modelStatus)."
     if (-not $NoBrowser) { Start-Process $url }
 } finally {
     if ($locked) {
         if ($minioImageSet) { Remove-Item Env:KA_ONBOARDING_MINIO_IMAGE -ErrorAction SilentlyContinue }
+        if ($modelRevisionSet) { Remove-Item Env:KA_ONBOARDING_MODEL_REVISION -ErrorAction SilentlyContinue }
         $mutex.ReleaseMutex()
     }
     $mutex.Dispose()
