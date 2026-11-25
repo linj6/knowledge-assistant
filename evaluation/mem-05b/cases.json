@@ -1,0 +1,121 @@
+[
+  {
+    "id": "AB01",
+    "question": "RabbitMQ 中 TTL 重试为什么可能打乱同一订单的处理顺序？",
+    "history": [],
+    "evidence": [
+      {
+        "evidenceId": "E1",
+        "source": "evaluation/corpus/backend-interview-lab/rabbitmq/notes/05-ordered-messages.md",
+        "startLine": 5,
+        "endLine": 25,
+        "content": "## 可视化：TTL 重试如何让 E2 超过 E1\n\n```mermaid\nsequenceDiagram\n  autonumber\n  participant Q as Business Queue\n  participant C as 单活 Consumer（prefetch=1）\n  participant R as TTL Retry Queue\n  participant D as MySQL\n  Q->>C: E1（version=1）\n  C->>D: 处理 E1 失败\n  C-->>Q: NACK requeue=false\n  Q->>R: 经 DLX 转移 E1\n  Q->>C: E2（version=2）\n  C->>D: E2 可能先提交\n  C-->>Q: ACK E2\n  R->>Q: TTL 到期，E1 经 DLX 回流\n  Q->>C: E1 重投\n  Note over C,D: 队列原始 FIFO 不等于业务提交有序\n```\n",
+        "sha256": "e202601dca8550ec7af1efd238e0f6bc963f2b0d461fb6b6c5672f67afaeeadb"
+      },
+      {
+        "evidenceId": "E2",
+        "source": "evaluation/corpus/backend-interview-lab/rabbitmq/notes/05-ordered-messages.md",
+        "startLine": 75,
+        "endLine": 87,
+        "content": "## 三、TTL + DLX 如何破坏顺序？\n\n```text\nBusiness Queue: E1 → E2 → E3\nE1 处理失败 → basicNack(tag,false,false)\n    → Business DLX → Retry Exchange → TTL Retry Queue\nE1 已离开 Business Queue，释放 prefetch 窗口\nE2、E3 可能先完成\n5 秒后 E1 TTL 到期 → DLX → Business Exchange → Business Queue\n```\n\n因此，即使单消费者、prefetch=1，也可能乱序。Broker 完成 TTL 回流不依赖 Java 消费者。普通 TTL 重试方案不适合直接保证严格顺序。使用 requeue=true 也可能形成热重试循环，不能当作完整解决方案。\n",
+        "sha256": "781781010acb584d9a6a33347e3ce2b900d88c688130b1833d68b08a612ae196"
+      }
+    ]
+  },
+  {
+    "id": "AB02",
+    "question": "MySQL 二级索引什么时候需要回表，怎样从执行计划看出来？",
+    "history": [],
+    "evidence": [
+      {
+        "evidenceId": "E1",
+        "source": "evaluation/corpus/backend-interview-lab/mysql/notes/01-index-and-sql.md",
+        "startLine": 20,
+        "endLine": 37,
+        "content": "## 2. 聚簇索引、二级索引、回表和覆盖\n\n统一使用这张示例表；实验数据分布另见[证据](../labs/evidence/user-observations.md)。\n\n```sql\nCREATE TABLE order_lab (\n  id BIGINT PRIMARY KEY,\n  user_id BIGINT NOT NULL,\n  status TINYINT NOT NULL,\n  created_at DATETIME NOT NULL,\n  amount DECIMAL(10,2) NOT NULL,\n  KEY idx_user_time_status(user_id, created_at, status),\n  KEY idx_user_status_time(user_id, status, created_at)\n) ENGINE=InnoDB;\n```\n\n聚簇索引叶子记录保存完整行；表的数据按主键组织。二级索引叶子保存索引列与主键值，而非整个行。比如主键叶子含 `(id=800,user_id=42,status=1,created_at=...,amount=99)`，`idx_user_time_status` 的叶子含 `(user_id=42,created_at=...,status=1,id=800)`。查询 `id,user_id,created_at` 时后者可覆盖；查询 `amount` 时需用索引记录中的 id 到聚簇索引再查整行，叫回表。覆盖是**当前查询相对于某个索引**的性质，不能给索引永久贴标签。若查出的候选很多且都要回表，即使使用索引也可能很慢。短而稳定的主键通常减少所有二级索引中的主键负担，但还需考虑业务唯一性及插入模式。\n",
+        "sha256": "aed2025162ad184a20fbc285af8bc86b66cbff249672964765af7b517f940a83"
+      },
+      {
+        "evidenceId": "E2",
+        "source": "evaluation/corpus/backend-interview-lab/mysql/notes/01-index-and-sql.md",
+        "startLine": 92,
+        "endLine": 133,
+        "content": "## 5. 读真实执行计划\n\n实验 A 与 B 过滤和排序相同，只在 B 的 SELECT 列增加 `amount`。这里写出两条可直接执行的完整 SQL；在前面加 `EXPLAIN` 或 `EXPLAIN ANALYZE` 就是本轮查看计划的方式：\n\n```sql\nSELECT id,user_id,created_at\nFROM order_lab FORCE INDEX(idx_user_time_status)\nWHERE user_id=42 AND created_at>='2026-01-01 06:56:40'\nORDER BY created_at DESC LIMIT 20;\n\nSELECT id,user_id,created_at,amount\nFROM order_lab FORCE INDEX(idx_user_time_status)\nWHERE user_id=42 AND created_at>='2026-01-01 06:56:40'\nORDER BY created_at DESC LIMIT 20;\n```\n\n| 字段或节点 | 解释与边界 |\n| --- | --- |\n| `type=range`、`key` | 计划中的索引范围访问；`key` 不证明覆盖或省排序 |\n| `possible_keys`、`key_len`、`ref` | 候选索引、最大使用键前缀长度、等值引用；须结合计划阅读，不能只数列 |\n| `rows`、`filtered` | 优化器估算访问量和过滤比例，非实际访问数；本轮 `rows=1` 的计划实际返回 20 |\n| `Using index` | 查询所需列由索引覆盖；A 同时显示 `Backward index scan` |\n| `Using index condition` | 索引侧先检查可下推条件；B 仍因 `amount` 需要完整行 |\n| `actual time=a..b rows=n loops=m` | 迭代器首行/末行计时、每轮向上输出行数、执行轮次；节点输出行数不总等于其底层检查记录数 |\n| `cost`、`Sort`、`(reverse)` | 模型相对成本、额外排序节点、反向遍历；cost 不是毫秒 |\n\nA 实测 `Covering index range scan ... (reverse)`，Limit 约 `0.0261..0.0402 ms`；B 是 `Index range scan ... with index condition`，约 `0.0665..0.151 ms`。对上述 C1 的同一条 SQL，仅把 `FORCE INDEX` 改为 `idx_user_status_time` 即 C2；C1 约 `0.0692..0.671 ms`，C2 约 `0.0862..0.173 ms`。C2 计划范围直接包含 `user_id=42 AND status=1 AND created_at>=...`，C1 则首先按用户和时间范围扫描。只能解释本次路径，不能用单次毫秒差值宣称生产稳定收益。\n\n实验 D 的完整 SQL 在上一节，两条语句 SELECT/WHERE/ORDER/LIMIT 完全相同，只改变强制索引。用户实际的 D1 计划核心如下（节点缩写仅省略 cost，不改行数及计时）：\n\n```text\nLimit: 20 row(s) (actual time=19.6..19.6 rows=20 loops=1)\n  Sort: order_lab.created_at DESC, limit input to 20 row(s) per chunk\n    (actual time=19.6..19.6 rows=20 loops=1)\n    Index lookup on order_lab using idx_user_status_time (user_id=42)\n      (actual time=1.28..12 rows=50000 loops=1)\n```\n\nSort 中的 `limit input to 20 row(s) per chunk` 是排序实现优化，不等于只接收 20 条输入：它的子节点已向上交出 50,000 条。D2 的 `Covering index lookup ... (reverse)` 没有 Sort，Limit `actual time=2.22..2.24 rows=20`，底层估算 `rows=104095` 而实际输出 20。同连接 `Handler_read_key` +1、`Handler_read_prev` +19，与一次定位、19 次反向读取请求一致；Handler 请求不是物理页 IO 数。用户直接执行 D2 多次约 600 ms，**差异原因尚未定位**。\n\n分析时依次问：**索引能否定位区间、能否覆盖、能否提供排序、优化器实际选择哪条路径**。再用分布和实际工作负载判断是否增索引；新索引增加磁盘和缓存占用、写入维护。实验使用 `FORCE INDEX` 控制变量，不代表生产应固定提示。原始计划与证据见[用户实测](../labs/evidence/user-observations.md)。\n",
+        "sha256": "0b0a14c47f9852065af722eee9f4a47286c381b7514b8f7c05959d495056aa8c"
+      }
+    ]
+  },
+  {
+    "id": "AB03",
+    "question": "请给出 Java CompletableFuture 组合两个独立任务的最小可读代码。",
+    "history": [],
+    "evidence": [
+      {
+        "evidenceId": "E1",
+        "source": "evaluation/corpus/backend-interview-lab/juc/notes/06-completable-future.md",
+        "startLine": 3,
+        "endLine": 16,
+        "content": "## 1. 为什么要组合而不是到处 get\n\n页面要查用户和积分，两者独立。如果提交用户立刻 join，然后才提交积分，仍是串行；supplyAsync 只是换线程，不会自动消除等待依赖。\n\n```java\nCompletableFuture<User> user = CompletableFuture.supplyAsync(this::queryUser, ioPool);\nCompletableFuture<Integer> points = CompletableFuture.supplyAsync(this::queryPoints, ioPool);\nCompletableFuture<String> page = user.thenCombine(points,\n        (u, p) -> u.getName() + \":\" + p);\nString result = page.join();\n```\n\n这是业务类型片段；完整可运行版本是 [实验 3](../labs/03-completable-future/CompletableFutureLab.java)。两个任务在调用 supplyAsync 时就提交，不是 join 时启动；有两个空闲线程时可以并行。调用者最后 join 仍会占用调用线程等待，不等于整个 HTTP 链路已非阻塞。\n",
+        "sha256": "b31c353294b9b2757f8a0454d3de21222a73e909ef67f18f6e006b673a3012c8"
+      },
+      {
+        "evidenceId": "E2",
+        "source": "evaluation/corpus/backend-interview-lab/juc/notes/06-completable-future.md",
+        "startLine": 35,
+        "endLine": 76,
+        "content": "## 3. 返回值类型为什么容易混淆\n\n<a id=\"diagram-parallel\"></a>\n\n**图：先提交两个独立任务，再等待组合。** 假设显式线程池有两个空闲worker。回调不带Async时不承诺固定执行线程，join仍会等待调用者。\n\n```mermaid\nsequenceDiagram\n    participant M as 调用线程\n    participant U as worker-1\n    participant P as worker-2\n    participant F as 组合Future\n    M->>U: supplyAsync提交用户查询\n    M->>P: supplyAsync提交积分查询\n    M->>F: 登记thenCombine并join等待\n    par 用户查询\n        U-->>F: 用户结果\n    and 积分查询\n        P-->>F: 积分结果\n    end\n    Note over F: 两者正常完成后运行组合函数\n    F-->>M: 组合结果，join返回\n```\n\n| 操作 | lambda 返回 | 整体返回 | 适用 |\n| --- | --- | --- | --- |\n| thenApply | 普通 R | CompletableFuture<R> | 转换一个结果 |\n| thenCompose | CompletableFuture<R> | CompletableFuture<R> | 依赖前一步的异步操作 |\n| thenCombine | (T,U) 转换为 R | CompletableFuture<R> | 合并两个已有异步结果 |\n\n本会话连续纠正过这个问题：`name -> name.length()` 返回 int（装箱 Integer），不是 CompletableFuture<Integer>；外面的 thenApply 才返回 Future。\n\n```java\nCompletableFuture<String> name = userFuture.thenApply(u -> u.getName());\nCompletableFuture<Integer> points = userFuture.thenCompose(\n        u -> queryPointsAsync(u.getId()));\n```\n\nbuildDisplayName 返回 String，不能在它后面 join；String 没该方法。queryPointsAsync 返回 Future，compose 需要直接接它；在 lambda 内 join 会阻塞，并变成 Integer，类型不匹配。\n\n用 thenApply 返回异步任务会形成 Future<Future<Integer>>：外层完成只表示已经拿到内层句柄，不说明内层工作完成。compose 将依赖完成关系衔接起来，不会凭空创建一个新工作线程。\n",
+        "sha256": "78e1363c4f686e246cc292ca2298e9e882dbefed4f65f77940d178faffa9e3bd"
+      }
+    ]
+  },
+  {
+    "id": "AB04",
+    "question": "用两点说明 RAG 的 Chunk 过大和过小各有什么风险，并以“跑步笔记”为例。",
+    "history": [],
+    "evidence": [
+      {
+        "evidenceId": "E1",
+        "source": "evaluation/corpus/ai-application-lab/04-embedding-vector-search-rag/notes/04-chunking-and-context.md",
+        "startLine": 31,
+        "endLine": 43,
+        "content": "## 3. Chunk 太大或太小各有什么风险\n\n| 现象 | 可能影响 | 检查方式 |\n| --- | --- | --- |\n| 过小：否定条件/例外与结论分开 | 单块命中后证据不足，引用可能只指向半句话 | 对照原文、测试跨段问题 |\n| 过大：多个主题混在一起 | 检索分数受无关内容影响；上下文预算浪费 | 看问题与命中段落位置、选中正文 |\n| 固定重叠太多 | 相同事实被重复计入候选和预算 | 去重后看有效证据组 |\n| 标题单独入库且正文另块 | 只命中标题不能回答问题 | 合并标题路径或在 metadata 保留 |\n| 表格切丢行列标题 | 数值失去单位和对象 | 来源坐标和结构回放 |\n| 无法定位来源 | 模型能答却无法给可靠引用 | 保存源版本和页/行/对象路径 |\n\n“合适的字符/token 数”只能通过真实问题与预算调试，不能单独指定为通用最优。带跨节依赖的问题尤其要覆盖“条件 + 结论”是否共同入选。\n",
+        "sha256": "56b51ab5b97b3b61f73f28d3f3576a50cd58f9d601801e8590eac937a5771686"
+      }
+    ]
+  },
+  {
+    "id": "AB05",
+    "question": "Spring AI 自动和手动工具执行的区别是什么？本轮只要一句，不举例。",
+    "history": [
+      {
+        "question": "我已经注册了工具，接下来想了解执行流程。",
+        "answer": "可以从应用何时接管执行循环讲起。"
+      }
+    ],
+    "evidence": [
+      {
+        "evidenceId": "E1",
+        "source": "evaluation/corpus/ai-application-lab/03-llm-api-function-calling-spring-ai/notes/05-spring-ai-model-client-and-tools.md",
+        "startLine": 74,
+        "endLine": 90,
+        "content": "## 自动执行与手动控制到底差在哪\n\n在 1.1.8 同步 OpenAiChatModel 自动路径中，适配器检测到可执行工具请求后，调用 ToolCallingManager 执行，再以更新后的消息继续调用模型。外层调用一次可能包含两次 HTTP 和一次业务方法执行。\n\n手动路径配置 `internalToolExecutionEnabled=false`，仍发送工具定义，但首次 call 先把请求返回应用。应用审核后显式执行管理器，再以更新历史请求模型。\n\n| 观察点 | 自动正常路径 | 手动正常路径 |\n|---|---:|---:|\n| 外层 ChatModel.call 次数 | 1 | 2 |\n| 模型 HTTP 请求次数 | 2 | 2 |\n| 工具执行次数 | 1 | 1 |\n| 第一次外层返回时已执行工具 | 是 | 否 |\n\n这些数值来自当前单工具、两轮正常日志，不是所有运行的固定规律。模型可能不调用工具，也可能继续提出请求；应用仍要限次。\n\n自动模式不知道 ORDER_NOT_ACCESSIBLE 的业务含义，可能继续让模型解释拒绝；手动模式可以明确拒绝后停止。若涉及退款写入、阶段授权或严格恢复边界，手动控制更便于在执行前决策，但安全性仍取决于业务检查，不能仅凭“手动”二字获得保证。\n",
+        "sha256": "0185b36edd868a26d7c845ffa3790b687203d03cb93e813b59ae65f2c08290f0"
+      }
+    ]
+  },
+  {
+    "id": "AB06",
+    "question": "RabbitMQ 实验06中，配置 (4,2) 暂停处理时观察到多少条 Unacked？",
+    "history": [],
+    "evidence": [
+      {
+        "evidenceId": "E1",
+        "source": "evaluation/corpus/backend-interview-lab/rabbitmq/labs/06-prefetch-throughput/evidence/results.md",
+        "startLine": 1,
+        "endLine": 9,
+        "content": "# 实验06实际验证记录\n\n日期：2026-10-22，Windows11 / PowerShell7 / Java21.0.10 / Maven3.9.16 / Docker Desktop。\n`mvn -B -ntp -Plive verify` 最终 BUILD SUCCESS，12项单测+2组真实组件参数化IT，失败/错误/跳过均0，原始证据 [live.txt](live.txt)。该日志同时包含完整Surefire单测结果。测试结束18:03:58（Asia/Shanghai）。\n\n- 单测：5项发布Confirm/Return/NACK/超时/连接异常、4项处理顺序/指标/异常不ACK/延时边界、3项H2事务幂等/冲突/回滚；H2不充当MySQL实测证据。\n- 真实MySQL+RabbitMQ+Management：参数(1,1)对应RunId `it-376f1145-b134-4c8e-8bcb-3f2ec575ce75`；参数(4,2)对应 `it-3fd83d27-ce00-4306-8de7-8d801a97ab60`。每组24条独立事件，初始Ready=24，处理门闩暂停时Unacked分别为1、8，活跃处理数分别1、2，实际消费者数匹配配置；停止后Unacked=0且Ready>0，再启动最终Ready/Unacked=0，唯一事件24条、积分总和600。以上均由测试断言确认，不依据“启动成功”。\n- 恢复过程为逻辑停止监听容器、关闭投递通道后重入队，没有OS kill或网络分区。\n- 独立项目bil-rabbitmq-lab06，13321/5678/15678；Volume及测试数据全部保留。",
+        "sha256": "e36aab20119ee483e906c26cfb8d01af35416f2dbc2fb5e0ab1cbd031ea6ac21"
+      }
+    ]
+  }
+]
