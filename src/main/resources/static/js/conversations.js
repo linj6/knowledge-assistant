@@ -1,5 +1,6 @@
 import { ApiError, request } from './api.js';
 import { AppState, subscribe } from './state.js';
+import { appendMemoryTrace } from './memory.js';
 
 const path = '../api/v1/conversations';
 const longId = (value) => typeof value === 'string' && /^[1-9]\d*$/.test(value);
@@ -157,6 +158,9 @@ export function initializeConversations(root, node, evidence, appendCitations) {
             article.append(error);
         }
         appendCitations(article, kb, message.citations);
+        if (message.role === 'ASSISTANT' && message.status === 'ANSWERED') {
+            appendMemoryTrace(article, message.memoryTrace);
+        }
     }
 
     function renderTurn(data) {
@@ -168,6 +172,7 @@ export function initializeConversations(root, node, evidence, appendCitations) {
             status: data.status,
             errorCode: data.errorCode,
             citations: data.citations,
+            memoryTrace: data.memoryTrace,
         });
     }
 

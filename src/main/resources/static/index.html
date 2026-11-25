@@ -31,6 +31,7 @@
                 <nav aria-label="主导航">
                     <a href="#chat"> AI 问答 </a>
                     <a href="#knowledge"> 知识库 </a>
+                    <a href="#memory"> 记忆 </a>
                     <a href="#retrieval"> 检索实验室 </a>
                 </nav>
             </details>
@@ -85,6 +86,43 @@
                     </div>
                 </div>
                 <div class="empty">文档列表尚未接入，当前不查询文档。</div>
+            </section>
+            <section id="memory" hidden>
+                <h1>长期记忆</h1>
+                <fieldset>
+                    <legend>问答设置</legend>
+                    <label>
+                        <input id="memory-enabled" type="checkbox" aria-describedby="memory-settings-help" />
+                        在问答中使用长期记忆
+                    </label>
+                    <p id="memory-settings-help">
+                        开启后，相关记忆可能随问答请求发送给线上模型。关闭后仍可管理已有记忆。
+                    </p>
+                    <p id="memory-settings-status" role="status"></p>
+                </fieldset>
+                <div class="actions">
+                    <h2>已保存的记忆</h2>
+                    <span id="memory-count"></span>
+                    <button id="memory-add" type="button">新增记忆</button>
+                    <button id="memory-reload" type="button">重新加载记忆</button>
+                </div>
+                <p id="memory-status" role="status"></p>
+                <form id="memory-form" hidden>
+                    <h3 id="memory-form-title">新增记忆</h3>
+                    <label for="memory-type">类型</label>
+                    <select id="memory-type" aria-describedby="memory-type-hint"></select>
+                    <p id="memory-type-hint" aria-live="polite"></p>
+                    <label for="memory-content">正文（最多 500 字符）</label>
+                    <textarea id="memory-content" required></textarea>
+                    <label for="memory-keywords">主题关键词（可留空，英文逗号分隔，最多 200 字符）</label>
+                    <input id="memory-keywords" />
+                    <p id="memory-form-status" role="status"></p>
+                    <div class="actions">
+                        <button id="memory-save" type="submit">保存</button>
+                        <button id="memory-cancel" type="button">取消</button>
+                    </div>
+                </form>
+                <div id="memory-list"></div>
             </section>
             <section hidden="" id="retrieval">
                 <p class="eyebrow">RETRIEVAL LAB</p>

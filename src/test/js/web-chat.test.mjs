@@ -56,7 +56,14 @@ test('同一会话连续发送并展示成功、证据不足和失败终态', as
     await h.load();
     const ids = [];
     for (const [status, extra, visible] of [
-        ['ANSWERED', { answer: '<答案>' }, /<答案>已回答/],
+        [
+            'ANSWERED',
+            {
+                answer: '<答案>',
+                memoryTrace: { injectedCount: 1, memories: [{ id: '9007199254740993', type: 'BACKGROUND' }] },
+            },
+            /<答案>已回答.*本轮已提供 1 条长期记忆.*技术背景 · 1 条/,
+        ],
         ['INSUFFICIENT_EVIDENCE', {}, /证据不足/],
         ['FAILED', { errorCode: 'MODEL_FAILED' }, /问答失败错误码：MODEL_FAILED/],
     ]) {

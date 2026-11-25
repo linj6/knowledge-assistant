@@ -86,6 +86,7 @@ label {
 
 select,
 textarea,
+#memory-keywords,
 button {
     font: inherit;
     border: 1px solid #d7dce2;
@@ -104,6 +105,37 @@ textarea {
     min-height: 130px;
     resize: vertical;
     background: #fff;
+}
+
+#memory-keywords {
+    width: 100%;
+}
+
+#memory fieldset,
+#memory-form,
+#memory-list article {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+}
+
+#memory-list .actions {
+    justify-content: flex-start;
+}
+
+#memory-list h3 {
+    margin-top: 0;
+}
+
+.memory-content {
+    white-space: pre-wrap;
+}
+
+.memory-trace {
+    font-size: 14px;
+    color: #667085;
 }
 
 button {

@@ -59,8 +59,20 @@ test('空列表创建会话，刷新后从服务端读取完整分页并打开�
     }));
     await refreshed.reply(page(questions, 1, true));
     assert.match(refreshed.last().url, /messages\?page=2&pageSize=100$/);
-    await refreshed.reply(page([message(101, 'ASSISTANT', '历史答案', [citation])], 2));
+    const answer = {
+        ...message(101, 'ASSISTANT', '历史答案', [citation]),
+        memoryTrace: {
+            injectedCount: 2,
+            memories: [
+                { id: a, type: 'LEARNING_GOAL', content: '不应展示的正文' },
+                { id: b, type: 'LEARNING_GOAL' },
+            ],
+        },
+    };
+    await refreshed.reply(page([answer], 2));
     assert.match(refreshed.chat.textContent, /历史问题 99.*历史答案.*已回答/s);
+    assert.match(refreshed.chat.textContent, /本轮已提供 2 条长期记忆.*学习目标 · 2 条/);
+    assert.doesNotMatch(refreshed.chat.textContent, /不应展示的正文/);
     await refreshed.click('引用：E1 · 查看证据');
     assert.match(refreshed.last().url, new RegExp('/knowledge-bases/1/documents/20/versions/30/chunks/' + a + '$'));
     await refreshed.reply({ ...citation, filename: '文件', headingPath: null, content: '证据正文' });
