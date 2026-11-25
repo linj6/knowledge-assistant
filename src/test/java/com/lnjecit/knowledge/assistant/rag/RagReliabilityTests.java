@@ -21,6 +21,8 @@ import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelCallCancellation;
 import com.lnjecit.knowledge.assistant.infrastructure.web.ApiExceptionHandler;
 import com.lnjecit.knowledge.assistant.infrastructure.web.RequestIdFilter;
 import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;
+import com.lnjecit.knowledge.assistant.memory.dto.RecalledMemory;
+import com.lnjecit.knowledge.assistant.memory.entity.MemoryType;
 import com.lnjecit.knowledge.assistant.rag.context.ContextBuilder;
 import com.lnjecit.knowledge.assistant.rag.context.ContextProperties;
 import com.lnjecit.knowledge.assistant.rag.controller.RagController;
@@ -109,7 +111,13 @@ class RagReliabilityTests {
                     case "trace" -> service.executeWithTrace(1L, question, null, null)
                             .answer();
                     case "single" -> service.answer(1L, question, null, null);
-                    default -> service.answer(1L, question, null, null, history);
+                    default -> service.answer(
+                            1L,
+                            question,
+                            null,
+                            null,
+                            history,
+                            List.of(new RecalledMemory(99L, MemoryType.BACKGROUND, "private profile")));
                 };
         verify(retrieval)
                 .search(1L, expectedQuery, List.of(RetrievalStrategy.HYBRID_RRF), RetrievalParameters.defaults());
@@ -118,12 +126,18 @@ class RagReliabilityTests {
         String generationInput =
                 prompts.getAllValues().getLast().getUserMessage().getText();
         assertThat(generationInput).contains(question).doesNotContain(rewritten);
+        if (attemptsRewrite) {
+            assertThat(prompts.getAllValues().getFirst().getUserMessage().getText())
+                    .doesNotContain("private profile", "\"memory\"");
+        }
         if (hasHistory) {
+            assertThat(generationInput).contains("private profile");
             assertThat(generationInput)
                     .contains(history.getFirst().question(), history.getFirst().answer());
         }
         if (scenario.equals("invalidCitation")) {
             assertThat(answer.error()).isEqualTo(RagError.CITATION_INVALID);
+            assertThat(answer.memoryTrace()).isNull();
             assertThat(answer.citations()).isEmpty();
         } else {
             assertThat(answer.status()).isEqualTo(RagStatus.ANSWERED);

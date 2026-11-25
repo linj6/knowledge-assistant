@@ -18,6 +18,7 @@ public record MessagePageResponse(int page, int pageSize, boolean hasNext, List<
             MessageStatus status,
             String errorCode,
             @JsonRawValue String citations,
+            @JsonRawValue String memoryTrace,
             Instant createdAt,
             Instant completedAt) {
         public static Item from(Message message) {
@@ -30,6 +31,7 @@ public record MessagePageResponse(int page, int pageSize, boolean hasNext, List<
                     message.getStatus(),
                     message.getErrorCode(),
                     message.getCitations(),
+                    message.getMemoryTrace(),
                     message.getCreatedAt(),
                     message.getCompletedAt());
         }

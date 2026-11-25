@@ -56,7 +56,7 @@ public class TurnService {
         // 只有创建这轮消息的请求会在事务提交后投递任务。
         MessageStatus status = result.turn().status();
         if (result.knowledgeBaseId() != null) {
-            status = executor.dispatch(result.knowledgeBaseId(), conversationId, result.turn());
+            status = executor.dispatch(userId, result.knowledgeBaseId(), conversationId, result.turn());
         }
         return new TurnResponse.Accepted(turnId, status);
     }

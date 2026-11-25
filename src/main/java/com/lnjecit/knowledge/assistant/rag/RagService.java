@@ -6,6 +6,8 @@ import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
 import com.lnjecit.knowledge.assistant.conversation.dto.HistoryTurn;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelCallCancellation;
 import com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog;
+import com.lnjecit.knowledge.assistant.memory.dto.MemoryTrace;
+import com.lnjecit.knowledge.assistant.memory.dto.RecalledMemory;
 import com.lnjecit.knowledge.assistant.rag.context.AssembledContext;
 import com.lnjecit.knowledge.assistant.rag.context.ContextBuilder;
 import com.lnjecit.knowledge.assistant.rag.generation.AnswerGenerator;
@@ -74,11 +76,21 @@ public class RagService {
             RetrievalStrategy strategy,
             RetrievalParameters parameters,
             List<HistoryTurn> history) {
+        return answer(knowledgeBaseId, question, strategy, parameters, history, List.of());
+    }
+
+    public RagAnswer answer(
+            Long knowledgeBaseId,
+            String question,
+            RetrievalStrategy strategy,
+            RetrievalParameters parameters,
+            List<HistoryTurn> history,
+            List<RecalledMemory> memory) {
         Observation observation = new Observation();
         long started = System.nanoTime();
         RagAnswer outcome = null;
         try {
-            outcome = execute(knowledgeBaseId, question, strategy, parameters, history, observation);
+            outcome = execute(knowledgeBaseId, question, strategy, parameters, history, memory, observation);
             return outcome;
         } finally {
             // 程序缺陷继续传播，全局处理器负责唯一的 ERROR 堆栈。
@@ -116,7 +128,8 @@ public class RagService {
         Observation observation = new Observation();
         observation.retrievalCheck = retrievalCheck;
         try {
-            RagAnswer answer = execute(knowledgeBaseId, question, strategy, parameters, List.of(), observation);
+            RagAnswer answer =
+                    execute(knowledgeBaseId, question, strategy, parameters, List.of(), List.of(), observation);
             return new RagExecutionResult(observation.retrieval, observation.context, answer, null);
         } catch (RuntimeException failure) {
             // 只记录异常类型，不把供应商异常中的凭据或敏感原文带入评估产物。
@@ -150,6 +163,7 @@ public class RagService {
             RetrievalStrategy strategy,
             RetrievalParameters parameters,
             List<HistoryTurn> history,
+            List<RecalledMemory> memory,
             Observation observation) {
         if (knowledgeBaseId == null || knowledgeBaseId <= 0) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT);
@@ -193,11 +207,13 @@ public class RagService {
             return response(result, RagStatus.FAILED, null, List.of(), RagError.CONTEXT_BUDGET_EXCEEDED, null);
         RawGenerationResult raw;
         try {
-            raw = timed(
-                    "GENERATION",
-                    () -> history.isEmpty()
-                            ? generator.generate(question, context)
-                            : generator.generate(question, context, history));
+            raw = timed("GENERATION", () -> {
+                // 长期记忆只交给生成阶段，检索和引用校验沿用本轮证据。
+                if (!memory.isEmpty()) return generator.generate(question, context, history, memory);
+                return history.isEmpty()
+                        ? generator.generate(question, context)
+                        : generator.generate(question, context, history);
+            });
         } catch (AnswerGenerator.GenerationException failure) {
             return response(result, RagStatus.FAILED, null, List.of(), failure.error(), failure.usage());
         }
@@ -211,9 +227,18 @@ public class RagService {
                     parsed.answer(),
                     citations,
                     null,
-                    raw.usage());
+                    raw.usage(),
+                    parsed.answerable() ? raw.memoryTrace() : null);
         } catch (StructuredOutputParser.InvalidOutputException failure) {
-            FailureLog.error(log, "RAG_OUTPUT errorCode=OUTPUT_INVALID", failure);
+            if (memory.isEmpty()) {
+                FailureLog.error(log, "RAG_OUTPUT errorCode=OUTPUT_INVALID", failure);
+            } else {
+                // 解析异常可能包含模型回显的记忆正文。
+                log.error(
+                        "event=RAG_OUTPUT_INVALID requestId={} failureType={}",
+                        RequestIdContext.current(),
+                        failure.getClass().getSimpleName());
+            }
             return response(
                     result,
                     RagStatus.FAILED,
@@ -277,6 +302,17 @@ public class RagService {
             List<RagCitation> citations,
             RagError error,
             RawGenerationResult.Usage usage) {
+        return response(result, status, answer, citations, error, usage, null);
+    }
+
+    private RagAnswer response(
+            RetrievalResult result,
+            RagStatus status,
+            String answer,
+            List<RagCitation> citations,
+            RagError error,
+            RawGenerationResult.Usage usage,
+            MemoryTrace memoryTrace) {
         RetrievalDiagnostics d = result.diagnostics();
         return new RagAnswer(
                 status,
@@ -286,7 +322,8 @@ public class RagService {
                 d.actualStrategy(),
                 d.degraded(),
                 error,
-                new RagAnswer.Diagnostics(d.status(), d.error(), d.snapshotHash(), usage));
+                new RagAnswer.Diagnostics(d.status(), d.error(), d.snapshotHash(), usage),
+                memoryTrace);
     }
 
     private void logContextFailure(RagError error, RuntimeException failure) {

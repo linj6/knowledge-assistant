@@ -33,6 +33,9 @@ public class Message {
     @TableField(jdbcType = JdbcType.OTHER, typeHandler = JsonbTypeHandler.class)
     private String citations;
 
+    @TableField(jdbcType = JdbcType.OTHER, typeHandler = JsonbTypeHandler.class)
+    private String memoryTrace;
+
     private Instant createdAt;
     private Instant completedAt;
 }

@@ -11,6 +11,8 @@ import static org.mockito.Mockito.when;
 
 import com.lnjecit.knowledge.assistant.conversation.dto.HistoryTurn;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.TokenEstimator;
+import com.lnjecit.knowledge.assistant.memory.dto.RecalledMemory;
+import com.lnjecit.knowledge.assistant.memory.entity.MemoryType;
 import com.lnjecit.knowledge.assistant.rag.context.AssembledContext;
 import com.lnjecit.knowledge.assistant.rag.context.SelectedEvidence;
 import com.lnjecit.knowledge.assistant.rag.generation.AnswerGenerator;
@@ -18,6 +20,7 @@ import com.lnjecit.knowledge.assistant.rag.generation.RawGenerationResult;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.metadata.ChatGenerationMetadata;
@@ -112,9 +115,58 @@ class AnswerGeneratorTests {
                     .doesNotContain("password=secret");
             assertThat(appender.list.getLast().getFormattedMessage())
                     .contains("rag-answer-v1", "elapsedMillis=", "requestId=");
+            appender.list.clear();
+            List<RecalledMemory> memory = List.of(new RecalledMemory(1L, MemoryType.BACKGROUND, "CONTEXT_PRIVATE"));
+            assertThatThrownBy(() -> generator(model).generate("QUESTION_PRIVATE", context("[]"), List.of(), memory))
+                    .hasMessage("MODEL_UNAVAILABLE");
+            assertThat(appender.list).allSatisfy(event -> {
+                assertThat(event.getFormattedMessage()).doesNotContain("QUESTION_PRIVATE", "CONTEXT_PRIVATE");
+                assertThat(event.getThrowableProxy()).isNull();
+            });
         } finally {
             logger.detachAppender(appender);
         }
+    }
+
+    @Test
+    void trimsMemoryBeforeHistoryAndTracesOnlyWhatTheModelReceives() {
+        ChatModel model = mock(ChatModel.class);
+        when(model.call(any(Prompt.class))).thenReturn(response("candidate", "stop", false));
+        AnswerGenerator generator = generator(model);
+        RecalledMemory retained = new RecalledMemory(2125000000000000001L, MemoryType.BACKGROUND, "private profile");
+        RecalledMemory oversized = new RecalledMemory(2125000000000000002L, MemoryType.BACKGROUND, "x".repeat(12000));
+        List<HistoryTurn> history = List.of(new HistoryTurn("prior question", "prior answer"));
+        AssembledContext context = context("[]");
+        RawGenerationResult v3 = generator.generate("original", context, history, List.of(retained, oversized));
+        RawGenerationResult v2 = generator.generate("original", context, history, List.of(oversized));
+        RawGenerationResult v1 = generator.generate("original", context, List.of(), List.of(oversized));
+
+        ArgumentCaptor<Prompt> requests = ArgumentCaptor.forClass(Prompt.class);
+        verify(model, times(3)).call(requests.capture());
+        JsonMapper json = JsonMapper.builder().build();
+        JsonNode sent = json.readTree(
+                requests.getAllValues().getFirst().getInstructions().getLast().getText());
+        assertThat(v3.promptVersion()).isEqualTo("rag-answer-v3");
+        assertThat(sent.path("memory"))
+                .isEqualTo(json.readTree(
+                        """
+                [{"type":"BACKGROUND","content":"private profile"}]
+                """));
+        assertThat(sent.path("history")).isEqualTo(json.<JsonNode>valueToTree(history));
+        assertThat(sent.path("evidence")).isEqualTo(json.readTree(context.contextText()));
+        assertThat(sent.path("question").asString()).isEqualTo("original");
+        assertThat(json.writeValueAsString(v3.memoryTrace()))
+                .isEqualTo(
+                        """
+                {"injectedCount":1,"memories":[{"id":"2125000000000000001","type":"BACKGROUND"}]}
+                """
+                                .strip());
+        assertThat(v2.promptVersion()).isEqualTo("rag-answer-v2");
+        assertThat(v1.promptVersion()).isEqualTo("rag-answer-v1");
+        assertThat(v2.memoryTrace().injectedCount()).isZero();
+        assertThat(v1.memoryTrace().memories()).isEmpty();
+        assertThat(requests.getAllValues().get(1)).isEqualTo(generator.prompt("original", context, model, history));
+        assertThat(requests.getAllValues().get(2)).isEqualTo(generator.prompt("original", context, model));
     }
 
     private AssembledContext context(String text) {

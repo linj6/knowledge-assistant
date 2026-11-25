@@ -15,6 +15,10 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.QueryTimeoutException;
+import org.springframework.dao.RecoverableDataAccessException;
+import org.springframework.dao.TransientDataAccessResourceException;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -52,7 +56,16 @@ public class MemoryRecallService {
                 return List.of();
             }
 
-            List<UserMemory> enabled = memories.listEnabledOwned(userId);
+            List<UserMemory> enabled;
+            try {
+                enabled = memories.listEnabledOwned(userId);
+            } catch (DataAccessResourceFailureException
+                    | QueryTimeoutException
+                    | RecoverableDataAccessException
+                    | TransientDataAccessResourceException failure) {
+                // 仅标记记忆查询的存储故障，身份查询及其他错误仍按原路径失败。
+                throw new StorageUnavailableException(failure);
+            }
             enabledCount = enabled.size();
             List<UserMemory> candidates = candidates(enabled, question.toLowerCase(Locale.ROOT));
             candidateCount = candidates.size();
@@ -88,6 +101,12 @@ public class MemoryRecallService {
                     estimatedTokens,
                     TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start),
                     error);
+        }
+    }
+
+    public static final class StorageUnavailableException extends RuntimeException {
+        private StorageUnavailableException(RuntimeException cause) {
+            super(cause);
         }
     }
 

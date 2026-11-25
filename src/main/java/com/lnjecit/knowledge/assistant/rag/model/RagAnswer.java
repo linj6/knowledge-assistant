@@ -1,5 +1,7 @@
 package com.lnjecit.knowledge.assistant.rag.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.lnjecit.knowledge.assistant.memory.dto.MemoryTrace;
 import com.lnjecit.knowledge.assistant.rag.generation.RawGenerationResult;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalDiagnostics;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStatus;
@@ -14,7 +16,20 @@ public record RagAnswer(
         RetrievalStrategy actualStrategy,
         boolean degraded,
         RagError error,
-        Diagnostics diagnostics) {
+        Diagnostics diagnostics,
+        @JsonIgnore MemoryTrace memoryTrace) {
+    public RagAnswer(
+            RagStatus status,
+            String answer,
+            List<RagCitation> citations,
+            RetrievalStrategy requested,
+            RetrievalStrategy actual,
+            boolean degraded,
+            RagError error,
+            Diagnostics diagnostics) {
+        this(status, answer, citations, requested, actual, degraded, error, diagnostics, null);
+    }
+
     public RagAnswer {
         citations = List.copyOf(citations);
         if (status == null

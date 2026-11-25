@@ -87,6 +87,7 @@ class ConversationApiTests {
                         "原始问题",
                         "回答",
                         "[{\"evidenceId\":\"E1\"}]",
+                        "{\"injectedCount\":0,\"memories\":[]}",
                         null,
                         ID,
                         ID + 1,
@@ -103,6 +104,7 @@ class ConversationApiTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.answer").value("回答"))
                 .andExpect(jsonPath("$.data.citations[0].evidenceId").value("E1"))
+                .andExpect(jsonPath("$.data.memoryTrace.injectedCount").value(0))
                 .andExpect(jsonPath("$.data.userMessageId").value(ID.toString()));
     }
 
@@ -170,6 +172,10 @@ class ConversationApiTests {
         when(repository.findOwnedConversation(ID, 42L)).thenReturn(new Conversation());
         Message first = message(10L);
         Message second = message(11L);
+        second.setMemoryTrace(
+                """
+                {"injectedCount":1,"memories":[{"id":"2125000000000000001","type":"BACKGROUND"}]}
+                """);
         when(repository.listMessages(ID, 2, 0)).thenReturn(List.of(first, second));
         when(repository.listMessages(ID, 2, 1)).thenReturn(List.of(second));
         mvc.perform(get(PATH + "/{id}/messages", ID).param("pageSize", "1"))
@@ -184,7 +190,9 @@ class ConversationApiTests {
         mvc.perform(get(PATH + "/{id}/messages", ID).param("page", "2").param("pageSize", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.hasNext").value(false))
-                .andExpect(jsonPath("$.data.items[0].id").value("11"));
+                .andExpect(jsonPath("$.data.items[0].id").value("11"))
+                .andExpect(
+                        jsonPath("$.data.items[0].memoryTrace.memories[0].id").value("2125000000000000001"));
         mvc.perform(get(PATH + "/{id}/messages", ID).param("page", "3"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.pageSize").value(20))

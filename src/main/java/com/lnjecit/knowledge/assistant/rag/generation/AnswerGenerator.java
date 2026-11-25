@@ -6,6 +6,8 @@ import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelCallCancellation;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelFailures;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.TokenEstimator;
 import com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog;
+import com.lnjecit.knowledge.assistant.memory.dto.MemoryTrace;
+import com.lnjecit.knowledge.assistant.memory.dto.RecalledMemory;
 import com.lnjecit.knowledge.assistant.rag.context.AssembledContext;
 import com.lnjecit.knowledge.assistant.rag.model.RagError;
 import java.io.IOException;
@@ -34,6 +36,7 @@ import tools.jackson.databind.node.ObjectNode;
 public class AnswerGenerator {
     public static final String PROMPT_VERSION = "rag-answer-v1";
     private static final String HISTORY_PROMPT_VERSION = "rag-answer-v2";
+    private static final String MEMORY_PROMPT_VERSION = "rag-answer-v3";
     public static final int MAX_OUTPUT_TOKENS = 1024;
     // 本地保守估算配额，不代表 Qwen 上下文窗口或严格 Token 上界。
     public static final int REQUEST_BUDGET = 12000;
@@ -41,6 +44,7 @@ public class AnswerGenerator {
     private final ObjectProvider<ChatModel> models;
     private final String contract;
     private final String historyContract;
+    private final String memoryContract;
     private final JsonMapper mapper = JsonMapper.builder().build();
     private final TokenEstimator estimator = new TokenEstimator(64);
 
@@ -48,6 +52,7 @@ public class AnswerGenerator {
         this.models = models;
         contract = loadContract(PROMPT_VERSION);
         historyContract = loadContract(HISTORY_PROMPT_VERSION);
+        memoryContract = loadContract(MEMORY_PROMPT_VERSION);
     }
 
     private static String loadContract(String version) {
@@ -90,6 +95,41 @@ public class AnswerGenerator {
         return prompt(question, context, model);
     }
 
+    private PreparedPrompt preparePrompt(
+            String question,
+            AssembledContext context,
+            ChatModel model,
+            List<HistoryTurn> history,
+            List<RecalledMemory> memory) {
+        if (!memory.isEmpty()) {
+            ObjectNode data = mapper.createObjectNode();
+            data.set("history", mapper.valueToTree(history));
+            data.set("memory", mapper.valueToTree(memory));
+            ArrayNode memoryData = (ArrayNode) data.get("memory");
+            data.put("question", question);
+            data.set("evidence", mapper.readTree(context.contextText()));
+            // 以完整序列化请求为准，先移除末尾低优先级记忆，保持证据和历史不变。
+            for (int count = memory.size(); count > 0; count--) {
+                String user = mapper.writeValueAsString(data);
+                if (fitsBudget(memoryContract, user)) {
+                    return new PreparedPrompt(
+                            buildPrompt(memoryContract, user, model),
+                            MEMORY_PROMPT_VERSION,
+                            MemoryTrace.from(memory.subList(0, count)));
+                }
+                memoryData.remove(count - 1);
+            }
+        }
+        Prompt request = prompt(question, context, model, history);
+        String version =
+                historyContract.equals(request.getInstructions().getFirst().getText())
+                        ? HISTORY_PROMPT_VERSION
+                        : PROMPT_VERSION;
+        return new PreparedPrompt(request, version, MemoryTrace.from(List.of()));
+    }
+
+    private record PreparedPrompt(Prompt prompt, String version, MemoryTrace trace) {}
+
     private boolean fitsBudget(String system, String user) {
         return estimator.estimate(system + user).estimatedTokens() + MAX_OUTPUT_TOKENS <= REQUEST_BUDGET;
     }
@@ -116,20 +156,26 @@ public class AnswerGenerator {
 
     /** history 按时间从旧到新排列。 */
     public RawGenerationResult generate(String question, AssembledContext context, List<HistoryTurn> history) {
+        return generate(question, context, history, List.of());
+    }
+
+    public RawGenerationResult generate(
+            String question, AssembledContext context, List<HistoryTurn> history, List<RecalledMemory> memory) {
         long started = System.nanoTime();
         RagError error = null;
         String modelId = "unavailable";
-        String promptVersion = PROMPT_VERSION;
+        String promptVersion = null;
+        int injectedCount = 0;
         try {
             ChatModel model = models.getIfAvailable();
             if (model == null) throw new GenerationException(RagError.MODEL_NOT_CONFIGURED, null);
             if (model instanceof OpenAiChatModel openAi)
                 modelId = openAi.getOptions().getModel();
             ModelCallCancellation.checkpoint();
-            Prompt request = prompt(question, context, model, history);
-            if (historyContract.equals(request.getInstructions().getFirst().getText())) {
-                promptVersion = HISTORY_PROMPT_VERSION;
-            }
+            PreparedPrompt prepared = preparePrompt(question, context, model, history, memory);
+            Prompt request = prepared.prompt();
+            promptVersion = prepared.version();
+            injectedCount = prepared.trace().injectedCount();
             ChatResponse response = ModelCallCancellation.duringModelCall(() -> model.call(request));
             RawGenerationResult.Usage usage = null;
             if (response != null && response.getMetadata() != null) {
@@ -151,7 +197,8 @@ public class AnswerGenerator {
                     : generation.getOutput().getText();
             if (text == null || text.isBlank())
                 throw new GenerationException(RagError.MODEL_RESPONSE_EMPTY, null, usage);
-            return new RawGenerationResult(text, modelId, promptVersion, usage, finish, elapsed(started));
+            return new RawGenerationResult(
+                    text, modelId, promptVersion, usage, finish, elapsed(started), prepared.trace());
         } catch (GenerationException failure) {
             error = failure.error();
             throw failure;
@@ -165,17 +212,29 @@ public class AnswerGenerator {
                 case AUTHENTICATION -> RagError.MODEL_AUTHENTICATION_FAILED;
                 default -> RagError.GENERATION_FAILED;
             };
-            FailureLog.error(log, "RAG_GENERATION", failure);
+            if (memory.isEmpty()) {
+                FailureLog.error(log, "RAG_GENERATION", failure);
+            } else {
+                // 供应商异常可能回显模型请求，只记录错误分类和异常类型。
+                log.error(
+                        "event=RAG_GENERATION_FAILED requestId={} error={} failureType={}",
+                        RequestIdContext.current(),
+                        error,
+                        failure.getClass().getSimpleName());
+            }
             throw new GenerationException(error, failure);
         } finally {
             // 模型名称只用于安全诊断，不打印任何输入和候选文本。
             try {
                 log.info(
-                        "requestId={} stage=RAG_GENERATION elapsedMillis={} model={} promptVersion={} error={}",
+                        "requestId={} stage=RAG_GENERATION elapsedMillis={} model={} promptVersion={} injectedCount={} recalledCount={} budgetTrimmedCount={} error={}",
                         RequestIdContext.current(),
                         elapsed(started),
                         safeModel(modelId),
                         promptVersion,
+                        injectedCount,
+                        memory.size(),
+                        promptVersion == null ? null : memory.size() - injectedCount,
                         error);
             } catch (RuntimeException loggingFailure) {
                 // 诊断失败不改变模型调用结果。

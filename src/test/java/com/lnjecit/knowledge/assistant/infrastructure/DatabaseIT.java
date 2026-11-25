@@ -15,6 +15,8 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.lnjecit.knowledge.assistant.KnowledgeAssistantApplication;
+import com.lnjecit.knowledge.assistant.auth.entity.User;
+import com.lnjecit.knowledge.assistant.auth.repository.UserRepository;
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.conversation.dto.HistoryTurn;
 import com.lnjecit.knowledge.assistant.conversation.dto.TurnResponse;
@@ -27,6 +29,11 @@ import com.lnjecit.knowledge.assistant.conversation.service.ConversationService;
 import com.lnjecit.knowledge.assistant.conversation.service.TurnExecutor;
 import com.lnjecit.knowledge.assistant.conversation.service.TurnHistoryService;
 import com.lnjecit.knowledge.assistant.conversation.service.TurnService;
+import com.lnjecit.knowledge.assistant.memory.dto.RecalledMemory;
+import com.lnjecit.knowledge.assistant.memory.entity.MemoryType;
+import com.lnjecit.knowledge.assistant.memory.repository.UserMemoryRepository;
+import com.lnjecit.knowledge.assistant.memory.service.MemoryRecallProperties;
+import com.lnjecit.knowledge.assistant.memory.service.MemoryRecallService;
 import com.lnjecit.knowledge.assistant.rag.RagService;
 import com.lnjecit.knowledge.assistant.rag.context.ContextBuilder;
 import com.lnjecit.knowledge.assistant.rag.context.ContextProperties;
@@ -68,6 +75,7 @@ import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -169,7 +177,11 @@ class DatabaseIT {
             ConversationRepository repository = context.getBean(ConversationRepository.class);
             RagService rag = mock(RagService.class);
             TurnExecutor executor = new TurnExecutor(
-                    rag, repository, context.getBean(TurnHistoryService.class), context.getBean(JsonMapper.class));
+                    rag,
+                    repository,
+                    context.getBean(TurnHistoryService.class),
+                    context.getBean(JsonMapper.class),
+                    context.getBean(MemoryRecallService.class));
             TurnService turns = new TurnService(
                     conversations, repository, executor, context.getBean(PlatformTransactionManager.class));
             Long conversationId = conversations.create(1L, 3L).getId();
@@ -179,7 +191,7 @@ class DatabaseIT {
             CountDownLatch entered = new CountDownLatch(1);
             CountDownLatch release = new CountDownLatch(1);
             RetrievalStrategy strategy = RetrievalStrategy.HYBRID_RRF;
-            when(rag.answer(eq(3L), eq(question), eq(strategy), isNull(), anyList()))
+            when(rag.answer(eq(3L), eq(question), eq(strategy), isNull(), anyList(), anyList()))
                     .thenAnswer(call -> {
                         assertThat(TransactionSynchronizationManager.isActualTransactionActive())
                                 .isFalse();
@@ -196,10 +208,10 @@ class DatabaseIT {
                                 null,
                                 null);
                     });
-            when(rag.answer(eq(3L), eq("无证据"), eq(strategy), isNull(), anyList()))
+            when(rag.answer(eq(3L), eq("无证据"), eq(strategy), isNull(), anyList(), anyList()))
                     .thenReturn(new RagAnswer(
                             RagStatus.INSUFFICIENT_EVIDENCE, null, List.of(), strategy, strategy, false, null, null));
-            when(rag.answer(eq(3L), eq("模型失败"), eq(strategy), isNull(), anyList()))
+            when(rag.answer(eq(3L), eq("模型失败"), eq(strategy), isNull(), anyList(), anyList()))
                     .thenReturn(new RagAnswer(
                             RagStatus.FAILED,
                             null,
@@ -209,7 +221,7 @@ class DatabaseIT {
                             false,
                             RagError.MODEL_TIMEOUT,
                             null));
-            when(rag.answer(eq(3L), eq("执行异常"), eq(strategy), isNull(), anyList()))
+            when(rag.answer(eq(3L), eq("执行异常"), eq(strategy), isNull(), anyList(), anyList()))
                     .thenThrow(new IllegalStateException("private payload"));
 
             try {
@@ -245,8 +257,9 @@ class DatabaseIT {
 
                 UUID parallelTurn = UUID.randomUUID();
                 turns.submit(1L, otherConversation, parallelTurn, "无证据");
-                assertThat(awaitTurn(turns, otherConversation, parallelTurn).status())
-                        .isEqualTo(MessageStatus.INSUFFICIENT_EVIDENCE);
+                TurnResponse insufficient = awaitTurn(turns, otherConversation, parallelTurn);
+                assertThat(insufficient.status()).isEqualTo(MessageStatus.INSUFFICIENT_EVIDENCE);
+                assertThat(insufficient.memoryTrace()).isNull();
                 release.countDown();
                 TurnResponse answered = awaitTurn(turns, conversationId, turnId);
                 assertThat(answered.status()).isEqualTo(MessageStatus.ANSWERED);
@@ -255,13 +268,14 @@ class DatabaseIT {
                 assertThat(answered.completedAt()).isAfterOrEqualTo(answered.createdAt());
                 assertThat(turns.submit(1L, conversationId, turnId, question).status())
                         .isEqualTo(MessageStatus.ANSWERED);
-                verify(rag, times(1)).answer(eq(3L), eq(question), eq(strategy), isNull(), anyList());
+                verify(rag, times(1)).answer(eq(3L), eq(question), eq(strategy), isNull(), anyList(), anyList());
 
                 UUID failedTurn = UUID.randomUUID();
                 turns.submit(1L, conversationId, failedTurn, "模型失败");
                 TurnResponse failed = awaitTurn(turns, conversationId, failedTurn);
                 assertThat(failed.status()).isEqualTo(MessageStatus.FAILED);
                 assertThat(failed.errorCode()).isEqualTo("MODEL_TIMEOUT");
+                assertThat(failed.memoryTrace()).isNull();
 
                 UUID exceptionalTurn = UUID.randomUUID();
                 turns.submit(1L, conversationId, exceptionalTurn, "执行异常");
@@ -277,7 +291,7 @@ class DatabaseIT {
                 TurnResponse rejected = turns.get(1L, conversationId, rejectedTurn);
                 assertThat(rejected.errorCode()).isEqualTo("TURN_EXECUTOR_REJECTED");
                 assertThat(rejected.completedAt()).isNotNull();
-                verify(rag, times(0)).answer(eq(3L), eq("拒绝"), eq(strategy), isNull(), anyList());
+                verify(rag, times(0)).answer(eq(3L), eq("拒绝"), eq(strategy), isNull(), anyList(), anyList());
             } finally {
                 release.countDown();
                 executor.shutdown();
@@ -296,7 +310,7 @@ class DatabaseIT {
         CountDownLatch start = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         String question = "并发问题";
-        when(rag.answer(eq(3L), eq(question), eq(strategy), isNull(), anyList()))
+        when(rag.answer(eq(3L), eq(question), eq(strategy), isNull(), anyList(), anyList()))
                 .thenAnswer(call -> {
                     assertThat(release.await(10, TimeUnit.SECONDS)).isTrue();
                     return new RagAnswer(
@@ -319,7 +333,7 @@ class DatabaseIT {
             assertThat(awaitTurn(turns, conversationId, firstWon ? first : second)
                             .status())
                     .isEqualTo(MessageStatus.INSUFFICIENT_EVIDENCE);
-            verify(rag, times(1)).answer(eq(3L), eq(question), eq(strategy), isNull(), anyList());
+            verify(rag, times(1)).answer(eq(3L), eq(question), eq(strategy), isNull(), anyList(), anyList());
         } finally {
             release.countDown();
         }
@@ -395,7 +409,25 @@ class DatabaseIT {
                 }
                 return realHistory.select(conversation, call.getArgument(1));
             });
-            TurnExecutor executor = new TurnExecutor(rag, repository, observedHistory, json);
+            UserRepository users = mock(UserRepository.class);
+            UserMemoryRepository storedMemories = mock(UserMemoryRepository.class);
+            User enabled = new User();
+            enabled.setMemoryEnabled(true);
+            when(users.find(1L)).thenReturn(enabled);
+            when(storedMemories.listEnabledOwned(1L))
+                    .thenThrow(new DataAccessResourceFailureException("storage unavailable"))
+                    .thenThrow(new IllegalStateException("defect"));
+            MemoryRecallService realRecall =
+                    new MemoryRecallService(storedMemories, users, new MemoryRecallProperties());
+            MemoryRecallService memory = mock(MemoryRecallService.class);
+            when(memory.recall(1L, "原始问题 1")).thenAnswer(call -> realRecall.recall(1L, call.getArgument(1)));
+            when(memory.recall(1L, "记忆程序缺陷")).thenAnswer(call -> realRecall.recall(1L, call.getArgument(1)));
+            when(memory.recall(1L, "用户不存在")).thenAnswer(call -> realRecall.recall(2L, call.getArgument(1)));
+            when(memory.recall(1L, "原始问题 5")).thenAnswer(call -> {
+                assertThat(Thread.currentThread().getName()).startsWith("conversation-turn-");
+                return List.of(new RecalledMemory(2125000000000000001L, MemoryType.BACKGROUND, "private profile"));
+            });
+            TurnExecutor executor = new TurnExecutor(rag, repository, observedHistory, json, memory);
             TurnService turns = new TurnService(
                     conversations, repository, executor, context.getBean(PlatformTransactionManager.class));
             try {
@@ -415,6 +447,19 @@ class DatabaseIT {
                     assertThat(citations.size()).isEqualTo(1);
                     assertThat(citations.get(0).get("chunkId").asString()).isEqualTo(Long.toString(chunkId));
                     verify(retrieval).search(3L, question, List.of(strategy), parameters);
+                    verify(memory).recall(1L, question);
+                    JsonNode trace = json.readTree(persisted.memoryTrace());
+                    assertThat(trace.path("injectedCount").asInt()).isEqualTo(round == 5 ? 1 : 0);
+                    if (round == 5) {
+                        assertThat(trace.path("memories").get(0).path("id").asString())
+                                .isEqualTo("2125000000000000001");
+                        assertThat(persisted.memoryTrace()).doesNotContain("private profile");
+                        assertThat(repository.listMessages(conversation, 50, 0))
+                                .filteredOn(message -> message.getId().equals(persisted.assistantMessageId()))
+                                .singleElement()
+                                .satisfies(message -> assertThat(json.readTree(message.getMemoryTrace()))
+                                        .isEqualTo(trace));
+                    }
                 }
 
                 ArgumentCaptor<Prompt> prompts = ArgumentCaptor.forClass(Prompt.class);
@@ -427,7 +472,7 @@ class DatabaseIT {
                 for (int round = 2; round <= 5; round++) {
                     Prompt request = requests.get(round - 1);
                     assertThat(request.getInstructions().getFirst().getText())
-                            .startsWith("Prompt-Version: rag-answer-v2");
+                            .startsWith("Prompt-Version: rag-answer-v" + (round == 5 ? 3 : 2));
                     JsonNode history = json.readTree(
                                     request.getInstructions().getLast().getText())
                             .get("history");
@@ -440,6 +485,13 @@ class DatabaseIT {
                         assertThat(entry.get("answer").asString()).isEqualTo("模型回答");
                     }
                 }
+                for (String question : List.of("记忆程序缺陷", "用户不存在")) {
+                    UUID failedId = UUID.randomUUID();
+                    turns.submit(1L, conversation, failedId, question);
+                    TurnResponse failed = awaitTurn(turns, conversation, failedId);
+                    assertThat(failed.status()).isEqualTo(MessageStatus.FAILED);
+                    assertThat(failed.memoryTrace()).isNull();
+                }
                 turns.submit(1L, conversation, cancelledId, "取消中的问题");
                 assertThat(readingHistory.await(5, TimeUnit.SECONDS)).isTrue();
                 assertThat(turns.cancel(1L, conversation, cancelledId).status())
@@ -448,6 +500,7 @@ class DatabaseIT {
                 TurnResponse cancelled = awaitTurn(turns, conversation, cancelledId);
                 assertThat(cancelled.status()).isEqualTo(MessageStatus.CANCELLED);
                 assertThat(cancelled.answer()).isNull();
+                assertThat(cancelled.memoryTrace()).isNull();
                 assertThat(json.readTree(cancelled.citations()).isEmpty()).isTrue();
                 verifyNoMoreInteractions(retrieval, chat);
             } finally {
@@ -521,7 +574,11 @@ class DatabaseIT {
             ConversationRepository repository = context.getBean(ConversationRepository.class);
             RagService rag = mock(RagService.class);
             TurnExecutor executor = new TurnExecutor(
-                    rag, repository, context.getBean(TurnHistoryService.class), context.getBean(JsonMapper.class));
+                    rag,
+                    repository,
+                    context.getBean(TurnHistoryService.class),
+                    context.getBean(JsonMapper.class),
+                    context.getBean(MemoryRecallService.class));
             TurnService turns = new TurnService(
                     conversations, repository, executor, context.getBean(PlatformTransactionManager.class));
             RetrievalStrategy strategy = RetrievalStrategy.HYBRID_RRF;
@@ -536,13 +593,13 @@ class DatabaseIT {
                     false,
                     null,
                     null);
-            when(rag.answer(eq(3L), eq("运行中"), eq(strategy), isNull(), anyList()))
+            when(rag.answer(eq(3L), eq("运行中"), eq(strategy), isNull(), anyList(), anyList()))
                     .thenAnswer(call -> {
                         entered.countDown();
                         assertThat(release.await(10, TimeUnit.SECONDS)).isTrue();
                         return answer;
                     });
-            when(rag.answer(eq(3L), eq("下一轮"), eq(strategy), isNull(), anyList()))
+            when(rag.answer(eq(3L), eq("下一轮"), eq(strategy), isNull(), anyList(), anyList()))
                     .thenReturn(answer);
             Long running = conversations.create(1L, 3L).getId();
             Long queued = conversations.create(1L, 3L).getId();
@@ -567,10 +624,11 @@ class DatabaseIT {
                 TurnResponse cancelled = awaitTurn(turns, running, runningId);
                 assertThat(cancelled.status()).isEqualTo(MessageStatus.CANCELLED);
                 assertThat(cancelled.answer()).isNull();
+                assertThat(cancelled.memoryTrace()).isNull();
                 turns.submit(1L, running, nextId, "下一轮");
                 assertThat(awaitTurn(turns, running, nextId).status()).isEqualTo(MessageStatus.ANSWERED);
                 assertThat(turns.cancel(1L, running, nextId).status()).isEqualTo(MessageStatus.ANSWERED);
-                verify(rag, never()).answer(eq(3L), eq("排队中"), eq(strategy), isNull(), anyList());
+                verify(rag, never()).answer(eq(3L), eq("排队中"), eq(strategy), isNull(), anyList(), anyList());
             } finally {
                 release.countDown();
                 executor.shutdown();
@@ -591,6 +649,9 @@ class DatabaseIT {
             Message result = new Message();
             result.setStatus(MessageStatus.ANSWERED);
             result.setContent("回答");
+            result.setMemoryTrace("""
+                    {"injectedCount":0,"memories":[]}
+                    """);
             result.setCompletedAt(Instant.now());
             CountDownLatch start = new CountDownLatch(1);
             Future<Boolean> cancel = contenders.submit(() -> {
@@ -610,6 +671,12 @@ class DatabaseIT {
             }
             assertThat(repository.turnStatus(pending.getId()))
                     .isEqualTo(cancelled ? MessageStatus.CANCELLED : MessageStatus.ANSWERED);
+            assertThat(repository
+                                    .findTurn(conversation, pending.getTurnId())
+                                    .getFirst()
+                                    .getMemoryTrace()
+                            != null)
+                    .isEqualTo(!cancelled);
         }
     }
 
@@ -679,10 +746,10 @@ class DatabaseIT {
     }
 
     @Test
-    void upgradesV7AndPersistsConversationsAndMessages() {
+    void upgradesV8AndPersistsConversationsAndMessages() {
         Flyway.configure()
                 .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
-                .target("7")
+                .target("8")
                 .load()
                 .migrate();
         JdbcTemplate jdbc = new JdbcTemplate(
@@ -703,6 +770,9 @@ class DatabaseIT {
                 VALUES (5, 2, 3, 4, 0, 'existing', 0, 8)
                 """);
         jdbc.update("INSERT INTO document_import_task (id, document_id, index_version_id) VALUES (6, 3, 4)");
+        jdbc.update("INSERT INTO knowledge_base (id, name, owner_user_id) VALUES (24, 'legacy', 1)");
+        jdbc.update("INSERT INTO chat_conversation (id, owner_user_id, knowledge_base_id) VALUES (19, 1, 24)");
+        UUID legacyTurn = insertHistoryPair(jdbc, 19L, 10, "ANSWERED");
         List<String> before = existingRows(jdbc);
         try (ConfigurableApplicationContext context = start()) {
             assertThat(existingRows(jdbc)).isEqualTo(before);
@@ -713,6 +783,12 @@ class DatabaseIT {
                             Integer.class))
                     .isEqualTo(1);
             ConversationRepository repository = context.getBean(ConversationRepository.class);
+            assertThat(repository.findTurn(19L, legacyTurn))
+                    .hasSize(2)
+                    .allSatisfy(message -> assertThat(message.getMemoryTrace()).isNull());
+            assertThat(repository.listMessages(19L, 10, 0))
+                    .hasSize(2)
+                    .allSatisfy(message -> assertThat(message.getMemoryTrace()).isNull());
             Conversation conversation = new Conversation();
             conversation.setOwnerUserId(1L);
             conversation.setKnowledgeBaseId(2L);

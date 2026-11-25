@@ -7,6 +7,9 @@ import com.lnjecit.knowledge.assistant.conversation.entity.Message;
 import com.lnjecit.knowledge.assistant.conversation.entity.MessageStatus;
 import com.lnjecit.knowledge.assistant.conversation.repository.ConversationRepository;
 import com.lnjecit.knowledge.assistant.infrastructure.ai.ModelCallCancellation;
+import com.lnjecit.knowledge.assistant.memory.dto.MemoryTrace;
+import com.lnjecit.knowledge.assistant.memory.dto.RecalledMemory;
+import com.lnjecit.knowledge.assistant.memory.service.MemoryRecallService;
 import com.lnjecit.knowledge.assistant.rag.RagService;
 import com.lnjecit.knowledge.assistant.rag.model.RagAnswer;
 import com.lnjecit.knowledge.assistant.retrieval.model.RetrievalStrategy;
@@ -37,6 +40,7 @@ public class TurnExecutor {
     private final ConversationRepository repository;
     private final TurnHistoryService historyService;
     private final JsonMapper json;
+    private final MemoryRecallService memoryRecall;
     private final ThreadPoolExecutor executor = new ThreadPoolExecutor(
             4,
             4,
@@ -47,11 +51,16 @@ public class TurnExecutor {
     private final ConcurrentMap<Long, TurnTask> tasks = new ConcurrentHashMap<>();
 
     public TurnExecutor(
-            RagService rag, ConversationRepository repository, TurnHistoryService historyService, JsonMapper json) {
+            RagService rag,
+            ConversationRepository repository,
+            TurnHistoryService historyService,
+            JsonMapper json,
+            MemoryRecallService memoryRecall) {
         this.rag = rag;
         this.repository = repository;
         this.historyService = historyService;
         this.json = json;
+        this.memoryRecall = memoryRecall;
     }
 
     @PostConstruct
@@ -61,14 +70,15 @@ public class TurnExecutor {
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    public synchronized MessageStatus dispatch(Long knowledgeBaseId, Long conversationId, TurnResponse turn) {
+    public synchronized MessageStatus dispatch(
+            long userId, Long knowledgeBaseId, Long conversationId, TurnResponse turn) {
         Long assistantId = turn.assistantMessageId();
         // 投递与取消互斥。若取消先于投递，已提交的状态会阻止任务启动。
         MessageStatus status = repository.turnStatus(assistantId);
         if (status != MessageStatus.PROCESSING) {
             return status;
         }
-        TurnTask task = new TurnTask(knowledgeBaseId, conversationId, turn, RequestIdContext.current());
+        TurnTask task = new TurnTask(userId, knowledgeBaseId, conversationId, turn, RequestIdContext.current());
         tasks.put(assistantId, task);
         try {
             executor.execute(task);
@@ -110,13 +120,15 @@ public class TurnExecutor {
     }
 
     private final class TurnTask implements Runnable {
+        private final long userId;
         private final Long knowledgeBaseId;
         private final Long conversationId;
         private final TurnResponse turn;
         private final String requestId;
         private final ModelCallCancellation cancellation = new ModelCallCancellation();
 
-        private TurnTask(Long knowledgeBaseId, Long conversationId, TurnResponse turn, String requestId) {
+        private TurnTask(long userId, Long knowledgeBaseId, Long conversationId, TurnResponse turn, String requestId) {
+            this.userId = userId;
             this.knowledgeBaseId = knowledgeBaseId;
             this.conversationId = conversationId;
             this.turn = turn;
@@ -131,7 +143,7 @@ public class TurnExecutor {
             try {
                 cancellation.run(() -> {
                     if (repository.turnStatus(turn.assistantMessageId()) == MessageStatus.PROCESSING) {
-                        execute(knowledgeBaseId, conversationId, turn);
+                        execute(userId, knowledgeBaseId, conversationId, turn);
                     }
                     return null;
                 });
@@ -156,20 +168,36 @@ public class TurnExecutor {
         }
     }
 
-    private void execute(Long knowledgeBaseId, Long conversationId, TurnResponse turn) {
+    private void execute(long userId, Long knowledgeBaseId, Long conversationId, TurnResponse turn) {
         Message result;
         try {
             // 提交后在工作线程读取历史，读完再进入检索和生成。
             ModelCallCancellation.checkpoint();
             List<HistoryTurn> history = historyService.select(conversationId, turn.turnId());
             ModelCallCancellation.checkpoint();
+            // 使用提交事务中已校验会话归属的用户 ID，工作线程无需安全上下文。
+            List<RecalledMemory> memory;
+            try {
+                memory = memoryRecall.recall(userId, turn.question());
+            } catch (MemoryRecallService.StorageUnavailableException failure) {
+                log.warn(
+                        "event=TURN_MEMORY_RECALL_DEGRADED assistantMessageId={} failureType={}",
+                        turn.assistantMessageId(),
+                        failure.getCause().getClass().getSimpleName());
+                memory = List.of();
+            }
+            ModelCallCancellation.checkpoint();
             RagAnswer answer =
-                    rag.answer(knowledgeBaseId, turn.question(), RetrievalStrategy.HYBRID_RRF, null, history);
+                    rag.answer(knowledgeBaseId, turn.question(), RetrievalStrategy.HYBRID_RRF, null, history, memory);
             result = new Message();
             result.setStatus(MessageStatus.valueOf(answer.status().name()));
             result.setContent(answer.answer());
             result.setCitations(json.writeValueAsString(answer.citations()));
             result.setErrorCode(answer.error() == null ? null : answer.error().name());
+            if (result.getStatus() == MessageStatus.ANSWERED) {
+                MemoryTrace trace = answer.memoryTrace() == null ? MemoryTrace.from(List.of()) : answer.memoryTrace();
+                result.setMemoryTrace(json.writeValueAsString(trace));
+            }
             result.setCompletedAt(Instant.now());
         } catch (CancellationException cancelled) {
             throw cancelled;

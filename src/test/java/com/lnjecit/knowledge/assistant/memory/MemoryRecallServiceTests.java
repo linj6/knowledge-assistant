@@ -42,9 +42,17 @@ class MemoryRecallServiceTests {
     void emptyStoreReturnsEmptyAndReadFailurePropagates() {
         enableUser();
         DataAccessResourceFailureException failure = new DataAccessResourceFailureException("unavailable");
-        when(memories.listEnabledOwned(1L)).thenReturn(List.of()).thenThrow(failure);
+        when(memories.listEnabledOwned(1L))
+                .thenReturn(List.of())
+                .thenThrow(failure)
+                .thenThrow(new IllegalStateException("defect"));
 
         assertThat(service.recall(1L, "Java")).isEmpty();
+        assertThatThrownBy(() -> service.recall(1L, "Java"))
+                .isInstanceOf(MemoryRecallService.StorageUnavailableException.class)
+                .hasCause(failure);
+        assertThatThrownBy(() -> service.recall(1L, "Java")).isInstanceOf(IllegalStateException.class);
+        when(users.find(1L)).thenThrow(failure);
         assertThatThrownBy(() -> service.recall(1L, "Java")).isSameAs(failure);
     }
 
