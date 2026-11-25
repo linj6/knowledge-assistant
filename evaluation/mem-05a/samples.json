@@ -1,0 +1,21 @@
+{
+  "memories": [
+    {"id": 101, "type": "BACKGROUND", "content": "熟悉 Java 后端开发和关系数据库基础，刚开始学习消息队列与 AI 应用。", "keywords": "", "enabled": true, "updatedAt": "2025-01-09T00:00:00Z"},
+    {"id": 102, "type": "ANSWER_PREFERENCE", "content": "解释技术概念时偏好先给结论，再给简短示例。", "keywords": "", "enabled": true, "updatedAt": "2025-01-08T00:00:00Z"},
+    {"id": 103, "type": "TECH_PREFERENCE", "content": "Java 示例偏好显式类型与 Java 21，避免 Lombok。", "keywords": "java,代码", "enabled": true, "updatedAt": "2025-01-07T00:00:00Z"},
+    {"id": 104, "type": "LEARNING_GOAL", "content": "练习用执行计划定位回表和扫描成本。", "keywords": "mysql,执行计划", "enabled": true, "updatedAt": "2025-01-06T00:00:00Z"},
+    {"id": 105, "type": "LEARNING_STATUS", "content": "已理解二级索引存储主键，仍在区分覆盖索引与回表。", "keywords": "mysql,二级索引", "enabled": true, "updatedAt": "2025-01-05T00:00:00Z"},
+    {"id": 106, "type": "LEARNING_GOAL", "content": "希望用订单事件推演消息重试与乱序。", "keywords": "rabbitmq,顺序消息", "enabled": true, "updatedAt": "2025-01-04T00:00:00Z"},
+    {"id": 107, "type": "LEARNING_STATUS", "content": "已会注册 Spring AI 工具，正在区分自动执行与手动执行。", "keywords": "spring ai,@tool", "enabled": true, "updatedAt": "2025-01-03T00:00:00Z"},
+    {"id": 108, "type": "LEARNING_GOAL", "content": "想比较文档切分大小如何影响证据完整性与上下文开销。", "keywords": "rag,chunk", "enabled": true, "updatedAt": "2025-01-02T00:00:00Z"},
+    {"id": 109, "type": "OTHER", "content": "正在为个人跑步记录设计每周里程图。", "keywords": "跑步,公里", "enabled": true, "updatedAt": "2025-01-01T00:00:00Z"}
+  ],
+  "questions": [
+    {"questionId": "Q01", "question": "MySQL 二级索引什么时候需要回表，怎样从执行计划看出来？", "gold": [102,104,105], "reason": "概念解释适合结论加例子；执行计划目标与覆盖索引学习进度直接对应。"},
+    {"questionId": "Q02", "question": "请给出 Java CompletableFuture 组合两个独立任务的最小可读代码。", "gold": [103], "reason": "交付物是代码，语言版本及显式类型偏好直接影响示例。"},
+    {"questionId": "Q03", "question": "RabbitMQ 中 TTL 重试为什么可能打乱同一订单的处理顺序？", "gold": [101,102,106], "reason": "队列入门背景决定解释起点；简例偏好和订单重试学习目标都适用。"},
+    {"questionId": "Q04", "question": "Spring AI 自动工具调用与手动控制循环有什么区别？", "gold": [102,107], "reason": "适合先总结差异再举例；已会注册工具，可以从执行循环讲起。"},
+    {"questionId": "Q05", "question": "知识库问答中，文档分段太大或太小会怎样影响证据与上下文成本？", "gold": [102,108], "reason": "适合用简例解释取舍；学习目标直接覆盖分段与证据成本。"},
+    {"questionId": "Q06", "question": "把《跑步计划》四个字原样输出，不加解释。", "gold": [], "reason": "这是逐字输出指令，跑步主题及任何技术背景或回答偏好都无助于完成它。"}
+  ]
+}
