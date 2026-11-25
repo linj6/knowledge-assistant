@@ -1,0 +1,50 @@
+{
+  "3e1c5a4e91f9": {
+    "caseId": "AB01",
+    "group": "B"
+  },
+  "222500f268b3": {
+    "caseId": "AB01",
+    "group": "A"
+  },
+  "e96b839f5680": {
+    "caseId": "AB02",
+    "group": "B"
+  },
+  "c0e74578fe26": {
+    "caseId": "AB02",
+    "group": "A"
+  },
+  "5ef160b9167f": {
+    "caseId": "AB03",
+    "group": "A"
+  },
+  "d8f97ba44b5c": {
+    "caseId": "AB03",
+    "group": "B"
+  },
+  "e266e9cac862": {
+    "caseId": "AB04",
+    "group": "B"
+  },
+  "9d3c94522f3f": {
+    "caseId": "AB04",
+    "group": "A"
+  },
+  "6730fd429be4": {
+    "caseId": "AB05",
+    "group": "B"
+  },
+  "17f33ec24583": {
+    "caseId": "AB05",
+    "group": "A"
+  },
+  "8d06839692cd": {
+    "caseId": "AB06",
+    "group": "A"
+  },
+  "707052871179": {
+    "caseId": "AB06",
+    "group": "B"
+  }
+}
