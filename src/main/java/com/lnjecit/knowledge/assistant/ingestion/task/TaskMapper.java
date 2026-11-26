@@ -20,6 +20,8 @@ public interface TaskMapper {
             @Param("leaseMillis") long leaseMillis,
             @Param("maxAttempts") int maxAttempts);
 
+    int retry(@Param("id") Long id);
+
     int fail(
             @Param("claim") ClaimedTask claim,
             @Param("code") String code,

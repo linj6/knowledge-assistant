@@ -13,7 +13,7 @@
  <select id="validOwnership" resultType="boolean">
  SELECT EXISTS(SELECT 1 FROM document d JOIN document_index_version v ON v.document_id=d.id
  WHERE d.id=#{task.documentId} AND v.id=#{task.indexVersionId}
- AND d.active_version_id IS NULL AND (v.status='BUILDING' OR (#{task.status}='FAILED' AND v.status IN ('VERIFIED','FAILED'))) AND v.published_at IS NULL)
+ AND d.active_version_id IS NULL AND (v.status IN ('BUILDING','VERIFIED') OR (#{task.status}='FAILED' AND v.status='FAILED')) AND v.published_at IS NULL)
  </select>
  <update id="claim">
  UPDATE document_import_task SET status='RUNNING',lease_owner=#{owner},
@@ -22,6 +22,11 @@
  WHERE id=#{id} AND attempt_count &lt; #{maxAttempts} AND
  ((status='PENDING' AND (next_retry_at IS NULL OR next_retry_at &lt;= statement_timestamp()))
  OR (status='FAILED' AND next_retry_at IS NOT NULL AND next_retry_at &lt;= statement_timestamp()))
+ </update>
+ <update id="retry">
+ UPDATE document_import_task SET status='PENDING',attempt_count=0,next_retry_at=NULL,
+ lease_owner=NULL,lease_until=NULL,last_error_code=NULL,last_error_message=NULL,updated_at=statement_timestamp()
+ WHERE id=#{id} AND status='FAILED' AND next_retry_at IS NULL
  </update>
  <update id="fail">
  UPDATE document_import_task SET status='FAILED',last_error_code=#{code},

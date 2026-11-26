@@ -3,10 +3,19 @@ package com.lnjecit.knowledge.assistant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.lnjecit.knowledge.assistant.common.error.BusinessException;
+import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
+import com.lnjecit.knowledge.assistant.document.service.DocumentQueryService;
 import com.lnjecit.knowledge.assistant.infrastructure.BusinessHttpTestSecurity;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingConfig;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy;
+import com.lnjecit.knowledge.assistant.ingestion.dto.ImportTaskResponse;
+import com.lnjecit.knowledge.assistant.ingestion.task.ClaimedTask;
+import com.lnjecit.knowledge.assistant.ingestion.task.TaskExecutionException;
+import com.lnjecit.knowledge.assistant.ingestion.task.TaskService;
+import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTask;
+import com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportRepository;
 import com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportService;
 import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;
 import java.util.concurrent.Callable;
@@ -118,6 +127,100 @@ class ImportPersistenceTests {
                     .isEqualTo(2);
             assertThat(jdbc.queryForObject("SELECT count(*) FROM document", Integer.class))
                     .isEqualTo(2);
+        }
+    }
+
+    @Test
+    void manualRetryCompetesWithRetriesAndDeletes() throws Exception {
+        SpringApplication app = new SpringApplication(
+                KnowledgeAssistantApplication.class, StorageConfig.class, BusinessHttpTestSecurity.class);
+        try (ConfigurableApplicationContext context = app.run(
+                        "--spring.datasource.url=" + postgres.getJdbcUrl(),
+                        "--spring.datasource.username=" + postgres.getUsername(),
+                        "--spring.datasource.password=" + postgres.getPassword(),
+                        "--server.port=0",
+                        "--assistant.model.enabled=false",
+                        "--assistant.elasticsearch.enabled=false");
+                ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            DocumentImportService imports = context.getBean(DocumentImportService.class);
+            KnowledgeBaseService knowledge = context.getBean(KnowledgeBaseService.class);
+            DocumentQueryService documents = context.getBean(DocumentQueryService.class);
+            TaskService tasks = context.getBean(TaskService.class);
+            JdbcTemplate jdbc = context.getBean(JdbcTemplate.class);
+            Long kb = knowledge.create(42L, "retry", null).getId();
+            ImportTaskResponse initial = imports.receive(kb, ImportTests.file("a.txt", new byte[] {65}))
+                    .task();
+            Long id = initial.importTaskId();
+            assertThat(retryCode(() -> imports.retryOwned(id, 43L))).isEqualTo(CommonErrorCode.NOT_FOUND);
+            assertThat(retryCode(() -> imports.retryOwned(id, 42L)))
+                    .isEqualTo(CommonErrorCode.IMPORT_TASK_RETRY_CONFLICT);
+            assertThat(retryCode(() -> imports.retryOwned(Long.MAX_VALUE, 42L))).isEqualTo(CommonErrorCode.NOT_FOUND);
+            ClaimedTask claim = tasks.claimById(id, "worker").orElseThrow();
+            assertThat(retryCode(() -> imports.retryOwned(id, 42L)))
+                    .isEqualTo(CommonErrorCode.IMPORT_TASK_RETRY_CONFLICT);
+            tasks.fail(claim, TaskExecutionException.Code.MODEL_TIMEOUT);
+            assertThat(retryCode(() -> imports.retryOwned(id, 42L)))
+                    .isEqualTo(CommonErrorCode.IMPORT_TASK_RETRY_CONFLICT);
+            jdbc.update("UPDATE document_import_task SET next_retry_at=NULL,attempt_count=4 WHERE id=?", id);
+            jdbc.update("UPDATE document_index_version SET status='FAILED' WHERE document_id=?", initial.documentId());
+            assertThat(retryCode(() -> imports.retryOwned(id, 42L)))
+                    .isEqualTo(CommonErrorCode.IMPORT_VERSION_NOT_RECOVERABLE);
+            jdbc.update(
+                    "UPDATE document_index_version SET status='VERIFIED',expected_chunk_count=1 WHERE document_id=?",
+                    initial.documentId());
+            DocumentImportRepository importRecords = context.getBean(DocumentImportRepository.class);
+            ImportTask previousFailure = importRecords.find(id);
+            CyclicBarrier gate = new CyclicBarrier(2);
+            Callable<Object> retry = () -> {
+                gate.await(10, TimeUnit.SECONDS);
+                return retryCode(() -> imports.retryOwned(id, 42L));
+            };
+            Future<Object> first = executor.submit(retry);
+            Future<Object> second = executor.submit(retry);
+            assertThat(java.util.List.of(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder("OK", CommonErrorCode.IMPORT_TASK_RETRY_CONFLICT);
+            ImportTaskResponse updated = imports.getOwned(id, 42L);
+            assertThat(updated.status()).isEqualTo("RECEIVED");
+            assertThat(updated.documentId()).isEqualTo(initial.documentId());
+            assertThat(updated.chunkingConfig()).isEqualTo(initial.chunkingConfig());
+            assertThat(retryCode(() -> documents.delete(kb, initial.documentId(), 42L)))
+                    .isEqualTo(CommonErrorCode.DOCUMENT_BUSY);
+            assertThat(retryCode(() -> knowledge.delete(kb, 42L))).isEqualTo(CommonErrorCode.KNOWLEDGE_BASE_BUSY);
+            tasks.fail(tasks.claimById(id, "retry-worker").orElseThrow(), TaskExecutionException.Code.MODEL_TIMEOUT);
+            assertThat(jdbc.queryForObject(
+                            "SELECT attempt_count=1 AND claim_epoch=2 AND next_retry_at IS NOT NULL FROM document_import_task WHERE id=?",
+                            Boolean.class,
+                            id))
+                    .isTrue();
+
+            TransactionTemplate transaction =
+                    new TransactionTemplate(context.getBean(PlatformTransactionManager.class));
+            jdbc.update("UPDATE document_import_task SET next_retry_at=NULL WHERE id=?", id);
+            assertThat(retryCode(() -> transaction.executeWithoutResult(status -> {
+                        knowledge.lockOwnedActive(kb, 42L);
+                        importRecords.retry(previousFailure);
+                    })))
+                    .isEqualTo(CommonErrorCode.IMPORT_TASK_RETRY_CONFLICT);
+            for (boolean deleteKnowledge : new boolean[] {false, true}) {
+                jdbc.update("UPDATE document_import_task SET next_retry_at=NULL WHERE id=?", id);
+                Future<Object> losingRetry = transaction.execute(status -> {
+                    if (deleteKnowledge) knowledge.delete(kb, 42L);
+                    else documents.delete(kb, initial.documentId(), 42L);
+                    return executor.submit(() -> retryCode(() -> imports.retryOwned(id, 42L)));
+                });
+                assertThat(losingRetry.get(10, TimeUnit.SECONDS)).isEqualTo(CommonErrorCode.NOT_FOUND);
+                if (!deleteKnowledge)
+                    jdbc.update("UPDATE document SET deleted_at=NULL WHERE id=?", initial.documentId());
+            }
+        }
+    }
+
+    private static Object retryCode(Runnable operation) {
+        try {
+            operation.run();
+            return "OK";
+        } catch (BusinessException failure) {
+            return failure.getErrorCode();
         }
     }
 

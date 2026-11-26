@@ -73,6 +73,11 @@ class IngestionPipelineIT extends ElasticsearchIT {
     }
 
     @Test
+    void manualRetryAfterPartialEmbeddingAndExhaustion() throws Exception {
+        runPipeline("manual-partial");
+    }
+
+    @Test
     void partialEmbeddingRecovery() throws Exception {
         runPipeline("partial");
     }
@@ -140,7 +145,7 @@ class IngestionPipelineIT extends ElasticsearchIT {
             JsonNode request = json.readTree(exchange.getRequestBody().readAllBytes());
             int call = requests.incrementAndGet();
             request.path("input").forEach(text -> requested.add(text.asString()));
-            if (unavailable.get() || (mode.equals("partial") && call >= 2)) {
+            if (unavailable.get() || ((mode.equals("partial") || mode.equals("manual-partial")) && call >= 2)) {
                 exchange.sendResponseHeaders(503, -1);
                 exchange.close();
                 return;
@@ -384,7 +389,7 @@ class IngestionPipelineIT extends ElasticsearchIT {
                 }
                 if (!mode.equals("normal") && !mode.startsWith("publish-")) {
                     unavailable.set(mode.equals("retry") || mode.equals("exhaust"));
-                    int attempts = mode.equals("exhaust") ? 4 : 1;
+                    int attempts = mode.equals("exhaust") || mode.equals("manual-partial") ? 4 : 1;
                     for (int attempt = 1; attempt <= attempts; attempt++) {
                         c.getBean(TaskScheduler.class).scan();
                         assertThat(jdbc.queryForObject(
@@ -449,7 +454,7 @@ class IngestionPipelineIT extends ElasticsearchIT {
                                 .isEqualTo(4);
                         continue;
                     }
-                    if (mode.equals("partial")) {
+                    if (mode.equals("partial") || mode.equals("manual-partial")) {
                         jdbc.query(
                                 "SELECT id,embedding::text FROM document_chunk WHERE index_version_id=? AND embedding IS NOT NULL",
                                 rs -> {
@@ -492,6 +497,17 @@ class IngestionPipelineIT extends ElasticsearchIT {
                                 version);
                         beforeCalls = new java.util.HashMap<>(calls);
                     }
+                    if (mode.equals("manual-partial")) {
+                        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(
+                                                "/v1/import-tasks/{id}:retry", task)
+                                        .principal(AUTHENTICATION))
+                                .andExpect(status().isAccepted())
+                                .andExpect(jsonPath("$.data.status").value("RECEIVED"))
+                                .andExpect(jsonPath("$.data.chunkingConfig.chunkSize")
+                                        .value(response.path("chunkingConfig")
+                                                .path("chunkSize")
+                                                .asInt()));
+                    }
                     unavailable.set(false);
                     // 测试 Stub 恢复：负值保证本次剩余请求不会再次触发第二批故障。
                     requests.set(-10000);
@@ -509,7 +525,10 @@ class IngestionPipelineIT extends ElasticsearchIT {
                         .isGreaterThan(1);
                 assertThat(jdbc.queryForObject(
                                 "SELECT attempt_count FROM document_import_task WHERE id=?", Integer.class, task))
-                        .isEqualTo((mode.equals("normal") || mode.startsWith("publish-")) ? 1 : 2);
+                        .isEqualTo(
+                                (mode.equals("normal") || mode.startsWith("publish-") || mode.equals("manual-partial"))
+                                        ? 1
+                                        : 2);
                 assertThat(jdbc.queryForObject(
                                 "SELECT last_error_code IS NULL AND last_error_message IS NULL AND next_retry_at IS NULL FROM document_import_task WHERE id=?",
                                 Boolean.class,

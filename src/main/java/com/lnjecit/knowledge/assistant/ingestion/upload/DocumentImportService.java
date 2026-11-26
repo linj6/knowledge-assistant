@@ -31,6 +31,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
 @Service
@@ -258,6 +259,29 @@ public class DocumentImportService {
             throw new BusinessException(CommonErrorCode.NOT_FOUND);
         }
         return response(task);
+    }
+
+    public ImportTaskResponse retryOwned(Long id, long userId) {
+        return transaction.execute(status -> {
+            ImportTask task = repository.find(id);
+            if (task == null) throw new BusinessException(CommonErrorCode.NOT_FOUND);
+            Document document = repository.findDocument(task.getDocumentId());
+            if (document == null) throw new BusinessException(CommonErrorCode.NOT_FOUND);
+            // 与删除共用知识库行锁，后续按发布流程的顺序获取文档、版本和任务锁。
+            try {
+                knowledge.lockOwnedActive(document.getKnowledgeBaseId(), userId);
+            } catch (BusinessException ex) {
+                if (ex.getErrorCode() != CommonErrorCode.KNOWLEDGE_BASE_NOT_FOUND) throw ex;
+                throw new BusinessException(CommonErrorCode.NOT_FOUND);
+            }
+            ImportTask pending = repository.retry(task);
+            try {
+                return response(pending);
+            } catch (JacksonException ex) {
+                // 无法读取原切分快照时回滚任务重置，避免调度无法构建的任务。
+                throw new BusinessException(CommonErrorCode.IMPORT_VERSION_NOT_RECOVERABLE);
+            }
+        });
     }
 
     /** 供可信内部调用按 ID 查询任务。 */

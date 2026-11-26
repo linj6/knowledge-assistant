@@ -68,6 +68,8 @@ class BusinessExceptionTests {
                                 MEMORY_DUPLICATE,
                                 KNOWLEDGE_BASE_BUSY,
                                 DOCUMENT_BUSY,
+                                IMPORT_TASK_RETRY_CONFLICT,
+                                IMPORT_VERSION_NOT_RECOVERABLE,
                                 MEMORY_LIMIT_REACHED -> 409;
                         case INVALID_ARGUMENT -> 400;
                         case METHOD_NOT_ALLOWED -> 405;

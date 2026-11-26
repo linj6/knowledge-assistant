@@ -4,6 +4,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -79,6 +80,16 @@ class ImportApiTests {
         mvc.perform(get("/v1/import-tasks/9007199254740993").principal(authentication))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.documentId").value("2"));
+        when(service.retryOwned(9007199254740993L, 42L)).thenReturn(response);
+        mvc.perform(post("/v1/import-tasks/9007199254740993:retry").principal(authentication))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.data.chunkingConfig.chunkSize").value(800));
+        when(service.retryOwned(99L, 42L))
+                .thenThrow(new com.lnjecit.knowledge.assistant.common.error.BusinessException(
+                        com.lnjecit.knowledge.assistant.common.error.CommonErrorCode.IMPORT_TASK_RETRY_CONFLICT));
+        mvc.perform(post("/v1/import-tasks/99:retry").principal(authentication))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(40907));
         when(service.getOwned(99L, 42L))
                 .thenThrow(new com.lnjecit.knowledge.assistant.common.error.BusinessException(
                         com.lnjecit.knowledge.assistant.common.error.CommonErrorCode.NOT_FOUND));

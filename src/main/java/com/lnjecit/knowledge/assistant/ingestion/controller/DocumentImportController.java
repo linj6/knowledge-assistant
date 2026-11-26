@@ -48,6 +48,13 @@ public class DocumentImportController {
         return ResponseEntity.status(outcome.duplicate() ? 200 : 202).body(Result.success(outcome.task()));
     }
 
+    @PostMapping("/v1/import-tasks/{taskId}:retry")
+    public ResponseEntity<Result<ImportTaskResponse>> retry(
+            @PathVariable @Positive Long taskId, Authentication authentication) {
+        return ResponseEntity.accepted()
+                .body(Result.success(service.retryOwned(taskId, AuthPrincipal.requireUserId(authentication))));
+    }
+
     @GetMapping("/v1/import-tasks/{taskId}")
     public Result<ImportTaskResponse> get(@PathVariable @Positive Long taskId, Authentication authentication) {
         return Result.success(service.getOwned(taskId, AuthPrincipal.requireUserId(authentication)));

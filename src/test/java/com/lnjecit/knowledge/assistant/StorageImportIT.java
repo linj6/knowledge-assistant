@@ -254,6 +254,7 @@ class StorageImportIT {
             store.finalDelete = false;
             j.execute("ALTER TABLE document_import_task DROP CONSTRAINT reject_storage");
             // 真PG已提交后注入响应丢失，引用查询必须保护正式对象。
+            int finalObjectsBeforeCommit = store.finals.size();
             PlatformTransactionManager uncertain = new PlatformTransactionManager() {
                 public TransactionStatus getTransaction(TransactionDefinition d) {
                     return manager.getTransaction(d);
@@ -261,7 +262,9 @@ class StorageImportIT {
 
                 public void commit(TransactionStatus s) {
                     manager.commit(s);
-                    throw new IllegalStateException("injected lost commit response");
+                    // 跳过上传前的去重事务，只在正式对象和任务都已提交后注入故障。
+                    if (store.finals.size() > finalObjectsBeforeCommit)
+                        throw new IllegalStateException("injected lost commit response");
                 }
 
                 public void rollback(TransactionStatus s) {
@@ -295,6 +298,7 @@ class StorageImportIT {
                             "SELECT count(*) FROM document WHERE object_key LIKE 'staging/%'", Integer.class))
                     .isZero();
             // 主库真实不可用时无法确认引用，必须保留正式对象而不是尝试删除。
+            int finalObjectsBeforeUnavailable = store.finals.size();
             PlatformTransactionManager unavailable = new PlatformTransactionManager() {
                 public TransactionStatus getTransaction(TransactionDefinition d) {
                     return manager.getTransaction(d);
@@ -302,8 +306,10 @@ class StorageImportIT {
 
                 public void commit(TransactionStatus status) {
                     manager.commit(status);
-                    postgres.stop();
-                    throw new IllegalStateException("injected unavailable after commit");
+                    if (store.finals.size() > finalObjectsBeforeUnavailable) {
+                        postgres.stop();
+                        throw new IllegalStateException("injected unavailable after commit");
+                    }
                 }
 
                 public void rollback(TransactionStatus status) {

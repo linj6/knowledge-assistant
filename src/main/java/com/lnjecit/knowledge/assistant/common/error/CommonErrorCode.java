@@ -11,6 +11,8 @@ public enum CommonErrorCode implements ErrorCode {
     TURN_IN_PROGRESS(40902, "会话已有正在执行的 Turn"),
     KNOWLEDGE_BASE_BUSY(40905, "知识库存在未结束的导入任务或问答轮次"),
     DOCUMENT_BUSY(40906, "文档存在未结束的导入任务"),
+    IMPORT_TASK_RETRY_CONFLICT(40907, "导入任务状态不允许本次重试"),
+    IMPORT_VERSION_NOT_RECOVERABLE(40908, "导入失败原因或索引版本状态不支持安全恢复"),
     INVALID_ARGUMENT(40000, "请求参数不合法"),
     METHOD_NOT_ALLOWED(40500, "不支持的 HTTP 方法"),
     UNSUPPORTED_MEDIA_TYPE(41500, "不支持的媒体类型"),

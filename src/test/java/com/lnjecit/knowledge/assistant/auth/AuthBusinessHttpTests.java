@@ -370,7 +370,7 @@ class AuthBusinessHttpTests {
                 id,
                 Long.valueOf(kb));
         jdbc.update(
-                "INSERT INTO document_index_version(id,document_id,chunking_config,status,expected_chunk_count,published_at) VALUES(?,?,'{}','PUBLISHED',1,CURRENT_TIMESTAMP)",
+                "INSERT INTO document_index_version(id,document_id,chunking_config,status,expected_chunk_count,published_at) VALUES(?,?,'{\"version\":2,\"strategy\":\"FIXED_CODE_POINT\",\"chunkSize\":800,\"chunkOverlap\":120}','PUBLISHED',1,CURRENT_TIMESTAMP)",
                 id,
                 id);
         jdbc.update("UPDATE document SET active_version_id=? WHERE id=?", id, id);
