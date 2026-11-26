@@ -28,7 +28,7 @@ class DocumentQueryTests {
 
     @Test
     void emptyPage() {
-        when(repository.page(1L, 0, 20)).thenReturn(List.of());
+        when(repository.page(1L, 0, 20, null, null)).thenReturn(List.of());
         assertThat(service.list(1L, 1, 20).items()).isEmpty();
     }
 
@@ -41,7 +41,7 @@ class DocumentQueryTests {
         v.setId(20L);
         v.setDocumentId(10L);
         v.setStatus(IndexVersionStatus.VERIFIED);
-        when(repository.page(1L, 0, 20)).thenReturn(List.of(d));
+        when(repository.page(1L, 0, 20, null, null)).thenReturn(List.of(d));
         when(repository.versions(List.of(20L))).thenReturn(List.of(v));
         when(repository.tasks(List.of(10L))).thenReturn(List.of());
         assertThat(service.list(1L, 1, 20).items().getFirst().publicationStatus())
@@ -54,7 +54,7 @@ class DocumentQueryTests {
         Document d = new Document();
         d.setId(10L);
         d.setActiveVersionId(20L);
-        when(repository.page(1L, 0, 20)).thenReturn(List.of(d));
+        when(repository.page(1L, 0, 20, null, null)).thenReturn(List.of(d));
         when(repository.versions(List.of(20L))).thenReturn(List.of());
         when(repository.tasks(List.of(10L))).thenReturn(List.of());
         assertThatThrownBy(() -> service.list(1L, 1, 20)).isInstanceOf(BusinessException.class);

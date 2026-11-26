@@ -19,7 +19,7 @@ public class Document {
     private Long knowledgeBaseId;
     /** 原始文件展示名称，不参与对象存储路径拼接。 */
     private String filename;
-    /** 原始内容摘要，与知识库标识联合唯一，用于同库内容去重。 */
+    /** 原始内容摘要，用于同库未删除文档的内容去重。 */
     private String contentHash;
     /** 原文件在对象存储中的服务端生成 Key。 */
     private String objectKey;

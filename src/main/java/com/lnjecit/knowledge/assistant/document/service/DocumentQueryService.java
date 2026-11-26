@@ -37,12 +37,23 @@ public class DocumentQueryService {
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public DocumentListResponse list(Long kbId, int page, int pageSize) {
+        return list(kbId, page, pageSize, null, null);
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public DocumentListResponse list(Long kbId, int page, int pageSize, String keyword, String status) {
         if (kbId == null || kbId <= 0 || page < 1 || pageSize < 1 || pageSize > 100)
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT);
         knowledgeBases.get(kbId);
         // 同一只读快照内完成计数、分页和批量关联，避免 N+1 及关联身份漂移。
-        long total = repository.count(kbId);
-        List<Document> documents = repository.page(kbId, ((long) page - 1) * pageSize, pageSize);
+        if (status != null
+                && !List.of("UNPUBLISHED", "IMPORTING", "PUBLISHED", "FAILED").contains(status))
+            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT);
+        String pattern = keyword == null || keyword.isBlank()
+                ? null
+                : "%" + keyword.strip().replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
+        long total = repository.count(kbId, pattern, status);
+        List<Document> documents = repository.page(kbId, ((long) page - 1) * pageSize, pageSize, pattern, status);
         Map<Long, IndexVersion> versions = repository
                 .versions(documents.stream()
                         .map(Document::getActiveVersionId)
@@ -80,6 +91,16 @@ public class DocumentQueryService {
                 })
                 .toList();
         return new DocumentListResponse(items, page, pageSize, total);
+    }
+
+    @Transactional
+    public void delete(Long kbId, Long documentId, long userId) {
+        // 与上传和知识库删除共用知识库行锁，再按发布事务的顺序锁定文档。
+        knowledgeBases.lockOwnedActive(kbId, userId);
+        if (!repository.lockActive(kbId, documentId)) throw new BusinessException(CommonErrorCode.NOT_FOUND);
+        // 等待重试也属于未结束导入。普通读取任务状态，避免与任务领取互相等待。
+        if (repository.hasActiveImport(documentId)) throw new BusinessException(CommonErrorCode.DOCUMENT_BUSY);
+        if (!repository.markDeleted(kbId, documentId)) throw new BusinessException(CommonErrorCode.NOT_FOUND);
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)

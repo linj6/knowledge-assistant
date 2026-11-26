@@ -67,6 +67,7 @@ class BusinessExceptionTests {
                                 TURN_IN_PROGRESS,
                                 MEMORY_DUPLICATE,
                                 KNOWLEDGE_BASE_BUSY,
+                                DOCUMENT_BUSY,
                                 MEMORY_LIMIT_REACHED -> 409;
                         case INVALID_ARGUMENT -> 400;
                         case METHOD_NOT_ALLOWED -> 405;

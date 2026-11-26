@@ -224,6 +224,37 @@ class ImportPersistenceTests {
                     .isInstanceOf(IllegalStateException.class);
             assertThat(jdbc.queryForObject("SELECT count(*) FROM document_import_task", Integer.class))
                     .isEqualTo(3);
+
+            store.failPut.set(false);
+            jdbc.execute("ALTER TABLE document_import_task DROP CONSTRAINT test_reject_task");
+            jdbc.update(
+                    "UPDATE document_import_task SET status='FAILED' WHERE id=?",
+                    first.task().importTaskId());
+            String originalKey = jdbc.queryForObject(
+                    "SELECT object_key FROM document WHERE id=?",
+                    String.class,
+                    first.task().documentId());
+            context.getBean(com.lnjecit.knowledge.assistant.document.service.DocumentQueryService.class)
+                    .delete(kb, first.task().documentId(), 42L);
+            DocumentImportService.Outcome replacement = service.receive(kb, ImportTests.file("replacement.md", bytes));
+            assertThat(replacement.duplicate()).isFalse();
+            assertThat(replacement.task().documentId())
+                    .isNotEqualTo(first.task().documentId());
+            assertThat(replacement.task().importTaskId())
+                    .isNotEqualTo(first.task().importTaskId());
+            assertThat(store.read(originalKey)).isEqualTo(bytes);
+            assertThat(service.receive(kb, ImportTests.file("again.md", bytes))
+                            .task()
+                            .importTaskId())
+                    .isEqualTo(replacement.task().importTaskId());
+            assertThatThrownBy(() -> jdbc.update(
+                            """
+                    INSERT INTO document(id, knowledge_base_id, filename, content_hash, object_key)
+                    SELECT 999, knowledge_base_id, filename, content_hash, object_key
+                    FROM document WHERE id=?
+                    """,
+                            replacement.task().documentId()))
+                    .isInstanceOf(org.springframework.dao.DuplicateKeyException.class);
         }
     }
 }

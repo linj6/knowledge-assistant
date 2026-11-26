@@ -7,6 +7,7 @@ import com.lnjecit.knowledge.assistant.document.entity.DocumentChunk;
 import com.lnjecit.knowledge.assistant.document.mapper.DocumentQueryMapper;
 import com.lnjecit.knowledge.assistant.document.repository.DocumentQueryRepository;
 import com.lnjecit.knowledge.assistant.infrastructure.BusinessHttpTestSecurity;
+import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshotService;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpResponse;
@@ -49,6 +50,11 @@ class DocumentQueryPersistenceTests {
     }
 
     private JsonNode get(ConfigurableApplicationContext context, String path, int status, int code) throws Exception {
+        return request(context, path, status, code, false);
+    }
+
+    private JsonNode request(ConfigurableApplicationContext context, String path, int status, int code, boolean delete)
+            throws Exception {
         int port = ((WebServerApplicationContext) context).getWebServer().getPort();
         HttpResponse<String> response = HttpClient.newHttpClient()
                 .send(
@@ -56,7 +62,7 @@ class DocumentQueryPersistenceTests {
                                         context,
                                         URI.create("http://localhost:" + port + "/api/v1/knowledge-bases/" + path))
                                 .header("X-Request-Id", "web02-http")
-                                .GET()
+                                .method(delete ? "DELETE" : "GET", java.net.http.HttpRequest.BodyPublishers.noBody())
                                 .build(),
                         HttpResponse.BodyHandlers.ofString());
         assertThat(response.statusCode()).as(path).isEqualTo(status);
@@ -120,6 +126,24 @@ class DocumentQueryPersistenceTests {
                     .isZero();
             for (String query : List.of("page=0", "pageSize=101", "pageSize=0", "page=x"))
                 get(c, "1/documents?" + query, 400, 40000);
+            j.update("UPDATE document SET filename='Literal%_!.MD' WHERE id=12");
+            String filters = "1/documents?keyword=%20literal%25_%21%20&status=IMPORTING";
+            data = get(c, filters, 200, 0);
+            assertThat(data.get("total").asString()).isEqualTo("1");
+            assertThat(data.get("items").get(0).get("documentId").asString()).isEqualTo("12");
+            assertThat(get(c, filters + "&page=2", 200, 0).get("total").asString())
+                    .isEqualTo("1");
+            assertThat(get(c, "1/documents?keyword=%20%20", 200, 0).get("total").asString())
+                    .isEqualTo("4");
+            for (String status : List.of("PUBLISHED", "FAILED", "UNPUBLISHED"))
+                assertThat(get(c, "1/documents?status=" + status, 200, 0)
+                                .get("total")
+                                .asString())
+                        .isEqualTo("1");
+            get(c, "1/documents?status=UNKNOWN", 400, 40000);
+            request(c, "1/documents/12", 409, 40906, true);
+            j.update("UPDATE document_import_task SET next_retry_at=now() WHERE id=34");
+            request(c, "1/documents/11", 409, 40906, true);
             get(c, "0/documents", 400, 40000);
             assertThat(j.queryForObject("SELECT count(*) FROM document", Integer.class))
                     .isEqualTo(4);
@@ -163,6 +187,27 @@ class DocumentQueryPersistenceTests {
             j.update("UPDATE document SET active_version_id=20 WHERE id=10");
             j.update("UPDATE document_index_version SET status='PUBLISHED',published_at=now() WHERE id=20");
             get(c, path, 200, 0);
+            PublishedVersionSnapshotService snapshots = c.getBean(PublishedVersionSnapshotService.class);
+            assertThat(snapshots.read(1L).documents()).hasSize(1);
+            j.update(
+                    "INSERT INTO app_user(id,username,password_hash,status) VALUES(43,'other-user','unused','ACTIVE')");
+            j.update("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES(3,'private',43)");
+            request(c, "3/documents/10", 404, 40401, true);
+            request(c, "2/documents/10", 404, 40400, true);
+            request(c, "1/documents/10", 200, 0, true);
+            request(c, "1/documents/10", 404, 40400, true);
+            get(c, path, 404, 40400);
+            assertThat(get(c, "1/documents?status=PUBLISHED", 200, 0)
+                            .get("total")
+                            .asString())
+                    .isEqualTo("0");
+            assertThat(snapshots.read(1L).documents()).isEmpty();
+            assertThat(j.queryForObject("SELECT active_version_id FROM document WHERE id=10", Long.class))
+                    .isEqualTo(20L);
+            assertThat(j.queryForObject("SELECT status FROM document_index_version WHERE id=20", String.class))
+                    .isEqualTo("PUBLISHED");
+            assertThat(j.queryForObject("SELECT count(*) FROM document_chunk WHERE document_id=10", Integer.class))
+                    .isEqualTo(2);
         }
     }
 
@@ -182,9 +227,9 @@ class DocumentQueryPersistenceTests {
                 }
 
                 @Override
-                public long count(Long kbId) {
+                public long count(Long kbId, String pattern, String status) {
                     checkTransaction();
-                    return super.count(kbId);
+                    return super.count(kbId, pattern, status);
                 }
 
                 @Override

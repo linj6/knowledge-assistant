@@ -58,6 +58,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                     TURN_IN_PROGRESS,
                     MEMORY_DUPLICATE,
                     KNOWLEDGE_BASE_BUSY,
+                    DOCUMENT_BUSY,
                     MEMORY_LIMIT_REACHED -> HttpStatus.CONFLICT;
             case INVALID_ARGUMENT -> HttpStatus.BAD_REQUEST;
         };

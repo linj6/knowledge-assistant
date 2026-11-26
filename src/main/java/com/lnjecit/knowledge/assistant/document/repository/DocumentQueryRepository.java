@@ -24,12 +24,24 @@ public class DocumentQueryRepository {
         return mapper.chunk(id);
     }
 
-    public long count(Long kbId) {
-        return mapper.count(kbId);
+    public long count(Long kbId, String pattern, String status) {
+        return mapper.count(kbId, pattern, status);
     }
 
-    public List<Document> page(Long kbId, long offset, int size) {
-        return mapper.page(kbId, offset, size);
+    public List<Document> page(Long kbId, long offset, int size, String pattern, String status) {
+        return mapper.page(kbId, offset, size, pattern, status);
+    }
+
+    public boolean lockActive(Long kbId, Long id) {
+        return mapper.lockActive(kbId, id) != null;
+    }
+
+    public boolean hasActiveImport(Long id) {
+        return mapper.hasActiveImport(id);
+    }
+
+    public boolean markDeleted(Long kbId, Long id) {
+        return mapper.markDeleted(kbId, id) == 1;
     }
 
     public List<IndexVersion> versions(List<Long> ids) {

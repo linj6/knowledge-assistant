@@ -14,9 +14,20 @@ public interface DocumentQueryMapper {
 
     DocumentChunk chunk(@Param("id") Long id);
 
-    long count(@Param("kbId") Long kbId);
+    long count(@Param("kbId") Long kbId, @Param("pattern") String pattern, @Param("status") String status);
 
-    List<Document> page(@Param("kbId") Long kbId, @Param("offset") long offset, @Param("size") int size);
+    Long lockActive(@Param("kbId") Long kbId, @Param("id") Long id);
+
+    boolean hasActiveImport(@Param("id") Long id);
+
+    int markDeleted(@Param("kbId") Long kbId, @Param("id") Long id);
+
+    List<Document> page(
+            @Param("kbId") Long kbId,
+            @Param("offset") long offset,
+            @Param("size") int size,
+            @Param("pattern") String pattern,
+            @Param("status") String status);
 
     List<IndexVersion> versions(@Param("ids") List<Long> ids);
 

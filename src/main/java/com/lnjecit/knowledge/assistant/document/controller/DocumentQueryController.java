@@ -9,6 +9,7 @@ import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Positive;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,9 +32,18 @@ public class DocumentQueryController {
             @PathVariable @Positive Long kbId,
             @RequestParam(defaultValue = "1") @Positive int page,
             @RequestParam(defaultValue = "20") @Positive @Max(100) int pageSize,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String status,
             Authentication authentication) {
         knowledgeBases.requireOwned(kbId, AuthPrincipal.requireUserId(authentication));
-        return Result.success(service.list(kbId, page, pageSize));
+        return Result.success(service.list(kbId, page, pageSize, keyword, status));
+    }
+
+    @DeleteMapping("/{documentId}")
+    public Result<Void> delete(
+            @PathVariable @Positive Long kbId, @PathVariable @Positive Long documentId, Authentication authentication) {
+        service.delete(kbId, documentId, AuthPrincipal.requireUserId(authentication));
+        return Result.success(null);
     }
 
     @GetMapping("/{documentId}/versions/{versionId}/chunks/{chunkId}")

@@ -88,9 +88,9 @@ class RetrievalServiceIT extends ElasticsearchIT {
             KnowledgeBaseOwnerFixture.insertDefaultOwner(jdbc);
             jdbc.update("INSERT INTO knowledge_base(id,name,owner_user_id) VALUES(601,'primary',1),(611,'other',1)");
             jdbc.update(
-                    "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key) VALUES(602,601,'a','a','a'),(605,601,'b','b','b'),(608,601,'unpublished','c','c'),(612,611,'other','d','d')");
+                    "INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key) VALUES(602,601,'a','a','a'),(605,601,'b','b','b'),(608,601,'unpublished','c','c'),(612,611,'other','d','d'),(622,601,'deleted','e','e')");
             jdbc.update(
-                    "INSERT INTO document_index_version(id,document_id,chunking_config) VALUES(603,602,'{}'),(606,605,'{}'),(609,608,'{}'),(613,612,'{}'),(620,602,'{}')");
+                    "INSERT INTO document_index_version(id,document_id,chunking_config) VALUES(603,602,'{}'),(606,605,'{}'),(609,608,'{}'),(613,612,'{}'),(620,602,'{}'),(623,622,'{}')");
             float[] values = new float[1024];
             values[0] = 1;
             QueryVector fixed = new QueryVector(values);
@@ -116,6 +116,8 @@ class RetrievalServiceIT extends ElasticsearchIT {
             addChunk(jdbc, corpus, 618, 611, 612, 613, 1, "body", 1, 0);
             jdbc.update(
                     "UPDATE document SET active_version_id=CASE id WHEN 602 THEN 603 WHEN 605 THEN 606 WHEN 612 THEN 613 END WHERE id IN(602,605,612)");
+            addChunk(jdbc, corpus, 624, 601, 622, 623, 0, "body body body body body body", 1, 0);
+            jdbc.update("UPDATE document SET active_version_id=623,deleted_at=now() WHERE id=622");
             ElasticsearchClient client = new ElasticsearchClient(transport);
             String index = "m206-" + UUID.randomUUID();
             EsIndexRepository writer = new EsIndexRepository(client);

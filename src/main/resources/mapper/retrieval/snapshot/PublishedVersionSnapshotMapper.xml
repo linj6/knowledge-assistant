@@ -5,7 +5,7 @@
  SELECT k.id AS knowledge_base_id,d.id AS document_id,d.active_version_id,
  v.id AS version_id,v.document_id AS version_document_id
  FROM knowledge_base k
- LEFT JOIN document d ON d.knowledge_base_id=k.id AND d.active_version_id IS NOT NULL
+ LEFT JOIN document d ON d.knowledge_base_id=k.id AND d.active_version_id IS NOT NULL AND d.deleted_at IS NULL
  LEFT JOIN document_index_version v ON v.id=d.active_version_id
  WHERE k.id=#{kbId}
  ORDER BY d.id

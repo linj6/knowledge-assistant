@@ -1,10 +1,52 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.lnjecit.knowledge.assistant.document.mapper.DocumentQueryMapper">
-<select id="count" resultType="long">SELECT count(*) FROM document WHERE knowledge_base_id=#{kbId}</select>
-<select id="page" resultType="com.lnjecit.knowledge.assistant.document.entity.Document">
-SELECT id,knowledge_base_id,filename,active_version_id,created_at FROM document WHERE knowledge_base_id=#{kbId} ORDER BY created_at DESC,id DESC LIMIT #{size} OFFSET #{offset}
+<sql id="activeScope">
+    FROM document d
+    <if test="status != null and status != 'PUBLISHED'">
+        LEFT JOIN LATERAL (
+            SELECT status, next_retry_at FROM document_import_task
+            WHERE document_id=d.id ORDER BY created_at DESC,id DESC LIMIT 1
+        ) t ON TRUE
+    </if>
+    WHERE d.knowledge_base_id=#{kbId} AND d.deleted_at IS NULL
+    <if test="pattern != null">AND d.filename ILIKE #{pattern} ESCAPE '!'</if>
+    <if test="status != null">
+        <choose>
+            <when test="status == 'PUBLISHED'">AND d.active_version_id IS NOT NULL</when>
+            <otherwise>
+                AND d.active_version_id IS NULL
+                AND CASE
+                    WHEN t.status IN ('PENDING','RUNNING') OR (t.status='FAILED' AND t.next_retry_at IS NOT NULL)
+                        THEN 'IMPORTING'
+                    WHEN t.status='FAILED' THEN 'FAILED'
+                    ELSE 'UNPUBLISHED'
+                END = #{status}
+            </otherwise>
+        </choose>
+    </if>
+</sql>
+<select id="count" resultType="long">
+    SELECT count(*) <include refid="activeScope"/>
 </select>
+<select id="page" resultType="com.lnjecit.knowledge.assistant.document.entity.Document">
+    SELECT d.id,d.knowledge_base_id,d.filename,d.active_version_id,d.created_at
+    <include refid="activeScope"/>
+    ORDER BY d.created_at DESC,d.id DESC LIMIT #{size} OFFSET #{offset}
+</select>
+<select id="lockActive" resultType="long">
+    SELECT id FROM document WHERE id=#{id} AND knowledge_base_id=#{kbId} AND deleted_at IS NULL FOR UPDATE
+</select>
+<select id="hasActiveImport" resultType="boolean">
+    SELECT EXISTS (
+        SELECT 1 FROM document_import_task WHERE document_id=#{id}
+        AND (status IN ('PENDING','RUNNING') OR (status='FAILED' AND next_retry_at IS NOT NULL))
+    )
+</select>
+<update id="markDeleted">
+    UPDATE document SET deleted_at=statement_timestamp()
+    WHERE id=#{id} AND knowledge_base_id=#{kbId} AND deleted_at IS NULL
+</update>
 <select id="versions" resultType="com.lnjecit.knowledge.assistant.document.entity.IndexVersion">
 SELECT id,document_id,status,published_at FROM document_index_version WHERE id IN
 <foreach collection="ids" item="id" open="(" close=")" separator=",">#{id}</foreach>
@@ -15,7 +57,7 @@ SELECT DISTINCT ON (document_id) id,document_id,index_version_id,status,created_
 ORDER BY document_id,created_at DESC,id DESC
 </select>
 <select id="document" resultType="com.lnjecit.knowledge.assistant.document.entity.Document">
-SELECT id,knowledge_base_id,filename,active_version_id FROM document WHERE id=#{id}
+SELECT id,knowledge_base_id,filename,active_version_id FROM document WHERE id=#{id} AND deleted_at IS NULL
 </select>
 <select id="chunk" resultType="com.lnjecit.knowledge.assistant.document.entity.DocumentChunk">
 SELECT id,knowledge_base_id,document_id,index_version_id,content,heading_path,source_start,source_end FROM document_chunk WHERE id=#{id}

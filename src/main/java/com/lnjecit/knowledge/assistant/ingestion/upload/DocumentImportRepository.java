@@ -49,7 +49,8 @@ public class DocumentImportRepository {
     public ImportTask findExisting(Long kbId, String hash) {
         Document document = documents.selectOne(new LambdaQueryWrapper<Document>()
                 .eq(Document::getKnowledgeBaseId, kbId)
-                .eq(Document::getContentHash, hash));
+                .eq(Document::getContentHash, hash)
+                .isNull(Document::getDeletedAt));
         if (document == null) return null;
         ImportTask task = tasks.selectOne(new LambdaQueryWrapper<ImportTask>()
                 .eq(ImportTask::getDocumentId, document.getId())
@@ -61,7 +62,9 @@ public class DocumentImportRepository {
     }
 
     public long countDocuments(Long kbId) {
-        return documents.selectCount(new LambdaQueryWrapper<Document>().eq(Document::getKnowledgeBaseId, kbId));
+        return documents.selectCount(new LambdaQueryWrapper<Document>()
+                .eq(Document::getKnowledgeBaseId, kbId)
+                .isNull(Document::getDeletedAt));
     }
 
     public boolean isObjectReferenced(String key) {
