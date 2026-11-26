@@ -1,10 +1,8 @@
 # Knowledge Assistant 项目开发指引
 
-## 项目定位与当前状态
+## 项目定位
 
-Knowledge Assistant 是基于 Java / Spring AI 的个人知识管理与 RAG 问答项目。M5 正在准备公开仓库，当前任务分支为 `feature/m5-public-readiness`。已实现账号与知识库隔离、文档导入、四策略检索、单轮与多轮 RAG、静态 Web 页面及评估工具。M4 有冻结离线结果与历史 LIVE 联调记录。已记录 MinIO 镜像获取、校验和导入流程，在线模型调用默认关闭并要求显式授权。新环境端到端部署仍待验证。
-
-遵守已确认的 V1 P0 范围和当前任务授权。跨会话长期记忆、Agent、Workflow、MCP、Skills、Harness 及后续 P1/P2 功能仍在当前实现范围之外。
+Knowledge Assistant 是基于 Java / Spring AI 的个人知识管理与 RAG 问答项目，支持账号与知识库隔离、文档导入、检索、单轮与多轮问答、手动管理的长期记忆及评估工具。
 
 ## 当前文档入口
 
@@ -12,7 +10,7 @@ Knowledge Assistant 是基于 Java / Spring AI 的个人知识管理与 RAG 问�
 - [开始使用](docs/getting-started.md)
 - [当前架构](docs/architecture.md)
 - [核心功能](docs/core-features.md)
-- [M4 评估](docs/evaluation.md)
+- [评估](docs/evaluation.md)
 - [现行代码风格与验证](docs/code-style.md)
 - [现行 Java 包结构](docs/package-structure.md)
 
@@ -34,7 +32,7 @@ Knowledge Assistant 是基于 Java / Spring AI 的个人知识管理与 RAG 问�
 - 默认只执行本次修改影响范围内的测试，不机械执行 mvn clean verify。
 - Milestone 验收、重大依赖或架构调整、合并前等关键节点才执行全量测试。
 - 纯文档修改通常只需审阅文档、完整 diff 和 git diff --check，无需执行 Maven 格式化、编译或测试。
-- 不擅自执行真实供应商 API 请求，不擅自启动 Docker 基础设施。
+- 在线模型调用默认关闭。执行真实供应商 API 请求前须获得用户明确授权。启动 Docker 基础设施须在当前任务授权范围内。
 - 测试报告准确说明实际执行范围、结果及未验证事项，不得将未执行的验证标记为通过。
 
 ## Git 工作流

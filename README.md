@@ -9,6 +9,8 @@ Knowledge Assistant 是一个基于 Java / Spring AI 的个人知识库与 RAG �
 - 对比向量检索、BM25、RRF 融合和融合后重排。
 - 单轮 API 与多轮问答页面，提供引用跳转、取消生成和轮次状态查询。
 
+登录后可在「记忆」页手动管理长期记忆并开启账号总开关。总开关默认关闭。启用后，多轮问答选中的记忆可能发送给线上模型。详见[长期记忆](docs/core-features.md#长期记忆)。
+
 ## 工程实现
 
 项目是单 Maven 模块，使用 Java 21、Spring Boot 4.1.2、Spring AI 2.0.2、Spring Security、MyBatis 和 Flyway。静态 HTML、CSS、JavaScript 与 REST API 由同一应用提供。PostgreSQL / pgvector 保存业务数据和向量，Elasticsearch / IK 提供关键词检索，MinIO 保存原文件，Redis 保存登录会话。版本以 [pom.xml](pom.xml) 和 [Compose 配置](compose.yaml) 为准。
@@ -46,4 +48,4 @@ Windows Docker Desktop 下的独立空引擎已通过冷部署验收，初始镜
 
 完整导入与问答需要模型配置。在线模型默认关闭，须显式授权，真实请求可能计费。首次构建需为镜像、缓存及持久化卷预留资源，实测耗时和资源用量见 [Windows 一键部署](docs/getting-started.md#windows-一键部署)。MinIO 固定镜像的获取、校验和导入流程见[镜像交付说明](infra/minio/README.md)。
 
-现有多轮上下文限于单个会话。跨会话长期记忆、Agent、Workflow、MCP、Skills 和 Harness 均未实现。评估工作台的 HTTP 路由在当前安全配置中禁用。
+对话历史限于单个会话。手动维护的长期记忆可在同一账号的多轮会话间复用。Agent、Workflow、MCP、Skills 和 Harness 均未实现。评估工作台的 HTTP 路由在当前安全配置中禁用。

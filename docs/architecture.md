@@ -50,3 +50,9 @@ flowchart TD
 ```
 
 已回答历史按估算 Token 预算选取。查询改写默认关闭。近轮历史用于理解追问，引用由当前轮次的检索上下文约束。轮次和引用落在 PostgreSQL，登录态落在 Redis。[会话执行器](../src/main/java/com/lnjecit/knowledge/assistant/conversation/service/TurnExecutor.java) · [RAG 源码](../src/main/java/com/lnjecit/knowledge/assistant/rag)
+
+## 长期记忆
+
+Memory 模块保存账号级总开关及手动维护的条目。Conversation 在异步执行时使用提交轮次时确定的服务端用户 ID，按当前问题召回该账号的记忆，并将结果传给 RAG 的生成阶段。知识库检索与引用校验继续使用知识库证据。
+
+生成器按完整请求预算裁剪记忆。有实际注入时使用 Prompt v3，否则按有效历史选择 v1 或 v2。成功且可回答时，Conversation 可随助手消息保存最终注入集合的 Memory Trace，历史接口读取已保存的记录。V9 创建记忆表及默认关闭的账号开关，V10 增加可空的消息 Trace 字段。

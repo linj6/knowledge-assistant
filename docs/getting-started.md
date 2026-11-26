@@ -99,3 +99,9 @@ mvn spring-boot:run "-Dspring-boot.run.profiles=local"
 - **MinIO 镜像缺失**。确认当前 Docker context 已导入与 Compose 标签一致的镜像，并按[镜像交付说明](../infra/minio/README.md)复核归档。
 
 MinIO 镜像仅用于本地学习与开发，不推荐用于公网生产部署。Compose 的 Elasticsearch 关闭认证，prod Profile 的 Session Cookie 要求 HTTPS。
+
+## 体验长期记忆
+
+登录后打开「记忆」，手动添加一条偏好并开启总开关。新增、编辑、启停和删除均可在关闭在线模型的情况下体验。要查看实际注入，请在获准调用线上模型后，进入有已发布文档的知识库，在多轮会话里提出既能命中文档、又与记忆相关的问题。成功且可回答时，查看当轮 Memory Trace，刷新后可从历史消息再次查看。启用后实际注入的记忆可能发送给线上模型。
+
+如需比较总开关关闭与开启时的行为，请复用测试账号已有的已发布文档，并在两个新会话中各提交一次同样的问题。关闭 Query Rewrite、Rerank 和导入 Worker。默认多轮检索使用 HYBRID_RRF，两次成功且可回答的请求预计共调用 2 次查询 Embedding 和 2 次 Chat。刷新、轮询及查看历史预计新增 0 次模型调用。若检索失败或证据不足，实际 Chat 次数可能更少。

@@ -99,12 +99,12 @@ class MybatisCompatibilityTests {
             assertThat(context.getBean(org.flywaydb.core.Flyway.class).migrate().migrationsExecuted)
                     .isZero();
             assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class))
-                    .isEqualTo(9);
-            // 成功记录必须覆盖当前 V1～V9，不能只凭总数判断迁移已完成。
+                    .isEqualTo(10);
+            // 成功记录必须覆盖当前 V1～V10，不能只凭总数判断迁移已完成。
             assertThat(jdbc.queryForList(
                             "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank",
                             String.class))
-                    .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9");
+                    .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10");
             // 外键覆盖会话、消息和用户记忆。
             assertThat(jdbc.queryForList(
                             "SELECT conname FROM pg_constraint WHERE contype='f' AND connamespace='public'::regnamespace",

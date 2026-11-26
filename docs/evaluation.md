@@ -1,4 +1,4 @@
-# M4 评估
+# 评估
 
 ## 数据集、Gold 与人工确认
 
@@ -38,3 +38,56 @@ mvn test-compile org.codehaus.mojo:exec-maven-plugin:3.5.0:java "-Dexec.mainClas
 输出目录已存在时，可显式追加 `"-Dexec.args=--overwrite"` 重算。
 
 历史 LIVE 联调在另一个真实知识库运行，BM25、VECTOR、HYBRID_RRF 各成功返回 12 题。向量与融合共享 12 次 Query Embedding；未调用 Chat 或 Rerank。该知识库发布快照与冻结 Gold 不匹配，36 条均无可用质量评分，评分分母为 0。历史 LIVE 产物在本机 `target/` 中，未随 Git 提交。重新运行需要可用的已发布索引、适配当前快照的 Gold 和标签，并在调用真实模型前取得授权。当前评估 HTTP 路由被禁用，命令行入口详见历史运行说明。[LIVE Runner](archive/v1-development/engineering/m4-c02-live-runner.md) · [历史联调验收](archive/v1-development/engineering/m4-c03-evaluation-runner-acceptance.md)
+
+## P2 长期记忆
+
+MEM-05A 在六道固定样本上得到 Macro Precision 54.17% 和 Macro Recall 90.00%。全局规则和子串匹配会引入无关记忆，关键词未覆盖同义表达时也会漏召回。[离线召回样本与报告](../evaluation/mem-05a/README.md)
+
+MEM-05B 使用冻结证据完成 6 个配对、12 次 Chat。AI 辅助盲评解盲后，无记忆组略优 2 组，基本相当 4 组，有记忆组略优 0 组。相对无记忆组，有记忆组输入 Token 增加 22.60%，总 Token 增加 20.09%。这次小样本未观察到明显回答质量收益，每组每题仅运行一次，无法由此判断统计显著性或真实检索链路表现。[在线执行与盲评结论](../evaluation/mem-05b/online-report.md)
+
+### MEM-05C 工程验收
+
+| 测试套件 | 总数 | 通过 | 失败 | 错误 | 跳过 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Java Surefire | 497 | 494 | 0 | 0 | 3 |
+| Java Failsafe | 51 | 51 | 0 | 0 | 0 |
+| JavaScript | 215 | 215 | 0 | 0 | 0 |
+| 合计 | 763 | 760 | 0 | 0 | 3 |
+
+Surefire 的两项分块评估需要本地样本清单，一项历史 LIVE 复算需要本地历史归档，三个条件均未满足。真实供应商测试入口不在默认套件中。默认 `mvn clean verify` 使用 Docker Desktop 验证 Testcontainers 启动路径，以及 Flyway V9、V10 新建与升级。Spotless、前端格式和 Git diff 检查均通过。真实后端的记忆管理、刷新恢复和跨账号隔离也通过浏览器验收。
+
+### 真实在线问答 E2E
+
+2026-11-26，用户通过 IntelliJ IDEA 启动项目，使用 qwen-plus，以同一账号、同一知识库和同一道 MySQL 二级索引问题，在两个独立新会话中分别关闭和开启 Memory。两轮均通过结构化输出解析和引用校验。
+
+| 指标 | Memory OFF | Memory ON |
+| --- | ---: | ---: |
+| memoryEnabled | false | true |
+| enabledCount | 0 | 3 |
+| candidateCount | 0 | 3 |
+| selectedCount | 0 | 3 |
+| injectedCount | 0 | 3 |
+| budgetTrimmedCount | 0 | 0 |
+| Memory 估算 Token | 0 | 320 |
+| Memory Recall 耗时 ms | 2 | 9 |
+| Prompt | rag-answer-v1 | rag-answer-v3 |
+| 检索策略 | HYBRID_RRF | HYBRID_RRF |
+| 检索降级 | false | false |
+| Query Rewrite | SKIPPED | SKIPPED |
+| Retrieval 耗时 ms | 7614 | 301 |
+| Generation 耗时 ms | 4555 | 7020 |
+| RAG Overall 耗时 ms | 12208 | 7326 |
+| 选中证据数 | 3 | 3 |
+| 引用数量 | 2 | 2 |
+| 最终状态 | ANSWERED | ANSWERED |
+
+数据库人工检查确认两条助手消息分别落在两个会话，状态均为 ANSWERED。关闭组的 `memory_trace` 为 `injectedCount=0`、`memories=[]`。开启组包含 LEARNING_GOAL、ANSWER_PREFERENCE、BACKGROUND 各一条，记忆 ID 为字符串，Trace 无记忆正文，注入条数与生成日志一致。
+
+用户在浏览器确认实时 Trace 展开后的类型和数量正确，刷新后历史 Trace 恢复，切换两个会话时 Trace 对应各自回答，引用可打开对应的知识证据。本表耗时均为单次观测，仅用于工程验收。表中记忆 Token 是本地估算，MEM-05B 单独记录供应商 Token 和质量盲评。
+
+### 已知局限
+
+- 问答正文的 Markdown 渲染体验仍可改进。
+- 部分日志重复输出 `requestId`。
+- 关键词召回会误命中，并可能漏掉语义相关的同义表达。
+- 小样本 A/B 未观察到明显回答质量收益。
