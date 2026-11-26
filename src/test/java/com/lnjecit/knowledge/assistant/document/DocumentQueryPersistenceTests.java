@@ -7,6 +7,7 @@ import com.lnjecit.knowledge.assistant.document.entity.DocumentChunk;
 import com.lnjecit.knowledge.assistant.document.mapper.DocumentQueryMapper;
 import com.lnjecit.knowledge.assistant.document.repository.DocumentQueryRepository;
 import com.lnjecit.knowledge.assistant.infrastructure.BusinessHttpTestSecurity;
+import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
 import com.lnjecit.knowledge.assistant.retrieval.snapshot.PublishedVersionSnapshotService;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -92,9 +93,20 @@ class DocumentQueryPersistenceTests {
             j.update(
                     "INSERT INTO document_index_version(id,document_id,chunking_config,status,expected_chunk_count) VALUES(20,13,'{}','VERIFIED',1)");
             j.update("UPDATE document SET active_version_id=20 WHERE id=13");
+            String snapshot =
+                    "{\"version\":2,\"strategy\":\"MARKDOWN_STRUCTURE_AWARE\",\"chunkSize\":128,\"chunkOverlap\":16}";
+            j.update("INSERT INTO document_index_version(id,document_id,chunking_config) VALUES(23,12,?)", snapshot);
+
             j.update(
-                    "INSERT INTO document_import_task(id,document_id,index_version_id,status,created_at) VALUES(30,13,20,'FAILED','2025-01-01'),(31,13,20,'SUCCEEDED','2026-01-01'),(32,13,20,'RUNNING','2026-01-01'),(33,12,20,'PENDING','2026-01-01'),(34,11,20,'FAILED','2026-01-01'),(35,10,20,'SUCCEEDED','2026-01-01')");
+                    "INSERT INTO document_import_task(id,document_id,index_version_id,status,created_at) VALUES(30,13,20,'FAILED','2025-01-01'),(31,13,20,'SUCCEEDED','2026-01-01'),(32,13,20,'RUNNING','2026-01-01'),(33,12,23,'PENDING','2026-01-01'),(34,11,20,'FAILED','2026-01-01'),(35,10,20,'SUCCEEDED','2026-01-01')");
             JsonNode data = get(c, "1/documents?pageSize=2", 200, 0);
+            JsonNode draft = get(c, "1/documents/12", 200, 0);
+            assertThat(draft.get("publicationStatus").asString()).isEqualTo("UNPUBLISHED");
+            assertThat(draft.get("chunkCount").asString()).isEqualTo("0");
+            assertThat(draft.get("chunkingConfig"))
+                    .isEqualTo(c.getBean(JsonMapper.class).readTree(snapshot));
+            assertThat(data.get("items").get(1)).isEqualTo(draft);
+
             assertThat(data.get("total").isString()).isTrue();
             assertThat(data.get("total").asString()).isEqualTo("4");
             assertThat(data.get("items").get(0).get("documentId").asString()).isEqualTo("13");
@@ -161,6 +173,37 @@ class DocumentQueryPersistenceTests {
                     "INSERT INTO document_index_version(id,document_id,chunking_config,status,expected_chunk_count) VALUES(20,10,'{}','VERIFIED',1),(21,11,'{}','PUBLISHED',1),(22,10,'{}','BUILDING',0)");
             j.update(
                     "INSERT INTO document_chunk(id,knowledge_base_id,document_id,index_version_id,chunk_order,content,heading_path,source_start,source_end) VALUES(9007199254740993,1,10,20,0,'正文','标题',0,2),(31,2,11,21,0,'secret',NULL,0,2),(32,1,10,22,0,'hidden',NULL,0,2)");
+            OriginalFileStore store = c.getBean(OriginalFileStore.class);
+            String raw = "# 标题\r\n<script>😀</script>\n";
+            org.mockito.Mockito.when(store.read("secret")).thenAnswer(call -> {
+                assertThat(TransactionSynchronizationManager.isActualTransactionActive())
+                        .isFalse();
+                return raw.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            });
+            j.update("UPDATE document SET filename='draft.txt' WHERE id=12");
+            for (long doc : List.of(10L, 12L)) {
+                JsonNode preview = get(c, "1/documents/" + doc + "/content", 200, 0);
+                assertThat(preview.get("content").asString()).isEqualTo(raw);
+                assertThat(preview.has("objectKey")).isFalse();
+            }
+            org.mockito.Mockito.when(store.read("secret"))
+                    .thenThrow(new OriginalFileStore.MissingObjectException())
+                    .thenThrow(new IllegalStateException());
+            get(c, "1/documents/12/content", 404, 40400);
+            get(c, "1/documents/12/content", 500, 50000);
+            JsonNode detail = get(c, "1/documents/10", 200, 0);
+            assertThat(detail.get("chunkCount").asString()).isEqualTo("1");
+            assertThat(detail.get("chunkingConfig").isObject()).isTrue();
+            JsonNode chunks = get(c, "1/documents/10/chunks?pageSize=1", 200, 0);
+            assertThat(chunks.get("total").asString()).isEqualTo("1");
+            assertThat(chunks.get("items").get(0).get("sourceEnd").asInt()).isEqualTo(2);
+            assertThat(get(c, "1/documents/10/chunks?page=2", 200, 0)
+                            .get("items")
+                            .size())
+                    .isZero();
+            assertThat(get(c, "1/documents/12/chunks", 200, 0).get("total").asString())
+                    .isEqualTo("0");
+            for (String suffix : List.of("", "/content", "/chunks")) get(c, "2/documents/10" + suffix, 404, 40400);
             String path = "1/documents/10/versions/20/chunks/9007199254740993";
             JsonNode data = get(c, path, 200, 0);
             assertThat(data.get("chunkId").isString()).isTrue();
@@ -179,6 +222,10 @@ class DocumentQueryPersistenceTests {
                     "1/documents/12/versions/20/chunks/32",
                     "2/documents/10/versions/20/chunks/9007199254740993")) get(c, p, 404, 40400);
             get(c, "9/documents/10/versions/20/chunks/31", 404, 40401);
+            j.update("UPDATE knowledge_base SET deleted_at=now() WHERE id=2");
+            for (String suffix : List.of("", "/content", "/chunks")) get(c, "2/documents/11" + suffix, 404, 40401);
+            j.update("UPDATE knowledge_base SET deleted_at=NULL WHERE id=2");
+
             j.update("UPDATE document SET active_version_id=999 WHERE id=10");
             get(c, path, 500, 50000);
             get(c, "1/documents", 500, 50000);
@@ -195,6 +242,10 @@ class DocumentQueryPersistenceTests {
             request(c, "3/documents/10", 404, 40401, true);
             request(c, "2/documents/10", 404, 40400, true);
             request(c, "1/documents/10", 200, 0, true);
+            for (String suffix : List.of("", "/content", "/chunks")) {
+                get(c, "3/documents/10" + suffix, 404, 40401);
+                get(c, "1/documents/10" + suffix, 404, 40400);
+            }
             request(c, "1/documents/10", 404, 40400, true);
             get(c, path, 404, 40400);
             assertThat(get(c, "1/documents?status=PUBLISHED", 200, 0)
@@ -213,6 +264,12 @@ class DocumentQueryPersistenceTests {
 
     @TestConfiguration(proxyBeanMethods = false)
     static class TransactionProbe {
+        @Bean
+        @Primary
+        OriginalFileStore previewStore() {
+            return org.mockito.Mockito.mock(OriginalFileStore.class);
+        }
+
         @Bean
         @Primary
         DocumentQueryRepository queryProbe(DocumentQueryMapper mapper, JdbcTemplate jdbc) {

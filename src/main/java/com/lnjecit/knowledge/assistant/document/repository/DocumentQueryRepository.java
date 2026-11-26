@@ -16,6 +16,10 @@ public class DocumentQueryRepository {
         this.mapper = mapper;
     }
 
+    public List<DocumentChunk> chunks(Long kbId, Long id, Long versionId, int size, long offset) {
+        return mapper.chunks(kbId, id, versionId, size, offset);
+    }
+
     public Document document(Long id) {
         return mapper.document(id);
     }

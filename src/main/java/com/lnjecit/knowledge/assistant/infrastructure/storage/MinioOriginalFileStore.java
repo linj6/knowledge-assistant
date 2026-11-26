@@ -96,6 +96,8 @@ public class MinioOriginalFileStore implements OriginalFileStore {
                         GetObjectArgs.builder().bucket(bucket).object(key).build())) {
             return readLimited(stream, maxFileBytes);
         } catch (Exception ex) {
+            if (ex instanceof io.minio.errors.ErrorResponseException storage
+                    && "NoSuchKey".equals(storage.errorResponse().code())) throw new MissingObjectException();
             if (ex instanceof SocketTimeoutException || ex instanceof ConnectException)
                 throw new TaskExecutionException(TaskExecutionException.Code.INFRASTRUCTURE_TEMPORARY, ex);
             throw new IllegalStateException("Object read failed", ex);

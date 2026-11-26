@@ -18,7 +18,8 @@ import org.junit.jupiter.api.Test;
 
 class DocumentQueryTests {
     private final DocumentQueryRepository repository = mock(DocumentQueryRepository.class);
-    private final DocumentQueryService service = new DocumentQueryService(repository, mock(KnowledgeBaseService.class));
+    private final DocumentQueryService service = new DocumentQueryService(
+            repository, mock(KnowledgeBaseService.class), new tools.jackson.databind.json.JsonMapper());
 
     @Test
     void invalidPagination() {

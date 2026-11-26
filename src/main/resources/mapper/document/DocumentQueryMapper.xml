@@ -29,8 +29,10 @@
 <select id="count" resultType="long">
     SELECT count(*) <include refid="activeScope"/>
 </select>
+<sql id="summaryColumns">d.id,d.knowledge_base_id,d.filename,d.active_version_id,d.created_at,
+ (SELECT count(*) FROM document_chunk c WHERE c.knowledge_base_id=d.knowledge_base_id AND c.document_id=d.id AND c.index_version_id=d.active_version_id) AS chunk_count</sql>
 <select id="page" resultType="com.lnjecit.knowledge.assistant.document.entity.Document">
-    SELECT d.id,d.knowledge_base_id,d.filename,d.active_version_id,d.created_at
+    SELECT <include refid="summaryColumns"/>
     <include refid="activeScope"/>
     ORDER BY d.created_at DESC,d.id DESC LIMIT #{size} OFFSET #{offset}
 </select>
@@ -48,7 +50,7 @@
     WHERE id=#{id} AND knowledge_base_id=#{kbId} AND deleted_at IS NULL
 </update>
 <select id="versions" resultType="com.lnjecit.knowledge.assistant.document.entity.IndexVersion">
-SELECT id,document_id,status,published_at FROM document_index_version WHERE id IN
+SELECT id,document_id,status,published_at,chunking_config FROM document_index_version WHERE id IN
 <foreach collection="ids" item="id" open="(" close=")" separator=",">#{id}</foreach>
 </select>
 <select id="tasks" resultType="com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTask">
@@ -57,9 +59,14 @@ SELECT DISTINCT ON (document_id) id,document_id,index_version_id,status,created_
 ORDER BY document_id,created_at DESC,id DESC
 </select>
 <select id="document" resultType="com.lnjecit.knowledge.assistant.document.entity.Document">
-SELECT id,knowledge_base_id,filename,active_version_id FROM document WHERE id=#{id} AND deleted_at IS NULL
+SELECT <include refid="summaryColumns"/>,d.object_key FROM document d WHERE id=#{id} AND deleted_at IS NULL
 </select>
 <select id="chunk" resultType="com.lnjecit.knowledge.assistant.document.entity.DocumentChunk">
 SELECT id,knowledge_base_id,document_id,index_version_id,content,heading_path,source_start,source_end FROM document_chunk WHERE id=#{id}
+</select>
+<select id="chunks" resultType="com.lnjecit.knowledge.assistant.document.entity.DocumentChunk">
+SELECT id,chunk_order,content,heading_path,source_start,source_end,index_version_id FROM document_chunk
+WHERE knowledge_base_id=#{kbId} AND document_id=#{id} AND index_version_id=#{versionId}
+ORDER BY chunk_order,id LIMIT #{size} OFFSET #{offset}
 </select>
 </mapper>

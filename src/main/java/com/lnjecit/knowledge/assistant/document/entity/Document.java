@@ -29,4 +29,7 @@ public class Document {
     private Instant createdAt;
 
     private Instant deletedAt;
+
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private long chunkCount;
 }

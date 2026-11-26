@@ -10,6 +10,8 @@ import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface DocumentQueryMapper {
+    List<DocumentChunk> chunks(Long kbId, Long id, Long versionId, int size, long offset);
+
     Document document(@Param("id") Long id);
 
     DocumentChunk chunk(@Param("id") Long id);

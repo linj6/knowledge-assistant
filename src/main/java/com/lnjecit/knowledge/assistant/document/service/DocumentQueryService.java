@@ -2,6 +2,7 @@ package com.lnjecit.knowledge.assistant.document.service;
 
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
+import com.lnjecit.knowledge.assistant.document.dto.ChunkPageResponse;
 import com.lnjecit.knowledge.assistant.document.dto.CitationEvidenceResponse;
 import com.lnjecit.knowledge.assistant.document.dto.DocumentListResponse;
 import com.lnjecit.knowledge.assistant.document.dto.DocumentSummaryResponse;
@@ -23,14 +24,18 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.json.JsonMapper;
 
 @Service
 public class DocumentQueryService {
     private static final Logger LOG = LoggerFactory.getLogger(DocumentQueryService.class);
+    private final JsonMapper json;
     private final DocumentQueryRepository repository;
     private final KnowledgeBaseService knowledgeBases;
 
-    public DocumentQueryService(DocumentQueryRepository repository, KnowledgeBaseService knowledgeBases) {
+    public DocumentQueryService(
+            DocumentQueryRepository repository, KnowledgeBaseService knowledgeBases, JsonMapper json) {
+        this.json = json;
         this.repository = repository;
         this.knowledgeBases = knowledgeBases;
     }
@@ -54,26 +59,35 @@ public class DocumentQueryService {
                 : "%" + keyword.strip().replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
         long total = repository.count(kbId, pattern, status);
         List<Document> documents = repository.page(kbId, ((long) page - 1) * pageSize, pageSize, pattern, status);
+        return new DocumentListResponse(summaries(documents), page, pageSize, total);
+    }
+
+    private List<DocumentSummaryResponse> summaries(List<Document> documents) {
+        Map<Long, ImportTask> tasks = repository
+                .tasks(documents.stream().map(Document::getId).toList())
+                .stream()
+                .collect(Collectors.toMap(ImportTask::getDocumentId, Function.identity()));
         Map<Long, IndexVersion> versions = repository
                 .versions(documents.stream()
-                        .map(Document::getActiveVersionId)
+                        .map(d -> configVersionId(d, tasks.get(d.getId())))
                         .filter(Objects::nonNull)
                         .distinct()
                         .toList())
                 .stream()
                 .collect(Collectors.toMap(IndexVersion::getId, Function.identity()));
-        Map<Long, ImportTask> tasks = repository
-                .tasks(documents.stream().map(Document::getId).toList())
-                .stream()
-                .collect(Collectors.toMap(ImportTask::getDocumentId, Function.identity()));
-        List<DocumentSummaryResponse> items = documents.stream()
+        return documents.stream()
                 .map(d -> {
-                    IndexVersion version = versions.get(d.getActiveVersionId());
+                    IndexVersion version = versions.get(configVersionId(d, tasks.get(d.getId())));
                     // activeVersionId 是发布事实；不能仅凭版本状态或任务成功决定可见性。
+                    if (d.getActiveVersionId() == null
+                            && version != null
+                            && !Objects.equals(d.getId(), version.getDocumentId())) version = null;
                     if (d.getActiveVersionId() != null) {
                         if (version == null || !Objects.equals(d.getId(), version.getDocumentId()))
                             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR);
-                        if (version.getStatus() != IndexVersionStatus.PUBLISHED || version.getPublishedAt() == null)
+                        if (d.getActiveVersionId() != null
+                                && (version.getStatus() != IndexVersionStatus.PUBLISHED
+                                        || version.getPublishedAt() == null))
                             LOG.warn(
                                     "event=PUBLICATION_METADATA_INCONSISTENT documentId={} indexVersionId={}",
                                     d.getId(),
@@ -82,15 +96,58 @@ public class DocumentQueryService {
                     ImportTask task = tasks.get(d.getId());
                     return new DocumentSummaryResponse(
                             d.getId(),
+                            d.getKnowledgeBaseId(),
+                            version == null || version.getChunkingConfig() == null
+                                    ? null
+                                    : json.readTree(version.getChunkingConfig()),
+                            d.getChunkCount(),
                             d.getFilename(),
                             d.getCreatedAt(),
                             d.getActiveVersionId() == null ? "UNPUBLISHED" : "PUBLISHED",
                             d.getActiveVersionId(),
-                            version == null ? null : version.getPublishedAt(),
+                            d.getActiveVersionId() == null ? null : version.getPublishedAt(),
                             task == null ? null : ImportTaskResponse.from(task));
                 })
                 .toList();
-        return new DocumentListResponse(items, page, pageSize, total);
+    }
+
+    private Long configVersionId(Document d, ImportTask task) {
+        return d.getActiveVersionId() != null ? d.getActiveVersionId() : task == null ? null : task.getIndexVersionId();
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public Document ownedDocument(Long kbId, Long id, long userId) {
+        knowledgeBases.requireOwned(kbId, userId);
+        Document d = repository.document(id);
+        if (d == null || !kbId.equals(d.getKnowledgeBaseId())) throw new BusinessException(CommonErrorCode.NOT_FOUND);
+        return d;
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public DocumentSummaryResponse detail(Long kbId, Long id, long userId) {
+        return summaries(List.of(ownedDocument(kbId, id, userId))).getFirst();
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public ChunkPageResponse chunks(Long kbId, Long id, long userId, int page, int size) {
+        DocumentSummaryResponse d = detail(kbId, id, userId);
+        // 发布指针、总数和本页正文均来自同一快照。
+        List<ChunkPageResponse.Item> items = d.activeVersionId() == null
+                ? List.of()
+                : repository.chunks(kbId, id, d.activeVersionId(), size, ((long) page - 1) * size).stream()
+                        .map(c -> {
+                            validatePosition(c);
+                            return new ChunkPageResponse.Item(
+                                    c.getId(),
+                                    c.getChunkOrder(),
+                                    c.getContent(),
+                                    c.getHeadingPath(),
+                                    c.getSourceStart(),
+                                    c.getSourceEnd(),
+                                    c.getIndexVersionId());
+                        })
+                        .toList();
+        return new ChunkPageResponse(items, page, size, d.chunkCount());
     }
 
     @Transactional
@@ -138,10 +195,7 @@ public class DocumentQueryService {
                 || !Objects.equals(documentId, c.getDocumentId())
                 || !Objects.equals(versionId, c.getIndexVersionId()))
             throw new BusinessException(CommonErrorCode.NOT_FOUND);
-        if (c.getSourceStart() == null
-                || c.getSourceEnd() == null
-                || c.getSourceStart() < 0
-                || c.getSourceEnd() <= c.getSourceStart()) throw new BusinessException(CommonErrorCode.INTERNAL_ERROR);
+        validatePosition(c);
         return new CitationEvidenceResponse(
                 c.getId(),
                 documentId,
@@ -151,5 +205,12 @@ public class DocumentQueryService {
                 c.getContent(),
                 c.getSourceStart(),
                 c.getSourceEnd());
+    }
+
+    private void validatePosition(DocumentChunk c) {
+        if (c.getSourceStart() == null
+                || c.getSourceEnd() == null
+                || c.getSourceStart() < 0
+                || c.getSourceEnd() <= c.getSourceStart()) throw new BusinessException(CommonErrorCode.INTERNAL_ERROR);
     }
 }

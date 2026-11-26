@@ -5,6 +5,9 @@ import java.time.Instant;
 
 public record DocumentSummaryResponse(
         Long documentId,
+        Long knowledgeBaseId,
+        tools.jackson.databind.JsonNode chunkingConfig,
+        long chunkCount,
         String filename,
         Instant createdAt,
         String publicationStatus,
