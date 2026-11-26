@@ -1,4 +1,5 @@
-import { reactive, ref, watch } from 'vue';
+import { reactive, watch } from 'vue';
+import { account } from './auth';
 import * as seed from './fixtures';
 import {
     isGlobal,
@@ -22,7 +23,8 @@ const initial = () => ({
 });
 type Data = ReturnType<typeof initial>;
 const prefix = 'ka-v2:';
-export const account = ref(sessionStorage.getItem(prefix + 'session') || '');
+sessionStorage.removeItem(prefix + 'session');
+let mockOwner: string | undefined;
 const data = reactive(initial());
 const storageKey = (user: string) => prefix + 'data:' + user;
 
@@ -39,13 +41,22 @@ function load(user: string) {
     }
     for (const doc of data.documents) if (doc.status === 'pending') schedule(doc);
 }
-if (account.value) load(account.value);
+watch(
+    account,
+    (user) => {
+        mockOwner = undefined;
+        if (user) load('user:' + user.id);
+        else Object.assign(data, initial());
+        if (user) mockOwner = 'user:' + user.id;
+    },
+    { flush: 'sync', immediate: true },
+);
 watch(
     data,
     () => {
-        if (account.value) {
+        if (mockOwner) {
             try {
-                localStorage.setItem(storageKey(account.value), JSON.stringify(data));
+                localStorage.setItem(storageKey(mockOwner), JSON.stringify(data));
             } catch {
                 /* 超出浏览器配额时保留本次会话数据 */
             }
@@ -111,20 +122,6 @@ export const api = {
     },
     set memoryEnabled(value: boolean) {
         data.memoryEnabled = value;
-    },
-    async login(user: string, password: string) {
-        if (!user.trim() || password.length < 6) throw Error('请输入账号及至少 6 位密码。');
-        await wait(300);
-        const name = user.trim().toLowerCase();
-        account.value = '';
-        load(name);
-        account.value = name;
-        sessionStorage.setItem(prefix + 'session', name);
-    },
-    logout() {
-        account.value = '';
-        sessionStorage.removeItem(prefix + 'session');
-        Object.assign(data, initial());
     },
     saveLibrary(value: Pick<Library, 'name' | 'description'>, existing?: Library) {
         const name = value.name.trim();

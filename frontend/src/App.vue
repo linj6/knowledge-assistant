@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import {
     BookOpen,
     Brain,
@@ -11,9 +11,11 @@ import {
     PanelLeftOpen,
     Search,
 } from 'lucide-vue-next';
-import { account, api } from './api';
+import { account, logout } from './auth';
+import { errorMessage } from './http';
 const route = useRoute();
-const router = useRouter();
+const busy = ref(false);
+const error = ref('');
 const compact = ref(false);
 const nav = [
     { path: '/chat', title: 'AI 问答', icon: MessageSquare },
@@ -21,15 +23,22 @@ const nav = [
     { path: '/retrieval', title: '检索工作台', icon: Search },
     { path: '/memory', title: '长期记忆', icon: Brain },
 ];
-function logout() {
-    api.logout();
-    void router.replace('/login');
+async function signOut() {
+    busy.value = true;
+    error.value = '';
+    try {
+        await logout();
+    } catch (err) {
+        error.value = errorMessage(err);
+    } finally {
+        busy.value = false;
+    }
 }
 </script>
 
 <template>
     <RouterView v-if="route.meta.guest" />
-    <div v-else class="shell" :class="{ compact }">
+    <div v-else-if="account" :key="account.id" class="shell" :class="{ compact }">
         <aside class="sidebar">
             <div class="brand">
                 <div class="brand-icon"><Layers3 :size="21" /></div>
@@ -56,16 +65,21 @@ function logout() {
                 </RouterLink>
             </nav>
             <div class="account">
-                <div class="avatar">{{ account.slice(0, 1).toUpperCase() }}</div>
-                <div v-if="!compact" class="account-name">
-                    <strong>{{ account }}</strong
-                    ><small>本地演示账号</small>
+                <div class="avatar" :title="account.username + ' · 业务数据仅保存在此浏览器'">
+                    {{ account.username.slice(0, 1).toUpperCase() }}
                 </div>
-                <button class="icon" title="退出登录" aria-label="退出登录" @click="logout">
+                <div v-if="!compact" class="account-name">
+                    <strong>{{ account.username }}</strong
+                    ><small title="业务数据仅保存在此浏览器">业务为本地演示</small>
+                </div>
+                <button class="icon" title="退出登录" aria-label="退出登录" :disabled="busy" @click="signOut">
                     <LogOut :size="17" />
                 </button>
             </div>
         </aside>
-        <main class="workspace"><RouterView /></main>
+        <main class="workspace">
+            <p v-if="error" class="error" role="alert">{{ error }}</p>
+            <RouterView />
+        </main>
     </div>
 </template>

@@ -1,10 +1,14 @@
 # Knowledge Assistant Web UI V2
 
-UX-02 交互原型使用 Vue 3、TypeScript、Vite、Vue Router 和 Element Plus。Markdown 渲染使用 markdown-it、DOMPurify 和 highlight.js。
-
 ## 本地启动
 
-在仓库根目录执行以下命令，然后打开 Vite 输出的本地地址（默认 http://localhost:5173）。
+按[开始使用](../docs/getting-started.md#应用配置与启动)配置本地 PostgreSQL、Redis 等基础设施。在仓库根目录通过 IDEA 启动后端，或执行以下命令：
+
+```powershell
+mvn spring-boot:run "-Dspring-boot.run.profiles=local"
+```
+
+另开终端启动 Vite，然后打开输出的本地网址（默认 http://localhost:5173）：
 
 ```sh
 cd frontend
@@ -12,19 +16,8 @@ npm ci
 npm run dev
 ```
 
-## Mock 模式
+Vite 将同源 `/api/` 请求原样转发到 `http://127.0.0.1:8080`。注册、登录、查询当前用户和退出使用 Spring Security Session。每次写请求先读取 Session 对应的 CSRF Token。
 
-启动后即进入 Mock 模式，无需环境变量、后端服务、数据库或模型密钥。登录可使用任意非空账号和至少 6 位的密码。示例数据和操作结果由前端生成，业务数据按账号保存在当前浏览器的 localStorage 中，登录状态保存在 sessionStorage 中。
+## 业务演示
 
-## 当前功能
-
-- 账号注册、登录和退出。
-- 知识库创建、编辑和删除。
-- 文档导入、处理状态、失败重试、详情和分块查看。
-- 按知识库进行检索，配置检索策略及 Top K，查看命中的片段。
-- 多轮问答、会话管理、模拟流式回答和引用查看。
-- 长期记忆管理及启用开关。
-
-## 限制
-
-账号校验、文档处理、检索及模型回答均为本地模拟。文档导入仅支持不超过 2 MiB 的非空 UTF-8 Markdown 或 TXT 文件。数据仅在当前浏览器中保存，清理站点数据后，本地修改会丢失。
+知识库、文档、检索、问答和长期记忆仍使用 Mock。业务数据按真实账号 ID 保存在当前浏览器的 localStorage 中，仅在当前浏览器可用。清理站点数据后，本地修改会丢失。原型阶段的演示账号数据保留在浏览器，真实账号使用独立的存储键。
