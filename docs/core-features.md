@@ -27,6 +27,8 @@
 
 单轮入口为 `POST /api/v1/chat/answers`。主站问答使用绑定一个知识库的会话。后端从检索候选构建上下文，校验生成结果中的引用身份，证据不足时可返回拒答。引用可打开对应版本的 Chunk；引用校验覆盖身份与范围，正文是否支持结论需另行判断。同一会话可参考有预算限制的近期已回答轮次。[RAG 源码](../src/main/java/com/lnjecit/knowledge/assistant/rag) · [历史选择](../src/main/java/com/lnjecit/knowledge/assistant/conversation/service/TurnHistoryService.java)
 
+会话列表 `GET /api/v1/conversations` 保留必填的 `knowledgeBaseId`，可用 `keyword` 按标题做忽略大小写的字面搜索，空白关键词会被忽略。列表按最近问答活动时间和会话 ID 降序。使用 `PATCH /api/v1/conversations/{id}` 提交 `{"title":"标题"}` 可在生成期间重命名，标题去除首尾空白后须为 1～200 个字符。重命名保留问答活动时间，自动标题写入会保留手动标题。使用 `DELETE /api/v1/conversations/{id}` 可逻辑删除会话并保留消息、轮次、引用和 Memory Trace。活动轮次期间删除返回 HTTP 409。
+
 ## 取消与恢复
 
 同一会话只允许一个活动轮次。同一轮次 ID 和问题的重复提交读取已有状态。页面轮询查询轮次，取消会请求中断处理，再通过服务端状态确认结果。重进页面可读取已保存消息，启动时会收敛上次进程中断留下的活动轮次。生成中断后可重新发起提问。导入恢复独立于对话，Worker 按任务租约与重试规则处理遗留任务。[轮次服务](../src/main/java/com/lnjecit/knowledge/assistant/conversation/service/TurnService.java) · [轮次执行器](../src/main/java/com/lnjecit/knowledge/assistant/conversation/service/TurnExecutor.java) · [导入任务](../src/main/java/com/lnjecit/knowledge/assistant/ingestion/task)

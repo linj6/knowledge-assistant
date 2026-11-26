@@ -511,6 +511,105 @@ class DatabaseIT {
     }
 
     @Test
+    void managesConversationTitlesAndDeletion() throws Exception {
+        try (ConfigurableApplicationContext context = start()) {
+            JdbcTemplate jdbc = conversationFixtures(context);
+            ConversationService conversations = context.getBean(ConversationService.class);
+            ConversationRepository repository = context.getBean(ConversationRepository.class);
+            TurnExecutor executor = mock(TurnExecutor.class);
+            when(executor.dispatch(eq(1L), eq(3L), any(), any())).thenReturn(MessageStatus.PROCESSING);
+            TurnService turns = new TurnService(
+                    conversations, repository, executor, context.getBean(PlatformTransactionManager.class));
+
+            Long id = conversations.create(1L, 3L).getId();
+            conversations.rename(1L, id, "新会话");
+            UUID turn = UUID.randomUUID();
+            turns.submit(1L, id, turn, "不能覆盖手动标题");
+            assertThat(conversations.requireOwned(1L, id).getTitle()).isEqualTo("新会话");
+            assertThatThrownBy(() -> conversations.delete(1L, id)).hasMessage("会话已有正在执行的 Turn");
+
+            Long newer = conversations.create(1L, 3L).getId();
+            conversations.rename(1L, newer, "abcX");
+            Instant activity = conversations.requireOwned(1L, id).getUpdatedAt();
+            conversations.rename(1L, id, "AbC%_!");
+            assertThat(conversations.requireOwned(1L, id).getUpdatedAt()).isEqualTo(activity);
+            assertThat(conversations.list(1L, 3L, "  abc%_!  "))
+                    .extracting(Conversation::getId)
+                    .containsExactly(id);
+            assertThat(conversations.list(1L, 3L, "  "))
+                    .extracting(Conversation::getId)
+                    .containsExactly(newer, id);
+
+            jdbc.update(
+                    """
+                    UPDATE chat_message
+                    SET status = 'ANSWERED', citations = '[{"evidenceId":"E1"}]', memory_trace = '{"injectedCount":0}'
+                    WHERE conversation_id = ? AND role = 'ASSISTANT'
+                    """,
+                    id);
+            List<Message> before = repository.findTurn(id, turn);
+            conversations.delete(1L, id);
+            repository.touchConversation(id, Instant.now(), "迟到的自动标题");
+            assertThat(jdbc.queryForMap("SELECT title, deleted_at, updated_at FROM chat_conversation WHERE id = ?", id))
+                    .containsEntry("title", "AbC%_!")
+                    .hasEntrySatisfying("deleted_at", value -> assertThat(value).isNotNull())
+                    .hasEntrySatisfying("updated_at", value -> assertThat(((java.sql.Timestamp) value).toInstant())
+                            .isEqualTo(activity));
+            assertThat(repository.findTurn(id, turn)).usingRecursiveComparison().isEqualTo(before);
+            assertThat(conversations.list(1L, 3L, null))
+                    .extracting(Conversation::getId)
+                    .containsExactly(newer);
+            assertThatThrownBy(() -> conversations.requireOwned(1L, id)).hasMessage("会话不存在");
+            assertThatThrownBy(() -> conversations.listMessages(1L, id, 1, 20)).hasMessage("会话不存在");
+            assertThatThrownBy(() -> turns.get(1L, id, turn)).hasMessage("会话不存在");
+            assertThatThrownBy(() -> turns.cancel(1L, id, turn)).hasMessage("会话不存在");
+            assertThatThrownBy(() -> turns.submit(1L, id, turn, "问题")).hasMessage("会话不存在");
+            assertThatThrownBy(() -> conversations.rename(1L, id, "标题")).hasMessage("会话不存在");
+            assertThatThrownBy(() -> conversations.delete(1L, id)).hasMessage("会话不存在");
+
+            Long racing = conversations.create(1L, 3L).getId();
+            UUID racingTurn = UUID.randomUUID();
+            CountDownLatch start = new CountDownLatch(1);
+            try (java.util.concurrent.ExecutorService callers = Executors.newFixedThreadPool(2)) {
+                Future<String> deletion = callers.submit(() -> {
+                    start.await();
+                    try {
+                        conversations.delete(1L, racing);
+                        return "deleted";
+                    } catch (BusinessException rejected) {
+                        return rejected.getMessage();
+                    }
+                });
+                Future<String> submission = callers.submit(() -> {
+                    start.await();
+                    try {
+                        turns.submit(1L, racing, racingTurn, "竞争提交");
+                        return "submitted";
+                    } catch (BusinessException rejected) {
+                        return rejected.getMessage();
+                    }
+                });
+                start.countDown();
+                if ("deleted".equals(deletion.get(10, TimeUnit.SECONDS))) {
+                    assertThat(submission.get(10, TimeUnit.SECONDS)).isEqualTo("会话不存在");
+                    assertThat(repository.findTurn(racing, racingTurn)).isEmpty();
+                    assertThat(repository.findOwnedConversation(racing, 1L)).isNull();
+                } else {
+                    assertThat(deletion.get()).isEqualTo("会话已有正在执行的 Turn");
+                    assertThat(submission.get(10, TimeUnit.SECONDS)).isEqualTo("submitted");
+                    assertThat(repository.findTurn(racing, racingTurn)).hasSize(2);
+                    assertThat(repository.findOwnedConversation(racing, 1L)).isNotNull();
+                }
+            }
+
+            jdbc.update("UPDATE knowledge_base SET deleted_at = now() WHERE id = 3");
+            assertThat(repository.listOwnedConversations(1L, 3L, null)).isEmpty();
+            assertThatThrownBy(() -> conversations.rename(1L, newer, "标题")).hasMessage("知识库不存在");
+            assertThatThrownBy(() -> conversations.delete(1L, newer)).hasMessage("知识库不存在");
+        }
+    }
+
+    @Test
     void selectsOnlyTheLatestThreeCompleteAnsweredTurnsBeforeTheCurrentTurn() {
         try (ConfigurableApplicationContext context = start()) {
             JdbcTemplate jdbc = conversationFixtures(context);
@@ -783,6 +882,9 @@ class DatabaseIT {
                             Integer.class))
                     .isEqualTo(1);
             ConversationRepository repository = context.getBean(ConversationRepository.class);
+            Conversation legacy = repository.findOwnedConversation(19L, 1L);
+            assertThat(legacy.getDeletedAt()).isNull();
+            assertThat(legacy.getTitleManuallyEdited()).isFalse();
             assertThat(repository.findTurn(19L, legacyTurn))
                     .hasSize(2)
                     .allSatisfy(message -> assertThat(message.getMemoryTrace()).isNull());
@@ -813,13 +915,13 @@ class DatabaseIT {
                            (23, 7, 9, '2026-01-01T00:00:00Z')
                     """);
             assertThat(repository.findOwnedConversation(id, 7L)).isNull();
-            assertThat(repository.listOwnedConversations(1L, 2L))
+            assertThat(repository.listOwnedConversations(1L, 2L, null))
                     .extracting(Conversation::getId)
                     .containsExactly(id, 21L, 20L);
-            assertThat(repository.listOwnedConversations(1L, 8L))
+            assertThat(repository.listOwnedConversations(1L, 8L, null))
                     .extracting(Conversation::getId)
                     .containsExactly(22L);
-            assertThat(repository.listOwnedConversations(1L, 9L)).isEmpty();
+            assertThat(repository.listOwnedConversations(1L, 9L, null)).isEmpty();
 
             UUID turn = UUID.randomUUID();
             Message user = message(id, turn, MessageRole.USER, null);
@@ -902,11 +1004,13 @@ class DatabaseIT {
         return jdbc.queryForList(
                 """
                 SELECT (to_jsonb(r) - 'memory_enabled')::text FROM app_user r
-                UNION ALL SELECT to_jsonb(r)::text FROM knowledge_base r
-                UNION ALL SELECT to_jsonb(r)::text FROM document r
+                UNION ALL SELECT (to_jsonb(r) - 'deleted_at' - 'updated_at')::text FROM knowledge_base r
+                UNION ALL SELECT (to_jsonb(r) - 'deleted_at')::text FROM document r
                 UNION ALL SELECT to_jsonb(r)::text FROM document_index_version r
                 UNION ALL SELECT to_jsonb(r)::text FROM document_chunk r
                 UNION ALL SELECT to_jsonb(r)::text FROM document_import_task r
+                UNION ALL SELECT (to_jsonb(r) - 'deleted_at' - 'title_manually_edited')::text FROM chat_conversation r
+                UNION ALL SELECT (to_jsonb(r) - 'memory_trace')::text FROM chat_message r
                 ORDER BY 1
                 """,
                 String.class);

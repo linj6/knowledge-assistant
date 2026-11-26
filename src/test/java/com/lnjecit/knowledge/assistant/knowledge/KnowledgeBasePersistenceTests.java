@@ -137,7 +137,7 @@ class KnowledgeBasePersistenceTests {
             TurnService turns = context.getBean(TurnService.class);
             Long deletedId = first.getId();
             UUID turnId = UUID.fromString("00000000-0000-0000-0000-000000000001");
-            assertDeletedBase(() -> conversations.list(42L, deletedId));
+            assertDeletedBase(() -> conversations.list(42L, deletedId, null));
             assertDeletedBase(() -> conversations.requireOwned(42L, 40L));
             assertDeletedBase(() -> conversations.listMessages(42L, 40L, 1, 10));
             assertDeletedBase(() -> turns.get(42L, 40L, turnId));

@@ -5,7 +5,9 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -118,7 +120,7 @@ class ConversationApiTests {
                     when(repository.findOwnedConversation(ID, conversation.getOwnerUserId()))
                             .thenReturn(conversation);
                     when(repository.listOwnedConversations(
-                                    conversation.getOwnerUserId(), conversation.getKnowledgeBaseId()))
+                                    conversation.getOwnerUserId(), conversation.getKnowledgeBaseId(), null))
                             .thenReturn(List.of(conversation));
                     return null;
                 })
@@ -143,6 +145,40 @@ class ConversationApiTests {
         mvc.perform(get(PATH).param("knowledgeBaseId", "8"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isEmpty());
+    }
+
+    @Test
+    void renamesAndDeletesOwnedConversation() throws Exception {
+        for (String body : List.of("{}", "{\"title\":\"   \"}", "{\"title\":\"" + "a".repeat(201) + "\"}")) {
+            mvc.perform(patch(PATH + "/{id}", ID)
+                            .contentType("application/json")
+                            .content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(40000));
+        }
+        String body = "{\"title\":\"  New title  \"}";
+        mvc.perform(patch(PATH + "/{id}", ID).contentType("application/json").content(body))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(40402));
+        mvc.perform(delete(PATH + "/{id}", ID)).andExpect(status().isNotFound());
+        Conversation conversation = new Conversation();
+        conversation.setId(ID);
+        conversation.setKnowledgeBaseId(7L);
+        when(repository.lockOwnedConversation(ID, 42L)).thenReturn(conversation);
+        when(knowledgeBases.lockOwnedActive(7L, 42L)).thenReturn(true);
+        mvc.perform(patch(PATH + "/{id}", ID).contentType("application/json").content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.title").value("New title"));
+        when(repository.hasActiveTurn(ID)).thenReturn(true);
+        mvc.perform(delete(PATH + "/{id}", ID))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(40902));
+        when(repository.hasActiveTurn(ID)).thenReturn(false);
+        mvc.perform(delete(PATH + "/{id}", ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
+        org.mockito.Mockito.verify(repository).rename(ID, "New title");
+        org.mockito.Mockito.verify(repository).delete(ID);
     }
 
     @Test

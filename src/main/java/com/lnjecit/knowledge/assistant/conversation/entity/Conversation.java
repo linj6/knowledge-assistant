@@ -19,4 +19,6 @@ public class Conversation {
     private String title;
     private Instant createdAt;
     private Instant updatedAt;
+    private Instant deletedAt;
+    private Boolean titleManuallyEdited;
 }

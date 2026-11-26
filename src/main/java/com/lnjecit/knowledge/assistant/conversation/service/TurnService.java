@@ -63,9 +63,8 @@ public class TurnService {
 
     public TurnResponse.Accepted cancel(long userId, Long conversationId, UUID turnId) {
         Cancellation cancellation = submission.execute(status -> {
-            Conversation conversation = conversations.requireOwned(userId, conversationId);
-            // 锁内校验知识库状态并更新消息，提交后再通知执行器。
-            conversations.lockActiveKnowledgeBase(userId, conversation.getKnowledgeBaseId());
+            // 锁内校验会话和知识库并更新消息，提交后再通知执行器。
+            conversations.lockOwned(userId, conversationId);
             Long assistantId = requireTurn(conversationId, turnId).assistantMessageId();
             boolean requested = repository.requestCancellation(assistantId)
                     || repository.turnStatus(assistantId) == MessageStatus.CANCEL_REQUESTED;
@@ -92,12 +91,7 @@ public class TurnService {
 
     private Submission prepare(long userId, Long id, UUID turnId, String question) {
         // 锁定所属会话，串行化同一会话内的幂等检查和消息创建。
-        Conversation conversation = repository.lockOwnedConversation(id, userId);
-        if (conversation == null) {
-            throw new BusinessException(CommonErrorCode.CONVERSATION_NOT_FOUND);
-        }
-        // 保持会话锁在先，写入轮次前锁住知识库，防止与逻辑删除交错。
-        conversations.lockActiveKnowledgeBase(userId, conversation.getKnowledgeBaseId());
+        Conversation conversation = conversations.lockOwned(userId, id);
         TurnResponse existing = findTurn(id, turnId);
         if (existing != null) {
             return replay(existing, question);
@@ -109,7 +103,7 @@ public class TurnService {
         String title = null;
         if (ConversationService.DEFAULT_TITLE.equals(conversation.getTitle()) && !repository.hasUserMessages(id)) {
             String stripped = question.strip();
-            int length = Math.min(200, stripped.codePointCount(0, stripped.length()));
+            int length = Math.min(ConversationService.MAX_TITLE_LENGTH, stripped.codePointCount(0, stripped.length()));
             title = stripped.substring(0, stripped.offsetByCodePoints(0, length));
         }
         Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);

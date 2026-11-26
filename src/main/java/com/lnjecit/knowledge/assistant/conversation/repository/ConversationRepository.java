@@ -35,13 +35,15 @@ public class ConversationRepository {
     public Conversation findOwnedConversation(Long id, long ownerUserId) {
         return conversationMapper.selectOne(new LambdaQueryWrapper<Conversation>()
                 .eq(Conversation::getId, id)
-                .eq(Conversation::getOwnerUserId, ownerUserId));
+                .eq(Conversation::getOwnerUserId, ownerUserId)
+                .isNull(Conversation::getDeletedAt));
     }
 
     public Conversation lockOwnedConversation(Long id, long ownerUserId) {
         return conversationMapper.selectOne(new LambdaQueryWrapper<Conversation>()
                 .eq(Conversation::getId, id)
                 .eq(Conversation::getOwnerUserId, ownerUserId)
+                .isNull(Conversation::getDeletedAt)
                 .last("FOR UPDATE"));
     }
 
@@ -71,8 +73,31 @@ public class ConversationRepository {
     public void touchConversation(Long id, Instant updatedAt, String title) {
         conversationMapper.update(new LambdaUpdateWrapper<Conversation>()
                 .eq(Conversation::getId, id)
-                .set(Conversation::getUpdatedAt, updatedAt)
-                .set(title != null, Conversation::getTitle, title));
+                .isNull(Conversation::getDeletedAt)
+                .set(Conversation::getUpdatedAt, updatedAt));
+        if (title != null) {
+            // 由数据库在写入时判断手动修改标识，保留用户设置的标题。
+            conversationMapper.update(new LambdaUpdateWrapper<Conversation>()
+                    .eq(Conversation::getId, id)
+                    .isNull(Conversation::getDeletedAt)
+                    .eq(Conversation::getTitleManuallyEdited, false)
+                    .set(Conversation::getTitle, title));
+        }
+    }
+
+    public void rename(Long id, String title) {
+        conversationMapper.update(new LambdaUpdateWrapper<Conversation>()
+                .eq(Conversation::getId, id)
+                .isNull(Conversation::getDeletedAt)
+                .set(Conversation::getTitle, title)
+                .set(Conversation::getTitleManuallyEdited, true));
+    }
+
+    public void delete(Long id) {
+        conversationMapper.update(new LambdaUpdateWrapper<Conversation>()
+                .eq(Conversation::getId, id)
+                .isNull(Conversation::getDeletedAt)
+                .set(Conversation::getDeletedAt, Instant.now()));
     }
 
     public boolean completeTurn(Long assistantId, Message result) {
@@ -124,10 +149,17 @@ public class ConversationRepository {
         return cancelled + failed;
     }
 
-    public List<Conversation> listOwnedConversations(long ownerUserId, Long knowledgeBaseId) {
+    public List<Conversation> listOwnedConversations(long ownerUserId, Long knowledgeBaseId, String keyword) {
+        String pattern = keyword == null || keyword.isBlank()
+                ? null
+                : "%" + keyword.strip().replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
         return conversationMapper.selectList(new LambdaQueryWrapper<Conversation>()
                 .eq(Conversation::getOwnerUserId, ownerUserId)
+                .isNull(Conversation::getDeletedAt)
                 .eq(Conversation::getKnowledgeBaseId, knowledgeBaseId)
+                .apply(
+                        "EXISTS (SELECT 1 FROM knowledge_base kb WHERE kb.id = chat_conversation.knowledge_base_id AND kb.deleted_at IS NULL)")
+                .apply(pattern != null, "title ILIKE {0} ESCAPE '!'", pattern)
                 .orderByDesc(Conversation::getUpdatedAt, Conversation::getId));
     }
 

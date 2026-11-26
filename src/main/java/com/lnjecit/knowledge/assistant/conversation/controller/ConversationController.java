@@ -5,6 +5,7 @@ import com.lnjecit.knowledge.assistant.common.api.Result;
 import com.lnjecit.knowledge.assistant.conversation.dto.ConversationResponse;
 import com.lnjecit.knowledge.assistant.conversation.dto.CreateConversationRequest;
 import com.lnjecit.knowledge.assistant.conversation.dto.MessagePageResponse;
+import com.lnjecit.knowledge.assistant.conversation.dto.RenameConversationRequest;
 import com.lnjecit.knowledge.assistant.conversation.dto.SubmitTurnRequest;
 import com.lnjecit.knowledge.assistant.conversation.dto.TurnResponse;
 import com.lnjecit.knowledge.assistant.conversation.entity.Message;
@@ -19,7 +20,9 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -84,16 +87,34 @@ public class ConversationController {
 
     @GetMapping
     public Result<List<ConversationResponse>> list(
-            @RequestParam @Positive Long knowledgeBaseId, Authentication authentication) {
-        return Result.success(service.list(AuthPrincipal.requireUserId(authentication), knowledgeBaseId).stream()
-                .map(ConversationResponse::from)
-                .toList());
+            @RequestParam @Positive Long knowledgeBaseId,
+            @RequestParam(required = false) String keyword,
+            Authentication authentication) {
+        return Result.success(
+                service.list(AuthPrincipal.requireUserId(authentication), knowledgeBaseId, keyword).stream()
+                        .map(ConversationResponse::from)
+                        .toList());
     }
 
     @GetMapping("/{id}")
     public Result<ConversationResponse> get(@PathVariable @Positive Long id, Authentication authentication) {
         return Result.success(
                 ConversationResponse.from(service.requireOwned(AuthPrincipal.requireUserId(authentication), id)));
+    }
+
+    @PatchMapping("/{id}")
+    public Result<ConversationResponse> rename(
+            @PathVariable @Positive Long id,
+            @RequestBody RenameConversationRequest request,
+            Authentication authentication) {
+        return Result.success(ConversationResponse.from(
+                service.rename(AuthPrincipal.requireUserId(authentication), id, request.title())));
+    }
+
+    @DeleteMapping("/{id}")
+    public Result<Void> delete(@PathVariable @Positive Long id, Authentication authentication) {
+        service.delete(AuthPrincipal.requireUserId(authentication), id);
+        return Result.success(null);
     }
 
     @GetMapping("/{id}/messages")

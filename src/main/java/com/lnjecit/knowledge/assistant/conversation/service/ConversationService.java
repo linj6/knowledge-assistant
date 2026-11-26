@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ConversationService {
+    static final int MAX_TITLE_LENGTH = 200;
     static final String DEFAULT_TITLE = "新会话";
 
     private final ConversationRepository repository;
@@ -40,9 +41,9 @@ public class ConversationService {
         return conversation;
     }
 
-    public List<Conversation> list(long userId, Long knowledgeBaseId) {
+    public List<Conversation> list(long userId, Long knowledgeBaseId, String keyword) {
         knowledgeBaseService.requireOwned(knowledgeBaseId, userId);
-        return repository.listOwnedConversations(userId, knowledgeBaseId);
+        return repository.listOwnedConversations(userId, knowledgeBaseId, keyword);
     }
 
     public Conversation requireOwned(long userId, Long id) {
@@ -55,7 +56,40 @@ public class ConversationService {
         return conversation;
     }
 
-    void lockActiveKnowledgeBase(long userId, Long knowledgeBaseId) {
+    @Transactional
+    public Conversation rename(long userId, Long id, String title) {
+        String normalized = title == null ? "" : title.strip();
+        if (normalized.isEmpty() || normalized.codePointCount(0, normalized.length()) > MAX_TITLE_LENGTH) {
+            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT);
+        }
+        Conversation conversation = lockOwned(userId, id);
+        repository.rename(id, normalized);
+        conversation.setTitle(normalized);
+        conversation.setTitleManuallyEdited(true);
+        return conversation;
+    }
+
+    @Transactional
+    public void delete(long userId, Long id) {
+        // 与轮次提交共用会话行锁，检查活动轮次与标记删除在同一事务内完成。
+        lockOwned(userId, id);
+        if (repository.hasActiveTurn(id)) {
+            throw new BusinessException(CommonErrorCode.TURN_IN_PROGRESS);
+        }
+        repository.delete(id);
+    }
+
+    Conversation lockOwned(long userId, Long id) {
+        Conversation conversation = repository.lockOwnedConversation(id, userId);
+        if (conversation == null) {
+            throw new BusinessException(CommonErrorCode.CONVERSATION_NOT_FOUND);
+        }
+        // 写操作始终先锁会话，再锁知识库。
+        lockActiveKnowledgeBase(userId, conversation.getKnowledgeBaseId());
+        return conversation;
+    }
+
+    private void lockActiveKnowledgeBase(long userId, Long knowledgeBaseId) {
         knowledgeBaseService.lockOwnedActive(knowledgeBaseId, userId);
     }
 
