@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.lnjecit.knowledge.assistant.infrastructure.web.ApiExceptionHandler;
 import com.lnjecit.knowledge.assistant.infrastructure.web.ApiJacksonConfiguration;
+import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingConfig;
+import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy;
 import com.lnjecit.knowledge.assistant.ingestion.controller.DocumentImportController;
 import com.lnjecit.knowledge.assistant.ingestion.dto.ImportTaskResponse;
 import com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportService;
@@ -36,8 +38,15 @@ class ImportApiTests {
                 .setControllerAdvice(new ApiExceptionHandler())
                 .build();
         org.springframework.mock.web.MockMultipartFile file = ImportTests.file("a.md", new byte[] {65});
-        ImportTaskResponse response = new ImportTaskResponse(9007199254740993L, 2L, "RECEIVED", null, null, null);
-        when(service.receive(1L, file))
+        ImportTaskResponse response = new ImportTaskResponse(
+                9007199254740993L,
+                2L,
+                "RECEIVED",
+                null,
+                null,
+                null,
+                new ChunkingConfig(2, ChunkingStrategy.FIXED_CODE_POINT, 800, 120));
+        when(service.receive(1L, file, null, null, null))
                 .thenReturn(
                         new DocumentImportService.Outcome(response, false),
                         new DocumentImportService.Outcome(response, true));
@@ -51,6 +60,21 @@ class ImportApiTests {
                         .file(file)
                         .principal(authentication))
                 .andExpect(status().isOk());
+        when(service.receive(1L, file, ChunkingStrategy.FIXED_CODE_POINT, 400, 50))
+                .thenReturn(new DocumentImportService.Outcome(response, true));
+        mvc.perform(multipart("/v1/knowledge-bases/1/documents:import")
+                        .file(file)
+                        .param("strategy", "FIXED_CODE_POINT")
+                        .param("chunkSize", "400")
+                        .param("chunkOverlap", "50")
+                        .principal(authentication))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.chunkingConfig.chunkSize").value(800));
+        mvc.perform(multipart("/v1/knowledge-bases/1/documents:import")
+                        .file(file)
+                        .param("strategy", "UNKNOWN")
+                        .principal(authentication))
+                .andExpect(status().isBadRequest());
         when(service.getOwned(9007199254740993L, 42L)).thenReturn(response);
         mvc.perform(get("/v1/import-tasks/9007199254740993").principal(authentication))
                 .andExpect(status().isOk())

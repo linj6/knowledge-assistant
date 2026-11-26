@@ -11,7 +11,7 @@ import static org.mockito.Mockito.when;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingConfig;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingProperties;
-import com.lnjecit.knowledge.assistant.ingestion.dto.ImportTaskResponse;
+import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy;
 import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTask;
 import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTaskStatus;
 import com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportRepository;
@@ -52,12 +52,21 @@ class ImportTests {
         OriginalFileStore store = mock(OriginalFileStore.class);
         UploadProperties upload = new UploadProperties();
         upload.setMaxFileBytes(16);
+        com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingProperties embedding =
+                new com.lnjecit.knowledge.assistant.ingestion.embedding.EmbeddingProperties();
+        embedding.setMaxInputCodePoints(800);
+        ChunkingProperties properties = new ChunkingProperties();
+        properties.setEmbeddingProperties(embedding);
+        properties.setVersion(2);
+        properties.setStrategy(ChunkingStrategy.FIXED_CODE_POINT);
+        properties.setChunkSize(800);
+        properties.setChunkOverlap(120);
         DocumentImportService service = new DocumentImportService(
                 repository,
                 knowledge,
                 store,
                 upload,
-                new ChunkingProperties(),
+                properties,
                 JsonMapper.builder().build(),
                 new com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties(),
                 mock(PlatformTransactionManager.class));
@@ -70,10 +79,18 @@ class ImportTests {
         })
             assertThatThrownBy(() -> service.receive(1L, file))
                     .isInstanceOf(com.lnjecit.knowledge.assistant.common.error.BusinessException.class);
+        for (int[] values : new int[][] {{100, 100}, {801, 0}, {800, -1}})
+            assertThatThrownBy(() -> service.receive(1L, file("a.md", new byte[] {65}), null, values[0], values[1]))
+                    .isInstanceOf(com.lnjecit.knowledge.assistant.common.error.BusinessException.class);
         verifyNoInteractions(store);
         ImportTask task = new ImportTask();
         task.setId(2L);
         task.setDocumentId(3L);
+        task.setIndexVersionId(4L);
+        when(repository.findChunkingConfig(4L))
+                .thenReturn(JsonMapper.builder()
+                        .build()
+                        .writeValueAsString(new ChunkingConfig(2, ChunkingStrategy.FIXED_CODE_POINT, 800, 120)));
         task.setStatus(ImportTaskStatus.PENDING);
         when(repository.findExisting(eq(1L), anyString())).thenReturn(task);
         assertThat(service.receive(1L, file("limit.txt", "a".repeat(16).getBytes(StandardCharsets.UTF_8)))
@@ -86,9 +103,10 @@ class ImportTests {
         assertThat(service.receive(1L, file("a.txt", new byte[] {(byte) 0xef, (byte) 0xbb, (byte) 0xbf, 65}))
                         .duplicate())
                 .isTrue();
+        when(repository.find(2L)).thenReturn(task);
         for (ImportTaskStatus status : ImportTaskStatus.values()) {
             task.setStatus(status);
-            assertThat(ImportTaskResponse.from(task).status())
+            assertThat(service.get(2L).status())
                     .isEqualTo(
                             switch (status) {
                                 case PENDING -> "RECEIVED";
@@ -135,6 +153,11 @@ class ImportTests {
         ImportTask task = new ImportTask();
         task.setId(2L);
         task.setDocumentId(3L);
+        task.setIndexVersionId(4L);
+        when(repository.findChunkingConfig(4L))
+                .thenReturn(JsonMapper.builder()
+                        .build()
+                        .writeValueAsString(new ChunkingConfig(2, ChunkingStrategy.FIXED_CODE_POINT, 800, 120)));
         task.setStatus(ImportTaskStatus.PENDING);
         when(repository.create(
                         org.mockito.ArgumentMatchers.anyLong(),

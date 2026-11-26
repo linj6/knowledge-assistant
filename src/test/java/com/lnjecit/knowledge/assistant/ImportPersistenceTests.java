@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.lnjecit.knowledge.assistant.infrastructure.BusinessHttpTestSecurity;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingConfig;
+import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy;
 import com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportService;
 import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;
 import java.util.concurrent.Callable;
@@ -169,10 +170,13 @@ class ImportPersistenceTests {
                             800,
                             120));
             assertThat(first.task().status()).isEqualTo("RECEIVED");
-            assertThat(service.receive(kb, ImportTests.file("b.txt", bytes))
-                            .task()
-                            .importTaskId())
-                    .isEqualTo(first.task().importTaskId());
+            DocumentImportService.Outcome duplicate =
+                    service.receive(kb, ImportTests.file("b.txt", bytes), ChunkingStrategy.FIXED_CODE_POINT, 400, 50);
+            assertThat(duplicate.duplicate()).isTrue();
+            assertThat(duplicate.task().importTaskId()).isEqualTo(first.task().importTaskId());
+            assertThat(duplicate.task().chunkingConfig()).isEqualTo(first.task().chunkingConfig());
+            assertThat(service.getOwned(first.task().importTaskId(), 42L).chunkingConfig())
+                    .isEqualTo(first.task().chunkingConfig());
             assertThat(service.receive(other, ImportTests.file("a.txt", bytes)).duplicate())
                     .isFalse();
             assertThat(jdbc.queryForObject(
@@ -244,7 +248,8 @@ class ImportPersistenceTests {
                 deletion.executeWithoutResult(status -> {
                     context.getBean(com.lnjecit.knowledge.assistant.document.service.DocumentQueryService.class)
                             .delete(kb, first.task().documentId(), 42L);
-                    reupload.set(worker.submit(() -> service.receive(kb, ImportTests.file("replacement.md", bytes))));
+                    reupload.set(worker.submit(
+                            () -> service.receive(kb, ImportTests.file("replacement.md", bytes), null, 400, null)));
                     // 删除尚未提交，快速去重必须等待知识库行锁。
                     long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
                     int waiting;
@@ -264,6 +269,8 @@ class ImportPersistenceTests {
             assertThatThrownBy(() -> service.getOwned(first.task().importTaskId(), 42L))
                     .isInstanceOf(com.lnjecit.knowledge.assistant.common.error.BusinessException.class);
             assertThat(replacement.duplicate()).isFalse();
+            assertThat(replacement.task().chunkingConfig())
+                    .isEqualTo(new ChunkingConfig(2, ChunkingStrategy.FIXED_CODE_POINT, 400, 120));
             assertThat(replacement.task().documentId())
                     .isNotEqualTo(first.task().documentId());
             assertThat(replacement.task().importTaskId())

@@ -53,6 +53,11 @@ class IngestionPipelineIT extends ElasticsearchIT {
     }
 
     @Test
+    void markdownSnapshotSurvivesRestartWithDifferentDefaults() throws Exception {
+        runPipeline("markdown-restart");
+    }
+
+    @Test
     void retryAfterChunkCommit() throws Exception {
         runPipeline("retry");
     }
@@ -276,26 +281,35 @@ class IngestionPipelineIT extends ElasticsearchIT {
                         return proxy.getProxy();
                     }
                 })));
-        try (ConfigurableApplicationContext c = app.run(
-                "--spring.datasource.url=" + postgres.getJdbcUrl(),
-                "--spring.datasource.username=" + postgres.getUsername(),
-                "--spring.datasource.password=" + postgres.getPassword(),
-                "--assistant.minio.endpoint=" + endpoint,
-                "--assistant.minio.access-key=storage-user",
-                "--assistant.minio.secret-key=storage-test-password",
-                "--assistant.minio.bucket=pipeline-test",
-                "--assistant.elasticsearch.enabled=true",
-                "--assistant.elasticsearch.endpoint=http://" + elasticsearch.getHttpHostAddress(),
-                "--assistant.model.enabled=true",
-                "--assistant.model.online-authorized=true",
-                "--assistant.model.api-key=local-stub",
-                "--assistant.model.chat-model=unused",
-                "--assistant.model.base-url=http://127.0.0.1:"
-                        + stub.getAddress().getPort() + "/v1",
-                "--assistant.embedding.batch-size=1",
-                "--assistant.elasticsearch.batch-size=1",
-                "--assistant.worker.enabled=true",
-                "--assistant.worker.scan-interval=24h")) {
+        String[] arguments = {
+            "--spring.datasource.url=" + postgres.getJdbcUrl(),
+            "--spring.datasource.username=" + postgres.getUsername(),
+            "--spring.datasource.password=" + postgres.getPassword(),
+            "--assistant.minio.endpoint=" + endpoint,
+            "--assistant.minio.access-key=storage-user",
+            "--assistant.minio.secret-key=storage-test-password",
+            "--assistant.minio.bucket=pipeline-test",
+            "--assistant.elasticsearch.enabled=true",
+            "--assistant.elasticsearch.endpoint=http://" + elasticsearch.getHttpHostAddress(),
+            "--assistant.model.enabled=true",
+            "--assistant.model.online-authorized=true",
+            "--assistant.model.api-key=local-stub",
+            "--assistant.model.chat-model=unused",
+            "--assistant.model.base-url=http://127.0.0.1:" + stub.getAddress().getPort() + "/v1",
+            "--assistant.embedding.batch-size=1",
+            "--assistant.elasticsearch.batch-size=1",
+            "--assistant.worker.enabled=true",
+            "--assistant.worker.scan-interval=24h"
+        };
+        if (mode.equals("markdown-restart")) {
+            try {
+                verifyMarkdownRestart(app, arguments, requested);
+            } finally {
+                stub.stop(0);
+            }
+            return;
+        }
+        try (ConfigurableApplicationContext c = app.run(arguments)) {
             // 初次空扫描后取消后台触发，测试只串行调用真实调度入口。
             c.getBean(ScheduledAnnotationBeanPostProcessor.class).destroy();
             MockMvc mvc = MockMvcBuilders.standaloneSetup(c.getBean(DocumentImportController.class))
@@ -644,6 +658,60 @@ class IngestionPipelineIT extends ElasticsearchIT {
             }
         } finally {
             stub.stop(0);
+        }
+    }
+
+    private void verifyMarkdownRestart(SpringApplication app, String[] arguments, List<String> requested)
+            throws Exception {
+        long document;
+        String source = "# 标题\n\n" + "😀".repeat(20);
+        try (ConfigurableApplicationContext c = app.run(arguments)) {
+            c.getBean(ScheduledAnnotationBeanPostProcessor.class).destroy();
+            long kb = c.getBean(KnowledgeBaseService.class)
+                    .create(42L, "markdown-restart", null)
+                    .getId();
+            MockMvc mvc = MockMvcBuilders.standaloneSetup(c.getBean(DocumentImportController.class))
+                    .build();
+            String body = mvc.perform(multipart("/v1/knowledge-bases/{id}/documents:import", kb)
+                            .file(new MockMultipartFile(
+                                    "file", "restart.md", "text/markdown", source.getBytes(StandardCharsets.UTF_8)))
+                            .param("strategy", "MARKDOWN_STRUCTURE_AWARE")
+                            .param("chunkSize", "8")
+                            .param("chunkOverlap", "2")
+                            .principal(AUTHENTICATION))
+                    .andExpect(status().isAccepted())
+                    .andExpect(jsonPath("$.data.chunkingConfig.strategy").value("MARKDOWN_STRUCTURE_AWARE"))
+                    .andExpect(jsonPath("$.data.chunkingConfig.chunkSize").value(8))
+                    .andReturn()
+                    .getResponse()
+                    .getContentAsString();
+            document = c.getBean(JsonMapper.class)
+                    .readTree(body)
+                    .path("data")
+                    .path("documentId")
+                    .asLong();
+        }
+        String[] changed = java.util.Arrays.copyOf(arguments, arguments.length + 2);
+        changed[arguments.length] = "--assistant.chunking.chunk-size=16";
+        changed[arguments.length + 1] = "--assistant.chunking.chunk-overlap=0";
+        try (ConfigurableApplicationContext c = app.run(changed)) {
+            // 重启后的首轮扫描可能已经开始，等待同一个调度器完成，避免取消正在读原文的任务。
+            c.getBean(TaskScheduler.class).scan();
+            JdbcTemplate jdbc = c.getBean(JdbcTemplate.class);
+            Long active =
+                    jdbc.queryForObject("SELECT active_version_id FROM document WHERE id=?", Long.class, document);
+            assertThat(active).isNotNull();
+            assertThat(jdbc.queryForList(
+                            "SELECT source_start FROM document_chunk WHERE index_version_id=? ORDER BY chunk_order",
+                            Integer.class,
+                            active))
+                    .containsExactly(0, 6, 12, 18);
+            assertThat(jdbc.queryForList(
+                            "SELECT source_end FROM document_chunk WHERE index_version_id=? ORDER BY chunk_order",
+                            Integer.class,
+                            active))
+                    .containsExactly(6, 14, 20, 26);
+            assertThat(requested).isNotEmpty().allMatch(text -> text.codePointCount(0, text.length()) <= 8);
         }
     }
 

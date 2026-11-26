@@ -4,6 +4,7 @@ import com.lnjecit.knowledge.assistant.auth.service.AuthPrincipal;
 import com.lnjecit.knowledge.assistant.common.api.Result;
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
+import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy;
 import com.lnjecit.knowledge.assistant.ingestion.dto.ImportTaskResponse;
 import com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportService;
 import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;
@@ -32,6 +33,9 @@ public class DocumentImportController {
     public ResponseEntity<Result<ImportTaskResponse>> receive(
             @PathVariable @Positive Long kbId,
             @RequestParam("file") List<MultipartFile> files,
+            @RequestParam(required = false) ChunkingStrategy strategy,
+            @RequestParam(required = false) Integer chunkSize,
+            @RequestParam(required = false) Integer chunkOverlap,
             Authentication authentication)
             throws Exception {
         // Servlet 可能已经解析 multipart，业务文件读取和写入须在授权通过后执行。
@@ -39,7 +43,8 @@ public class DocumentImportController {
         if (files.size() != 1) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT);
         }
-        DocumentImportService.Outcome outcome = service.receive(kbId, files.getFirst());
+        DocumentImportService.Outcome outcome =
+                service.receive(kbId, files.getFirst(), strategy, chunkSize, chunkOverlap);
         return ResponseEntity.status(outcome.duplicate() ? 200 : 202).body(Result.success(outcome.task()));
     }
 

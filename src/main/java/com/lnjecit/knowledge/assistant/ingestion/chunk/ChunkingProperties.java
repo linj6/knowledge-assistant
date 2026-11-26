@@ -22,7 +22,15 @@ public class ChunkingProperties implements InitializingBean {
     private int chunkOverlap;
 
     public ChunkingConfig snapshot() {
-        ChunkingConfig config = new ChunkingConfig(version, strategy, chunkSize, chunkOverlap);
+        return snapshot(null, null, null);
+    }
+
+    public ChunkingConfig snapshot(ChunkingStrategy strategy, Integer chunkSize, Integer chunkOverlap) {
+        ChunkingConfig config = new ChunkingConfig(
+                version,
+                strategy == null ? this.strategy : strategy,
+                chunkSize == null ? this.chunkSize : chunkSize,
+                chunkOverlap == null ? this.chunkOverlap : chunkOverlap);
         config.validateMaxCodePoints(embeddingProperties.getMaxInputCodePoints());
         return config;
     }

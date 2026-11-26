@@ -1,6 +1,6 @@
 package com.lnjecit.knowledge.assistant.ingestion.chunk;
 
-/** 不可变切分协议：v1 保留空白窗口，v2 跳过空白窗口；长度和位置均以 Unicode 码点计量。 */
+/** 不可变切分协议：固定长度 v1 保留空白窗口，v2 跳过空白窗口；长度和位置均以 Unicode 码点计量。 */
 public record ChunkingConfig(int version, ChunkingStrategy strategy, int chunkSize, int chunkOverlap) {
     public void validateMaxCodePoints(int maxCodePoints) {
         if (maxCodePoints <= 0 || chunkSize > maxCodePoints)
@@ -10,7 +10,7 @@ public record ChunkingConfig(int version, ChunkingStrategy strategy, int chunkSi
     public ChunkingConfig {
         // 严格拒绝未知协议，避免后续任务以错误参数构建索引。
         if ((version != 1 && version != 2)
-                || strategy != ChunkingStrategy.FIXED_CODE_POINT
+                || strategy == null
                 || chunkSize <= 0
                 || chunkOverlap < 0
                 || chunkOverlap >= chunkSize) {

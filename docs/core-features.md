@@ -8,7 +8,7 @@
 
 ## 文档导入
 
-支持 UTF-8 Markdown / TXT，单文件上限 2 MiB。同一知识库内重复内容复用已有导入结果，新任务返回 HTTP 202，重复内容返回 200。页面可查询任务进度及文档列表。切分支持固定代码点与 Markdown 结构感知，当前配置默认固定切分，长度 800、重叠 120。发布后才能参与检索。[导入接口](../src/main/java/com/lnjecit/knowledge/assistant/ingestion/controller/DocumentImportController.java) · [默认配置](../src/main/resources/application.yml)
+支持 UTF-8 Markdown / TXT，单文件上限 2 MiB。同一知识库内重复内容复用已有导入结果，新任务返回 HTTP 202，重复内容返回 200。页面可查询任务进度及文档列表。上传可选 multipart 字段为 `strategy`、`chunkSize`、`chunkOverlap`，各字段缺省时继承服务端配置。策略支持 `FIXED_CODE_POINT` 和 `MARKDOWN_STRUCTURE_AWARE`，默认固定长度 800、重叠 120，单位为 Unicode 码点。长度须为正整数且不超过 Embedding 输入上限，重叠须为非负整数且小于长度。上传和任务查询通过 `data.chunkingConfig` 返回索引版本实际采用的配置，重复上传返回已有任务的配置。结构感知优先保留完整结构，超长结构优先沿原始行拆分，必要时使用码点窗口。重叠用于超长结构内部，普通 TXT 可按段落或码点窗口切分。发布后才能参与检索。[导入接口](../src/main/java/com/lnjecit/knowledge/assistant/ingestion/controller/DocumentImportController.java) · [默认配置](../src/main/resources/application.yml)
 
 ## 四种检索策略
 

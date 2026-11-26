@@ -7,7 +7,9 @@ import com.lnjecit.knowledge.assistant.infrastructure.config.ModelProperties;
 import com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.ObjectKeyPrefixes;
 import com.lnjecit.knowledge.assistant.infrastructure.storage.OriginalFileStore;
+import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingConfig;
 import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingProperties;
+import com.lnjecit.knowledge.assistant.ingestion.chunk.ChunkingStrategy;
 import com.lnjecit.knowledge.assistant.ingestion.dto.ImportTaskResponse;
 import com.lnjecit.knowledge.assistant.ingestion.task.ImportEvents;
 import com.lnjecit.knowledge.assistant.ingestion.task.entity.ImportTask;
@@ -66,11 +68,24 @@ public class DocumentImportService {
 
     /** 由已完成授权的 HTTP 入口或可信内部调用接收导入。 */
     public Outcome receive(Long kbId, MultipartFile file) throws Exception {
+        return receive(kbId, file, null, null, null);
+    }
+
+    public Outcome receive(
+            Long kbId, MultipartFile file, ChunkingStrategy strategy, Integer chunkSize, Integer chunkOverlap)
+            throws Exception {
         if (TransactionSynchronizationManager.isActualTransactionActive())
             throw new IllegalStateException("Upload cannot execute inside transaction");
         long started = System.nanoTime();
         knowledge.get(kbId);
         ValidatedUpload upload = validateAndRead(file);
+        // 每个缺省字段独立继承服务端配置，校验完整组合后再进入去重和上传流程。
+        ChunkingConfig config;
+        try {
+            config = chunking.snapshot(strategy, chunkSize, chunkOverlap);
+        } catch (IllegalArgumentException ex) {
+            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT);
+        }
         String filename = upload.filename();
         byte[] bytes = upload.bytes();
         String hash =
@@ -83,7 +98,7 @@ public class DocumentImportService {
         if (embeddingModel == null || embeddingModel.isBlank() || dimensions == null || dimensions <= 0) {
             throw new IllegalStateException("Invalid embedding model configuration");
         }
-        String snapshot = json.writeValueAsString(chunking.snapshot());
+        String snapshot = json.writeValueAsString(config);
         String stagingKey = ObjectKeyPrefixes.STAGING + UUID.randomUUID();
         String finalKey = ObjectKeyPrefixes.ORIGINALS + UUID.randomUUID();
         // 上传、复制和补偿均在 PG 事务之外；每个请求只处理自己的随机 Key。
@@ -202,7 +217,13 @@ public class DocumentImportService {
                 task.getIndexVersionId(),
                 task.getAttemptCount(),
                 ImportEvents.elapsed(started));
-        return new Outcome(ImportTaskResponse.from(task), duplicate);
+        return new Outcome(response(task), duplicate);
+    }
+
+    private ImportTaskResponse response(ImportTask task) {
+        ChunkingConfig config =
+                json.readValue(repository.findChunkingConfig(task.getIndexVersionId()), ChunkingConfig.class);
+        return ImportTaskResponse.from(task, config);
     }
 
     private void cleanup(String key) {
@@ -236,13 +257,13 @@ public class DocumentImportService {
             if (ex.getErrorCode() != CommonErrorCode.KNOWLEDGE_BASE_NOT_FOUND) throw ex;
             throw new BusinessException(CommonErrorCode.NOT_FOUND);
         }
-        return ImportTaskResponse.from(task);
+        return response(task);
     }
 
     /** 供可信内部调用按 ID 查询任务。 */
     public ImportTaskResponse get(Long id) {
         ImportTask task = repository.find(id);
         if (task == null) throw new BusinessException(CommonErrorCode.NOT_FOUND);
-        return ImportTaskResponse.from(task);
+        return response(task);
     }
 }

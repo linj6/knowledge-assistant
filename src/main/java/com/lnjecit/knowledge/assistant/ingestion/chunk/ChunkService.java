@@ -44,7 +44,12 @@ public class ChunkService {
                 || version.getStatus() != IndexVersionStatus.BUILDING) fail();
         ChunkingConfig config = json.readValue(version.getChunkingConfig(), ChunkingConfig.class);
         config.validateMaxCodePoints(embeddingProperties.getMaxInputCodePoints());
-        List<DocumentSplitter.Chunk> split = new FixedCodePointSplitter().split(parsed, config);
+        DocumentSplitter splitter =
+                switch (config.strategy()) {
+                    case FIXED_CODE_POINT -> new FixedCodePointSplitter();
+                    case MARKDOWN_STRUCTURE_AWARE -> new MarkdownStructureAwareSplitter();
+                };
+        List<DocumentSplitter.Chunk> split = splitter.split(parsed, config);
         List<DocumentChunk> existing = repository.find(versionId);
         int expected = version.getExpectedChunkCount();
         if (expected != 0 || !existing.isEmpty()) {

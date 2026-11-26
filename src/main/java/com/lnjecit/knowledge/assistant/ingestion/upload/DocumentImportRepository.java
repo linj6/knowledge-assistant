@@ -75,6 +75,10 @@ public class DocumentImportRepository {
         return documents.selectById(id);
     }
 
+    public String findChunkingConfig(Long versionId) {
+        return versions.selectById(versionId).getChunkingConfig();
+    }
+
     public ImportTask find(Long id) {
         return tasks.selectById(id);
     }
