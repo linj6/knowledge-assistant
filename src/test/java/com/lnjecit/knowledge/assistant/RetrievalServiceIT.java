@@ -270,6 +270,7 @@ class RetrievalServiceIT extends ElasticsearchIT {
         String question = "  知识助手如何检索文档？  ";
         String answer = "知识助手使用发布快照检索文档。";
         JsonMapper json = JsonMapper.builder().build();
+        AtomicReference<Runnable> afterSnapshot = new AtomicReference<>();
         AtomicReference<JsonNode> modelInput = new AtomicReference<>();
         ChatModel model = prompt -> {
             modelInput.set(json.readTree(prompt.getUserMessage().getText()));
@@ -288,6 +289,8 @@ class RetrievalServiceIT extends ElasticsearchIT {
             beans.registerBean(QueryEmbeddingService.class, () -> new QueryEmbeddingService(null) {
                 @Override
                 public QueryVector embed(String query) {
+                    Runnable action = afterSnapshot.getAndSet(null);
+                    if (action != null) action.run();
                     return new QueryVector(vector);
                 }
             });
@@ -443,6 +446,35 @@ class RetrievalServiceIT extends ElasticsearchIT {
                                 .containsPattern("actualStrategy=HYBRID_RRF degraded=false status=SUCCESS phase="
                                         + phase + " elapsedMillis=\\d+ candidateCount=1 ");
                     }
+
+                    // 嵌入阶段开始时发布快照已经取得，此时提交知识库删除。
+                    long owner =
+                            jdbc.queryForObject("SELECT owner_user_id FROM knowledge_base WHERE id=701", Long.class);
+                    afterSnapshot.set(() -> context.getBean(
+                                    com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService.class)
+                            .delete(701L, owner));
+                    String request =
+                            """
+                            {"knowledgeBaseId":701,"question":"如何检索文档？"}
+                            """;
+                    JsonNode inFlight = exchange(http, api, json, "chat/answers", csrf, request, 200);
+                    assertThat(inFlight.path("status").asString()).isEqualTo("ANSWERED");
+                    assertThat(inFlight.path("citations").size()).isEqualTo(1);
+                    exchange(http, api, json, "chat/answers", csrf, request, 404);
+                    exchange(http, api, json, conversation + "/messages", null, null, 404);
+                    exchange(
+                            http,
+                            api,
+                            json,
+                            "knowledge-bases/701/documents/702/versions/703/chunks/704",
+                            null,
+                            null,
+                            404);
+                    assertThat(jdbc.queryForObject(
+                                    "SELECT content FROM chat_message WHERE turn_id=? AND role='ASSISTANT'",
+                                    String.class,
+                                    turnId))
+                            .isEqualTo(answer);
                 }
             }
         }

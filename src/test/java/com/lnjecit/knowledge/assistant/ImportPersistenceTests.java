@@ -17,6 +17,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringApplication;
@@ -25,6 +26,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -234,9 +237,32 @@ class ImportPersistenceTests {
                     "SELECT object_key FROM document WHERE id=?",
                     String.class,
                     first.task().documentId());
-            context.getBean(com.lnjecit.knowledge.assistant.document.service.DocumentQueryService.class)
-                    .delete(kb, first.task().documentId(), 42L);
-            DocumentImportService.Outcome replacement = service.receive(kb, ImportTests.file("replacement.md", bytes));
+            DocumentImportService.Outcome replacement;
+            TransactionTemplate deletion = new TransactionTemplate(context.getBean(PlatformTransactionManager.class));
+            AtomicReference<Future<DocumentImportService.Outcome>> reupload = new AtomicReference<>();
+            try (ExecutorService worker = Executors.newSingleThreadExecutor()) {
+                deletion.executeWithoutResult(status -> {
+                    context.getBean(com.lnjecit.knowledge.assistant.document.service.DocumentQueryService.class)
+                            .delete(kb, first.task().documentId(), 42L);
+                    reupload.set(worker.submit(() -> service.receive(kb, ImportTests.file("replacement.md", bytes))));
+                    // 删除尚未提交，快速去重必须等待知识库行锁。
+                    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+                    int waiting;
+                    do {
+                        jdbc.execute("SELECT pg_stat_clear_snapshot()");
+                        waiting = jdbc.queryForObject(
+                                """
+                                SELECT count(*) FROM pg_stat_activity
+                                WHERE datname=current_database() AND pg_backend_pid() = ANY(pg_blocking_pids(pid))
+                                """,
+                                Integer.class);
+                    } while (waiting == 0 && System.nanoTime() < deadline);
+                    assertThat(waiting).isEqualTo(1);
+                });
+                replacement = reupload.get().get(30, TimeUnit.SECONDS);
+            }
+            assertThatThrownBy(() -> service.getOwned(first.task().importTaskId(), 42L))
+                    .isInstanceOf(com.lnjecit.knowledge.assistant.common.error.BusinessException.class);
             assertThat(replacement.duplicate()).isFalse();
             assertThat(replacement.task().documentId())
                     .isNotEqualTo(first.task().documentId());

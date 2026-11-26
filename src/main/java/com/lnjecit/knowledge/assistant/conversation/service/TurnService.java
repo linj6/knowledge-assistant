@@ -62,17 +62,27 @@ public class TurnService {
     }
 
     public TurnResponse.Accepted cancel(long userId, Long conversationId, UUID turnId) {
-        TurnResponse turn = get(userId, conversationId, turnId);
-        Long assistantId = turn.assistantMessageId();
-        if (repository.requestCancellation(assistantId)
-                || repository.turnStatus(assistantId) == MessageStatus.CANCEL_REQUESTED) {
-            executor.cancel(assistantId);
+        Cancellation cancellation = submission.execute(status -> {
+            Conversation conversation = conversations.requireOwned(userId, conversationId);
+            // 锁内校验知识库状态并更新消息，提交后再通知执行器。
+            conversations.lockActiveKnowledgeBase(userId, conversation.getKnowledgeBaseId());
+            Long assistantId = requireTurn(conversationId, turnId).assistantMessageId();
+            boolean requested = repository.requestCancellation(assistantId)
+                    || repository.turnStatus(assistantId) == MessageStatus.CANCEL_REQUESTED;
+            return new Cancellation(assistantId, requested);
+        });
+        if (cancellation.requested()) {
+            executor.cancel(cancellation.assistantId());
         }
-        return new TurnResponse.Accepted(turnId, repository.turnStatus(assistantId));
+        return new TurnResponse.Accepted(turnId, repository.turnStatus(cancellation.assistantId()));
     }
 
     public TurnResponse get(long userId, Long conversationId, UUID turnId) {
         conversations.requireOwned(userId, conversationId);
+        return requireTurn(conversationId, turnId);
+    }
+
+    private TurnResponse requireTurn(Long conversationId, UUID turnId) {
         TurnResponse turn = findTurn(conversationId, turnId);
         if (turn == null) {
             throw new BusinessException(CommonErrorCode.NOT_FOUND);
@@ -141,6 +151,8 @@ public class TurnService {
         message.setCitations("[]");
         return message;
     }
+
+    private record Cancellation(Long assistantId, boolean requested) {}
 
     private record Submission(TurnResponse turn, Long knowledgeBaseId) {}
 }

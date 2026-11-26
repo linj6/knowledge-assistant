@@ -6,9 +6,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.lnjecit.knowledge.assistant.KnowledgeAssistantApplication;
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
 import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
+import com.lnjecit.knowledge.assistant.conversation.service.ConversationService;
 import com.lnjecit.knowledge.assistant.conversation.service.TurnService;
 import com.lnjecit.knowledge.assistant.infrastructure.BusinessHttpTestSecurity;
-import com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportRepository;
+import com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportService;
 import com.lnjecit.knowledge.assistant.knowledge.entity.KnowledgeBase;
 import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;
 import java.util.UUID;
@@ -23,6 +24,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Container;
@@ -131,6 +133,19 @@ class KnowledgeBasePersistenceTests {
                             .statusCode())
                     .isEqualTo(404);
             verifyManagement(service, jdbc, first, second);
+            ConversationService conversations = context.getBean(ConversationService.class);
+            TurnService turns = context.getBean(TurnService.class);
+            Long deletedId = first.getId();
+            UUID turnId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+            assertDeletedBase(() -> conversations.list(42L, deletedId));
+            assertDeletedBase(() -> conversations.requireOwned(42L, 40L));
+            assertDeletedBase(() -> conversations.listMessages(42L, 40L, 1, 10));
+            assertDeletedBase(() -> turns.get(42L, 40L, turnId));
+            assertDeletedBase(() -> turns.cancel(42L, 40L, turnId));
+            assertThatThrownBy(
+                            () -> context.getBean(DocumentImportService.class).getOwned(20L, 42L))
+                    .isInstanceOfSatisfying(BusinessException.class, failure -> assertThat(failure.getErrorCode())
+                            .isEqualTo(CommonErrorCode.NOT_FOUND));
             verifyDeleteWins(context, service, jdbc);
             assertThat(mapper.writeValueAsString(java.util.Map.of("count", 9007199254740993L)))
                     .contains("\"9007199254740993\"");
@@ -209,22 +224,31 @@ class KnowledgeBasePersistenceTests {
         Long id = service.create(42L, "并发测试", null).getId();
         jdbc.update("INSERT INTO chat_conversation(id,owner_user_id,knowledge_base_id) VALUES (41,42,?)", id);
         TurnService turns = context.getBean(TurnService.class);
-        DocumentImportRepository imports = context.getBean(DocumentImportRepository.class);
+        DocumentImportService imports = context.getBean(DocumentImportService.class);
+        ConversationService conversations = context.getBean(ConversationService.class);
+        jdbc.update(
+                """
+                INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key)
+                VALUES (12,?,'race.txt','559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd','key')
+                """,
+                id);
+        jdbc.update(
+                "INSERT INTO document_import_task(id,document_id,index_version_id,status) VALUES (21,12,31,'FAILED')");
         TransactionTemplate transaction = new TransactionTemplate(context.getBean(PlatformTransactionManager.class));
         AtomicReference<Future<?>> turn = new AtomicReference<>();
         AtomicReference<Future<?>> upload = new AtomicReference<>();
-        try (ExecutorService workers = Executors.newFixedThreadPool(2)) {
+        AtomicReference<Future<?>> creation = new AtomicReference<>();
+        try (ExecutorService workers = Executors.newFixedThreadPool(3)) {
             transaction.executeWithoutResult(status -> {
                 service.delete(id, 42L);
                 turn.set(workers.submit(() -> assertThatThrownBy(
                                 () -> turns.submit(42L, 41L, UUID.randomUUID(), "并发提交"))
                         .isInstanceOfSatisfying(BusinessException.class, failure -> assertThat(failure.getErrorCode())
                                 .isEqualTo(CommonErrorCode.KNOWLEDGE_BASE_NOT_FOUND))));
-                upload.set(workers.submit(() -> assertThatThrownBy(
-                                () -> transaction.executeWithoutResult(state -> imports.lockCapacity(id)))
-                        .isInstanceOfSatisfying(BusinessException.class, failure -> assertThat(failure.getErrorCode())
-                                .isEqualTo(CommonErrorCode.KNOWLEDGE_BASE_NOT_FOUND))));
-                // 用 PostgreSQL 的阻塞信息验证两个写入口确实都在等待删除事务提交。
+                creation.set(workers.submit(() -> assertDeletedBase(() -> conversations.create(42L, id))));
+                upload.set(workers.submit(() -> assertDeletedBase(() -> imports.receive(
+                        id, new MockMultipartFile("file", "race.txt", "text/plain", new byte[] {65})))));
+                // 用 PostgreSQL 的阻塞信息验证三个写入口都在等待删除事务提交。
                 long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
                 Integer waiting;
                 do {
@@ -235,14 +259,21 @@ class KnowledgeBasePersistenceTests {
                             WHERE datname = current_database() AND cardinality(pg_blocking_pids(pid)) > 0
                             """,
                             Integer.class);
-                } while (waiting < 2 && System.nanoTime() < deadline);
-                assertThat(waiting).isEqualTo(2);
+                } while (waiting < 3 && System.nanoTime() < deadline);
+                assertThat(waiting).isEqualTo(3);
             });
             turn.get().get(5, TimeUnit.SECONDS);
             upload.get().get(5, TimeUnit.SECONDS);
+            creation.get().get(5, TimeUnit.SECONDS);
         }
         assertThat(jdbc.queryForObject("SELECT count(*) FROM chat_message WHERE conversation_id=41", Integer.class))
                 .isZero();
+    }
+
+    private void assertDeletedBase(org.assertj.core.api.ThrowableAssert.ThrowingCallable action) {
+        assertThatThrownBy(action)
+                .isInstanceOfSatisfying(BusinessException.class, failure -> assertThat(failure.getErrorCode())
+                        .isEqualTo(CommonErrorCode.KNOWLEDGE_BASE_NOT_FOUND));
     }
 
     private void assertBusy(KnowledgeBaseService service, Long id) {

@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ConversationService {
@@ -23,8 +24,11 @@ public class ConversationService {
         this.knowledgeBaseService = knowledgeBaseService;
     }
 
+    @Transactional
     public Conversation create(long userId, Long knowledgeBaseId) {
-        knowledgeBaseService.requireOwned(knowledgeBaseId, userId);
+        // 持有知识库行锁直
+        // 到会话写入提交，避免与知识库删除交错。
+        lockActiveKnowledgeBase(userId, knowledgeBaseId);
         Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
         Conversation conversation = new Conversation();
         conversation.setOwnerUserId(userId);
@@ -47,6 +51,7 @@ public class ConversationService {
         if (conversation == null) {
             throw new BusinessException(CommonErrorCode.CONVERSATION_NOT_FOUND);
         }
+        knowledgeBaseService.requireOwned(conversation.getKnowledgeBaseId(), userId);
         return conversation;
     }
 

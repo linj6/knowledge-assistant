@@ -110,6 +110,7 @@ class ConversationApiTests {
 
     @Test
     void createsAndReturnsOwnedConversation() throws Exception {
+        when(knowledgeBases.lockOwnedActive(7L, 42L)).thenReturn(true);
         when(knowledgeBases.findByIdAndOwner(7L, 42L)).thenReturn(new KnowledgeBase());
         doAnswer(invocation -> {
                     Conversation conversation = invocation.getArgument(0);
@@ -169,7 +170,10 @@ class ConversationApiTests {
 
     @Test
     void slicesMessagesAndReturnsPaginationMetadata() throws Exception {
-        when(repository.findOwnedConversation(ID, 42L)).thenReturn(new Conversation());
+        Conversation conversation = new Conversation();
+        conversation.setKnowledgeBaseId(7L);
+        when(repository.findOwnedConversation(ID, 42L)).thenReturn(conversation);
+        when(knowledgeBases.findByIdAndOwner(7L, 42L)).thenReturn(new KnowledgeBase());
         Message first = message(10L);
         Message second = message(11L);
         second.setMemoryTrace(

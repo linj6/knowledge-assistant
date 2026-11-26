@@ -4,6 +4,8 @@
 
 用户可以注册、登录、查询登录态及登出。业务接口使用 Redis 支持的 Session Cookie，写请求受 CSRF 校验。知识库归属当前账号，文档证据、导入任务、检索和会话按归属校验。主站提供「知识库」「检索」「问答」页面。评估 API 当前由安全配置拒绝访问。[安全配置](../src/main/java/com/lnjecit/knowledge/assistant/infrastructure/web/SecurityConfiguration.java) · [知识库接口](../src/main/java/com/lnjecit/knowledge/assistant/knowledge/controller/KnowledgeBaseController.java)
 
+知识库与文档支持逻辑删除。存在未结束的导入任务时，相关知识库和文档不可删除。活动问答轮次也会阻止知识库删除。知识库删除后，其会话、轮次、导入任务及引用证据不可访问。文档删除后可重新上传相同内容，已有会话中的回答仍保留，原文引用和导入任务不可访问。已取得发布快照的检索和单轮问答可以继续完成。
+
 ## 文档导入
 
 支持 UTF-8 Markdown / TXT，单文件上限 2 MiB。同一知识库内重复内容复用已有导入结果，新任务返回 HTTP 202，重复内容返回 200。页面可查询任务进度及文档列表。切分支持固定代码点与 Markdown 结构感知，当前配置默认固定切分，长度 800、重叠 120。发布后才能参与检索。[导入接口](../src/main/java/com/lnjecit/knowledge/assistant/ingestion/controller/DocumentImportController.java) · [默认配置](../src/main/resources/application.yml)

@@ -75,7 +75,7 @@ public class DocumentImportService {
         byte[] bytes = upload.bytes();
         String hash =
                 HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
-        ImportTask existing = repository.findExisting(kbId, hash);
+        ImportTask existing = findExistingUnderLock(kbId, hash);
         if (existing != null) return outcome(existing, true, started);
         // 在上传前校验并捕获模型参数，后续配置变化不得改写该版本快照。
         String embeddingModel = model.getEmbeddingModel();
@@ -135,11 +135,19 @@ public class DocumentImportService {
             // 提交异常不等于已回滚，必须先查主库是否引用了对象，再决定是否删除。
             cleanupUnreferencedOriginal(finalKey);
             if (ex instanceof DuplicateKeyException) {
-                ImportTask winner = repository.findExisting(kbId, hash);
+                ImportTask winner = findExistingUnderLock(kbId, hash);
                 if (winner != null) return outcome(winner, true, started);
             }
             throw ex;
         }
+    }
+
+    private ImportTask findExistingUnderLock(Long kbId, String hash) {
+        return transaction.execute(status -> {
+            // 文档删除也先锁知识库，锁内读取才能安全复用现有任务。
+            repository.lockCapacity(kbId);
+            return repository.findExisting(kbId, hash);
+        });
     }
 
     private void cleanupUnreferencedOriginal(String finalKey) {
@@ -221,7 +229,7 @@ public class DocumentImportService {
         ImportTask task = repository.find(id);
         if (task == null) throw new BusinessException(CommonErrorCode.NOT_FOUND);
         Document document = repository.findDocument(task.getDocumentId());
-        if (document == null) throw new BusinessException(CommonErrorCode.NOT_FOUND);
+        if (document == null || document.getDeletedAt() != null) throw new BusinessException(CommonErrorCode.NOT_FOUND);
         try {
             knowledge.requireOwned(document.getKnowledgeBaseId(), userId);
         } catch (BusinessException ex) {

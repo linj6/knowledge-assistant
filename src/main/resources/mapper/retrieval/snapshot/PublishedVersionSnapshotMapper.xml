@@ -7,7 +7,7 @@
  FROM knowledge_base k
  LEFT JOIN document d ON d.knowledge_base_id=k.id AND d.active_version_id IS NOT NULL AND d.deleted_at IS NULL
  LEFT JOIN document_index_version v ON v.id=d.active_version_id
- WHERE k.id=#{kbId}
+ WHERE k.id=#{kbId} AND k.deleted_at IS NULL
  ORDER BY d.id
  </select>
 </mapper>
