@@ -86,6 +86,8 @@ public class TurnService {
         if (conversation == null) {
             throw new BusinessException(CommonErrorCode.CONVERSATION_NOT_FOUND);
         }
+        // 保持会话锁在先，写入轮次前锁住知识库，防止与逻辑删除交错。
+        conversations.lockActiveKnowledgeBase(userId, conversation.getKnowledgeBaseId());
         TurnResponse existing = findTurn(id, turnId);
         if (existing != null) {
             return replay(existing, question);

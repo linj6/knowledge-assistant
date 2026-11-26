@@ -5,15 +5,26 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.lnjecit.knowledge.assistant.KnowledgeAssistantApplication;
 import com.lnjecit.knowledge.assistant.common.error.BusinessException;
+import com.lnjecit.knowledge.assistant.common.error.CommonErrorCode;
+import com.lnjecit.knowledge.assistant.conversation.service.TurnService;
 import com.lnjecit.knowledge.assistant.infrastructure.BusinessHttpTestSecurity;
+import com.lnjecit.knowledge.assistant.ingestion.upload.DocumentImportRepository;
 import com.lnjecit.knowledge.assistant.knowledge.entity.KnowledgeBase;
 import com.lnjecit.knowledge.assistant.knowledge.service.KnowledgeBaseService;
+import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -41,6 +52,8 @@ class KnowledgeBasePersistenceTests {
                 "--assistant.rerank.enabled=false")) {
             KnowledgeBaseService service = context.getBean(KnowledgeBaseService.class);
             JdbcTemplate jdbc = new JdbcTemplate(context.getBean(DataSource.class));
+            jdbc.update(
+                    "INSERT INTO app_user(id,username,password_hash,status) VALUES (42,'fixture-owner','test-only','ACTIVE')");
             assertThat(service.list(42L)).isEmpty();
             KnowledgeBase first = service.create(42L, " Java ", " 说明 ");
             assertThat(first.getId()).isPositive();
@@ -59,13 +72,13 @@ class KnowledgeBasePersistenceTests {
                     .isEqualTo("说明");
             KnowledgeBase second = service.create(42L, "Java", null);
             assertThat(second.getId()).isNotEqualTo(first.getId());
-            jdbc.update("UPDATE knowledge_base SET created_at='2026-01-01T00:00:00Z'");
+            jdbc.update("UPDATE knowledge_base SET updated_at='2026-01-01T00:00:00Z'");
             assertThat(service.list(42L))
                     .extracting(KnowledgeBase::getId)
                     .containsExactlyElementsOf(java.util.stream.Stream.of(first.getId(), second.getId())
-                            .sorted()
+                            .sorted(java.util.Comparator.reverseOrder())
                             .toList());
-            jdbc.update("UPDATE knowledge_base SET created_at='2025-01-01T00:00:00Z' WHERE id=?", second.getId());
+            jdbc.update("UPDATE knowledge_base SET updated_at='2025-01-01T00:00:00Z' WHERE id=?", first.getId());
             assertThat(service.list(42L))
                     .extracting(KnowledgeBase::getId)
                     .containsExactly(second.getId(), first.getId());
@@ -117,8 +130,124 @@ class KnowledgeBasePersistenceTests {
                                     java.net.http.HttpResponse.BodyHandlers.ofString())
                             .statusCode())
                     .isEqualTo(404);
+            verifyManagement(service, jdbc, first, second);
+            verifyDeleteWins(context, service, jdbc);
             assertThat(mapper.writeValueAsString(java.util.Map.of("count", 9007199254740993L)))
                     .contains("\"9007199254740993\"");
         }
+    }
+
+    private void verifyManagement(
+            KnowledgeBaseService service, JdbcTemplate jdbc, KnowledgeBase first, KnowledgeBase second) {
+        Long id = first.getId();
+        assertThat(first.getUpdatedAt()).isEqualTo(first.getCreatedAt());
+        jdbc.update(
+                """
+                INSERT INTO document(id,knowledge_base_id,filename,content_hash,object_key,deleted_at)
+                VALUES (10,?,'active','a','key',NULL),(11,?,'deleted','b','key',now())
+                """,
+                id,
+                id);
+        KnowledgeBase updated = service.update(id, 42L, "  Java%_!  ", null);
+        assertThat(updated.getName()).isEqualTo("Java%_!");
+        assertThat(updated.getDescription()).isNull();
+        assertThat(updated.getCreatedAt()).isEqualTo(first.getCreatedAt());
+        assertThat(updated.getUpdatedAt()).isAfter(first.getUpdatedAt());
+        assertThat(updated.getDocumentCount()).isEqualTo(1);
+        assertThat(service.list(42L, "  jAVA%_!  "))
+                .extracting(KnowledgeBase::getId)
+                .containsExactly(id);
+        assertThat(service.list(42L, "_Java")).isEmpty();
+        assertThat(service.list(42L, "  ")).hasSize(4);
+        assertThat(service.list(42L, "java")).extracting(KnowledgeBase::getId).containsExactly(id, second.getId());
+        assertThat(service.list(42L, "%"))
+                .extracting(KnowledgeBase::getDocumentCount)
+                .containsExactly(1);
+        assertThatThrownBy(() -> service.update(id, 99L, "越权", null)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.delete(id, 99L)).isInstanceOf(BusinessException.class);
+
+        jdbc.update("INSERT INTO document_import_task(id,document_id,index_version_id) VALUES (20,10,30)");
+        assertBusy(service, id);
+        jdbc.update("UPDATE document_import_task SET status='RUNNING' WHERE id=20");
+        assertBusy(service, id);
+        jdbc.update(
+                "UPDATE document_import_task SET status='FAILED', next_retry_at=now()+interval '1 hour' WHERE id=20");
+        assertBusy(service, id);
+        jdbc.update("UPDATE document_import_task SET next_retry_at=NULL WHERE id=20");
+        jdbc.update("INSERT INTO chat_conversation(id,owner_user_id,knowledge_base_id) VALUES (40,42,?)", id);
+        jdbc.update(
+                """
+                INSERT INTO chat_message(id,conversation_id,turn_id,role,status)
+                VALUES (50,40,'00000000-0000-0000-0000-000000000001','ASSISTANT','PROCESSING')
+                """);
+        assertBusy(service, id);
+        jdbc.update("UPDATE chat_message SET status='CANCEL_REQUESTED' WHERE id=50");
+        assertBusy(service, id);
+        jdbc.update("UPDATE chat_message SET status='CANCELLED' WHERE id=50");
+        service.delete(id, 42L);
+        assertThat(service.list(42L, "%")).isEmpty();
+        assertThatThrownBy(() -> service.get(id)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.requireOwned(id, 42L)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.update(id, 42L, "不可修改", null)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.delete(id, 42L)).isInstanceOf(BusinessException.class);
+        assertThat(jdbc.queryForObject(
+                        "SELECT deleted_at IS NOT NULL AND updated_at = ? FROM knowledge_base WHERE id=?",
+                        Boolean.class,
+                        updated.getUpdatedAt().atOffset(java.time.ZoneOffset.UTC),
+                        id))
+                .isTrue();
+        assertThat(jdbc.queryForObject("SELECT deleted_at IS NULL FROM document WHERE id=10", Boolean.class))
+                .isTrue();
+        assertThat(jdbc.queryForObject("SELECT knowledge_base_id FROM chat_conversation WHERE id=40", Long.class))
+                .isEqualTo(id);
+        assertThat(jdbc.queryForObject("SELECT status FROM chat_message WHERE id=50", String.class))
+                .isEqualTo("CANCELLED");
+    }
+
+    private void verifyDeleteWins(
+            ConfigurableApplicationContext context, KnowledgeBaseService service, JdbcTemplate jdbc) throws Exception {
+        Long id = service.create(42L, "并发测试", null).getId();
+        jdbc.update("INSERT INTO chat_conversation(id,owner_user_id,knowledge_base_id) VALUES (41,42,?)", id);
+        TurnService turns = context.getBean(TurnService.class);
+        DocumentImportRepository imports = context.getBean(DocumentImportRepository.class);
+        TransactionTemplate transaction = new TransactionTemplate(context.getBean(PlatformTransactionManager.class));
+        AtomicReference<Future<?>> turn = new AtomicReference<>();
+        AtomicReference<Future<?>> upload = new AtomicReference<>();
+        try (ExecutorService workers = Executors.newFixedThreadPool(2)) {
+            transaction.executeWithoutResult(status -> {
+                service.delete(id, 42L);
+                turn.set(workers.submit(() -> assertThatThrownBy(
+                                () -> turns.submit(42L, 41L, UUID.randomUUID(), "并发提交"))
+                        .isInstanceOfSatisfying(BusinessException.class, failure -> assertThat(failure.getErrorCode())
+                                .isEqualTo(CommonErrorCode.KNOWLEDGE_BASE_NOT_FOUND))));
+                upload.set(workers.submit(() -> assertThatThrownBy(
+                                () -> transaction.executeWithoutResult(state -> imports.lockCapacity(id)))
+                        .isInstanceOfSatisfying(BusinessException.class, failure -> assertThat(failure.getErrorCode())
+                                .isEqualTo(CommonErrorCode.KNOWLEDGE_BASE_NOT_FOUND))));
+                // 用 PostgreSQL 的阻塞信息验证两个写入口确实都在等待删除事务提交。
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+                Integer waiting;
+                do {
+                    jdbc.execute("SELECT pg_stat_clear_snapshot()");
+                    waiting = jdbc.queryForObject(
+                            """
+                            SELECT COUNT(*) FROM pg_stat_activity
+                            WHERE datname = current_database() AND cardinality(pg_blocking_pids(pid)) > 0
+                            """,
+                            Integer.class);
+                } while (waiting < 2 && System.nanoTime() < deadline);
+                assertThat(waiting).isEqualTo(2);
+            });
+            turn.get().get(5, TimeUnit.SECONDS);
+            upload.get().get(5, TimeUnit.SECONDS);
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM chat_message WHERE conversation_id=41", Integer.class))
+                .isZero();
+    }
+
+    private void assertBusy(KnowledgeBaseService service, Long id) {
+        assertThatThrownBy(() -> service.delete(id, 42L))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getMessage())
+                        .contains("未结束"));
     }
 }

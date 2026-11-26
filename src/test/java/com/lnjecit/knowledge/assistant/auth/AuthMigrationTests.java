@@ -57,15 +57,19 @@ class AuthMigrationTests {
         assertThat(jdbc.queryForList("SELECT * FROM knowledge_base")).isEqualTo(bases);
         assertThat(jdbc.queryForList("SELECT * FROM document")).isEqualTo(documents);
 
-        // 模拟在 V6 完成人工归属绑定后重试，升级至 V10 后仍须保留既有映射。
+        // 模拟在 V6 完成人工归属绑定后重试，升级至 V11 后仍须保留既有映射。
         jdbc.update("UPDATE knowledge_base SET owner_user_id=1 WHERE id=101");
         java.util.List<java.util.Map<String, Object>> boundBases = jdbc.queryForList("SELECT * FROM knowledge_base");
-        assertThat(latest.migrate().migrationsExecuted).isEqualTo(4);
+        assertThat(latest.migrate().migrationsExecuted).isEqualTo(5);
         assertThat(jdbc.queryForObject("SELECT memory_enabled FROM app_user WHERE id=1", Boolean.class))
                 .isFalse();
-        assertThat(latest.info().current().getVersion().getVersion()).isEqualTo("10");
-        assertThat(jdbc.queryForList("SELECT * FROM knowledge_base")).isEqualTo(boundBases);
-        assertThat(jdbc.queryForList("SELECT * FROM document")).isEqualTo(documents);
+        assertThat(latest.info().current().getVersion().getVersion()).isEqualTo("11");
+        assertThat(jdbc.queryForList("SELECT id,name,description,created_at,owner_user_id FROM knowledge_base"))
+                .isEqualTo(boundBases);
+        assertThat(
+                        jdbc.queryForList(
+                                "SELECT id,knowledge_base_id,filename,content_hash,object_key,active_version_id,created_at FROM document"))
+                .isEqualTo(documents);
         assertThat(latest.migrate().migrationsExecuted).isZero();
     }
 

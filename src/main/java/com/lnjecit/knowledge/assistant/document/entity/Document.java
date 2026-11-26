@@ -27,4 +27,6 @@ public class Document {
     private Long activeVersionId;
     /** 记录创建时刻，使用 Instant 表达 UTC 时间线上的瞬时。 */
     private Instant createdAt;
+
+    private Instant deletedAt;
 }

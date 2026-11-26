@@ -9,6 +9,7 @@ public enum CommonErrorCode implements ErrorCode {
     USERNAME_EXISTS(40900, "用户名已存在"),
     TURN_ID_CONFLICT(40901, "Turn ID 已用于其他问题"),
     TURN_IN_PROGRESS(40902, "会话已有正在执行的 Turn"),
+    KNOWLEDGE_BASE_BUSY(40905, "知识库存在未结束的导入任务或问答轮次"),
     INVALID_ARGUMENT(40000, "请求参数不合法"),
     METHOD_NOT_ALLOWED(40500, "不支持的 HTTP 方法"),
     UNSUPPORTED_MEDIA_TYPE(41500, "不支持的媒体类型"),

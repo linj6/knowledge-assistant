@@ -71,6 +71,12 @@ class DocumentLifecycleMigrationTests {
                 "--spring.datasource.url=" + postgres.getJdbcUrl(),
                 "--spring.datasource.username=" + postgres.getUsername(),
                 "--spring.datasource.password=" + postgres.getPassword())) {
+            assertThat(jdbc.queryForObject(
+                            "SELECT updated_at = created_at AND deleted_at IS NULL FROM knowledge_base WHERE id=101",
+                            Boolean.class))
+                    .isTrue();
+            assertThat(jdbc.queryForObject("SELECT deleted_at IS NULL FROM document WHERE id=201", Boolean.class))
+                    .isTrue();
             assertThat(jdbc.queryForObject("SELECT 'document_index_version'::regclass::oid::bigint", Long.class))
                     .isEqualTo(versionOid);
             assertThat(jdbc.queryForObject("SELECT 'document_import_task'::regclass::oid::bigint", Long.class))

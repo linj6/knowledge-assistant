@@ -3,8 +3,10 @@ package com.lnjecit.knowledge.assistant.knowledge;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -64,7 +66,7 @@ class KnowledgeBaseApiTests {
                 .andExpect(jsonPath("$.data.id").isString())
                 .andExpect(jsonPath("$.data.id").value("9007199254740993"))
                 .andExpect(jsonPath("$.data.name").value("Java"))
-                .andExpect(jsonPath("$.data.length()").value(4));
+                .andExpect(jsonPath("$.data.length()").value(6));
         mvc.perform(get("/v1/knowledge-bases/9007199254740993"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
@@ -87,11 +89,35 @@ class KnowledgeBaseApiTests {
                         .contentType("application/json")
                         .content("{\"name\":\"" + "a".repeat(100) + "\"}"))
                 .andExpect(status().isCreated());
-        when(service.list(42L)).thenReturn(List.of(entity));
+        when(service.list(42L, null)).thenReturn(List.of(entity));
         mvc.perform(get("/v1/knowledge-bases"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].id").isString())
-                .andExpect(jsonPath("$.data[0].length()").value(4));
+                .andExpect(jsonPath("$.data[0].length()").value(6));
+    }
+
+    @Test
+    void managementEndpointsUseExistingResultProtocol() throws Exception {
+        KnowledgeBase entity = new KnowledgeBase();
+        entity.setId(1L);
+        entity.setName("Java");
+        when(service.update(1L, 42L, "Java", null)).thenReturn(entity);
+        when(service.list(42L, "Ja%")).thenReturn(List.of(entity));
+        mvc.perform(put("/v1/knowledge-bases/1").contentType("application/json").content("{\"name\":\" Java \"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("Java"))
+                .andExpect(jsonPath("$.data.documentCount").value(0));
+        mvc.perform(get("/v1/knowledge-bases").param("keyword", "Ja%"))
+                .andExpect(jsonPath("$.data[0].id").value("1"));
+        org.mockito.Mockito.doThrow(new BusinessException(CommonErrorCode.KNOWLEDGE_BASE_BUSY))
+                .when(service)
+                .delete(2L, 42L);
+        mvc.perform(delete("/v1/knowledge-bases/2"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(40905));
+        mvc.perform(delete("/v1/knowledge-bases/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
     }
 
     @Test
@@ -133,7 +159,7 @@ class KnowledgeBaseApiTests {
 
     @Test
     void emptyList() throws Exception {
-        when(service.list(42L)).thenReturn(List.of());
+        when(service.list(42L, null)).thenReturn(List.of());
         mvc.perform(get("/v1/knowledge-bases"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isEmpty());

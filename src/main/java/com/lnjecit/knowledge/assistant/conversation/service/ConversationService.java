@@ -50,6 +50,10 @@ public class ConversationService {
         return conversation;
     }
 
+    void lockActiveKnowledgeBase(long userId, Long knowledgeBaseId) {
+        knowledgeBaseService.lockOwnedActive(knowledgeBaseId, userId);
+    }
+
     public List<Message> listMessages(long userId, Long id, int page, int pageSize) {
         requireOwned(userId, id);
         // 多查一条判断是否还有下一页，无需统计全部消息。

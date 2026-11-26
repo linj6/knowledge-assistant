@@ -1,5 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.lnjecit.knowledge.assistant.knowledge.mapper.KnowledgeBaseMapper">
-<select id="lockForImportCapacity" resultType="java.lang.Long">SELECT id FROM knowledge_base WHERE id=#{kbId} FOR UPDATE</select>
+    <select id="selectOwnedWithCount" resultType="com.lnjecit.knowledge.assistant.knowledge.entity.KnowledgeBase">
+        SELECT kb.*, COUNT(d.id) AS document_count
+        FROM knowledge_base kb
+        LEFT JOIN document d ON d.knowledge_base_id = kb.id AND d.deleted_at IS NULL
+        WHERE kb.owner_user_id = #{ownerUserId} AND kb.deleted_at IS NULL
+        <if test="id != null">AND kb.id = #{id}</if>
+        <if test="pattern != null">AND kb.name ILIKE #{pattern} ESCAPE '!'</if>
+        GROUP BY kb.id
+        ORDER BY kb.updated_at DESC, kb.id DESC
+    </select>
+    <select id="lockForImportCapacity" resultType="java.lang.Long">
+        SELECT id FROM knowledge_base WHERE id = #{kbId} AND deleted_at IS NULL FOR UPDATE
+    </select>
+    <select id="lockOwnedActive" resultType="java.lang.Long">
+        SELECT id FROM knowledge_base
+        WHERE id = #{kbId} AND owner_user_id = #{ownerUserId} AND deleted_at IS NULL
+        FOR UPDATE
+    </select>
+    <select id="hasActiveWork" resultType="boolean">
+        SELECT EXISTS (
+            SELECT 1 FROM document_import_task t
+            JOIN document d ON d.id = t.document_id
+            WHERE d.knowledge_base_id = #{kbId}
+              AND (t.status IN ('PENDING', 'RUNNING') OR (t.status = 'FAILED' AND t.next_retry_at IS NOT NULL))
+        ) OR EXISTS (
+            SELECT 1 FROM chat_message m
+            JOIN chat_conversation c ON c.id = m.conversation_id
+            WHERE c.knowledge_base_id = #{kbId}
+              AND m.role = 'ASSISTANT' AND m.status IN ('PROCESSING', 'CANCEL_REQUESTED')
+        )
+    </select>
 </mapper>

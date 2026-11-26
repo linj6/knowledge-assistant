@@ -1,6 +1,7 @@
 package com.lnjecit.knowledge.assistant.knowledge.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.Instant;
@@ -23,4 +24,10 @@ public class KnowledgeBase {
     private Long ownerUserId;
     /** 记录创建时刻，使用 Instant 表达 UTC 时间线上的瞬时。 */
     private Instant createdAt;
+
+    private Instant updatedAt;
+    private Instant deletedAt;
+
+    @TableField(exist = false)
+    private int documentCount;
 }
