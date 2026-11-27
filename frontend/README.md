@@ -18,6 +18,4 @@ npm run dev
 
 Vite 将同源 `/api/` 请求原样转发到 `http://127.0.0.1:8080`。注册、登录、查询当前用户和退出使用 Spring Security Session。每次写请求先读取 Session 对应的 CSRF Token。
 
-## 业务演示
-
-知识库和文档管理使用真实 API。检索、问答和长期记忆仍使用 Mock，演示数据按真实账号 ID 保存在当前浏览器的 localStorage 中，仅在当前浏览器可用。清理站点数据后，本地修改会丢失。原型阶段的演示账号数据保留在浏览器，真实账号使用独立的存储键。
+正式打包和 Docker 部署见[开始使用](../docs/getting-started.md#jar-和-docker-镜像)。

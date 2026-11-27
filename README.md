@@ -28,7 +28,7 @@ Knowledge Assistant 是一个基于 Java / Spring AI 的个人知识库与 RAG �
 .\start.ps1
 ```
 
-首次运行时，输入 `YES` 显式授权在线调用及可能产生的费用，再按隐藏输入提示填写阿里云百炼 API Key。输入 `NO` 也可继续部署，在线模型和导入 Worker 保持关闭。脚本会构建镜像、启动应用和基础设施、执行 Flyway 迁移、初始化 MinIO Bucket 和生命周期规则，并在健康检查通过后打开 `http://127.0.0.1:8080/api/index.html`。
+首次运行时，输入 `YES` 显式授权在线调用及可能产生的费用，再按隐藏输入提示填写阿里云百炼 API Key。输入 `NO` 也可继续部署，在线模型和导入 Worker 保持关闭。脚本会构建镜像、启动应用和基础设施、执行 Flyway 迁移、初始化 MinIO Bucket 和生命周期规则，并在健康检查通过后打开 `http://127.0.0.1:8080/`。
 
 完整参数、资源实测和排查方法见 [Windows 一键部署](docs/getting-started.md#windows-一键部署)。需要使用 JDK、Maven 或 IDEA 调试时，参见[开发模式的环境准备](docs/getting-started.md#环境与基础设施)和 [local Profile 启动说明](docs/getting-started.md#应用配置与启动)。
 

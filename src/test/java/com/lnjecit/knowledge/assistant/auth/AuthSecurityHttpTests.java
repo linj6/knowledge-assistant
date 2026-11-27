@@ -103,11 +103,9 @@ class AuthSecurityHttpTests {
                     error(request(first, "GET", path, null, null), 401);
                 error(request(first, "POST", "/api/v1/probe", null, null), 403);
                 assertThat(first.getBean(Probe.class).mutations).hasValue(0);
-                for (String path : new String[] {
-                    "/api/", "/api/index.html", "/api/retrieval-demo.html", "/api/css/app.css", "/api/js/app.js"
-                })
-                    assertThat(request(first, "GET", path, null, null).statusCode())
-                            .isEqualTo(200);
+                for (String path : new String[] {"/api/", "/api/index.html", "/api/js/app.js"}) {
+                    error(request(first, "GET", path, null, null), 401);
+                }
                 HttpResponse<String> csrf = request(first, "GET", "/api/v1/auth/csrf", null, null);
                 assertThat(csrf.statusCode()).isEqualTo(200);
                 assertThat(csrf.headers().firstValue("Cache-Control").orElse(""))

@@ -1,9 +1,0 @@
-{
-  "name": "knowledge-assistant-web-tools",
-  "private": true,
-  "scripts": {
-    "format:web": "prettier --write \"src/main/resources/static/**/*.{html,css,js}\" \"src/test/js/**/*.mjs\"",
-    "format:web:check": "prettier --check \"src/main/resources/static/**/*.{html,css,js}\" \"src/test/js/**/*.mjs\""
-  },
-  "devDependencies": { "prettier": "3.6.2" }
-}

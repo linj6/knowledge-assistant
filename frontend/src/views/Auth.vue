@@ -37,7 +37,7 @@ async function submit() {
         <form class="surface auth-card" @submit.prevent="submit">
             <div class="brand-icon"><Layers3 :size="24" /></div>
             <h1>{{ register ? '创建账号' : '登录 Knowledge Assistant' }}</h1>
-            <p class="muted">使用服务端账号登录。知识库等业务功能仍为本地演示。</p>
+            <p class="muted">使用服务端账号登录。</p>
             <label
                 >账号<el-input
                     v-model="user"

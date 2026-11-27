@@ -23,6 +23,9 @@ spring:
     data:
       redis:
         namespace: ${KA_SESSION_NAMESPACE:ka:session}
+  web:
+    resources:
+      add-mappings: false
   servlet:
     multipart:
       max-file-size: 2MB

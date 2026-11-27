@@ -202,7 +202,7 @@ try {
         & docker @composeArgs logs --tail 20 minio-init
         throw
     }
-    $url = "http://127.0.0.1:$port/api/index.html"
+    $url = "http://127.0.0.1:$port/"
     $modelStatus = if ($modelState.Enabled) { 'online models authorized' } else { 'online models disabled' }
     Write-Host "Knowledge Assistant is ready at $url ($modelStatus)."
     if (-not $NoBrowser) { Start-Process $url }

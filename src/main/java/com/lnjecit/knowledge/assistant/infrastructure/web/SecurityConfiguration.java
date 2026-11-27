@@ -39,12 +39,9 @@ public class SecurityConfiguration {
         http.authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(paths.matcher("/v1/evaluation"), paths.matcher("/v1/evaluation/**"))
                         .denyAll()
+                        .requestMatchers(WebUiConfiguration::isPublicRequest)
+                        .permitAll()
                         .requestMatchers(
-                                paths.matcher(HttpMethod.GET, "/"),
-                                paths.matcher(HttpMethod.GET, "/index.html"),
-                                paths.matcher(HttpMethod.GET, "/retrieval-demo.html"),
-                                paths.matcher(HttpMethod.GET, "/css/app.css"),
-                                paths.matcher(HttpMethod.GET, "/js/*.js"),
                                 paths.matcher(HttpMethod.GET, "/v1/auth/csrf"),
                                 paths.matcher(HttpMethod.POST, "/v1/auth/register"),
                                 paths.matcher(HttpMethod.POST, "/v1/auth/login"))

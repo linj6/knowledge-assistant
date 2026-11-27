@@ -10,7 +10,7 @@
 
 如果 Windows PowerShell 因本机执行策略拒绝运行 Git 检出的脚本，可使用 `powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File .\start.ps1`，策略仅应用于该进程。
 
-脚本生成 Git 忽略的 `.env.onboarding`，检查 Web 端口，准备 MinIO 镜像并构建应用，然后启动独立的 `knowledge-assistant-onboarding` Compose 项目。首次构建需要访问镜像仓库、Maven 仓库及 IK 安装包下载源。JDK、Maven 和 ILM 所需的 Python 随容器提供。PostgreSQL、Redis、Elasticsearch 和 MinIO 使用该项目的持久化卷。MinIO 初始化服务沿用 `staging/` 两天过期规则，发现冲突时停止启动并保留现有规则。数据库由应用启动时的 Flyway 迁移初始化。
+脚本生成 Git 忽略的 `.env.onboarding`，检查 Web 端口，准备 MinIO 镜像并构建应用，然后启动独立的 `knowledge-assistant-onboarding` Compose 项目。首次构建需要访问镜像仓库、Maven 仓库、Node.js 下载源、npm Registry 及 IK 安装包下载源。构建镜像提供 JDK 和 Maven，Maven 自动准备 Node.js 和 npm。MinIO 初始化镜像提供 ILM 所需的 Python。PostgreSQL、Redis、Elasticsearch 和 MinIO 使用该项目的持久化卷。MinIO 初始化服务沿用 `staging/` 两天过期规则，发现冲突时停止启动并保留现有规则。数据库由应用启动时的 Flyway 迁移初始化。
 
 已有匹配的 MinIO 本地镜像会直接复用。否则，脚本从固定的 MinIO Server 和 mc 上游 GitHub 提交获取源码，校验 SHA-256 后在 Docker 中编译。首次构建还需访问 GitHub 和 Go 模块下载源。
 
@@ -18,7 +18,7 @@
 
 该引擎可用资源为 8 个逻辑 CPU、约 7.7 GiB 内存，验收后引擎报告镜像约 4.3 GB、构建缓存约 8.8 GB。以上为一次实测，耗时和资源占用会随环境变化。请为镜像、构建缓存和持久化数据预留磁盘空间。
 
-应用健康检查通过后，脚本打开 `http://127.0.0.1:8080/api/index.html`。使用 `-NoBrowser` 可跳过打开浏览器。端口被占用时可调整 `.env.onboarding` 中的 `KA_WEB_PORT`。基础设施端口仅在 Compose 网络内可达。
+应用健康检查通过后，脚本打开 `http://127.0.0.1:8080/`。使用 `-NoBrowser` 可跳过打开浏览器。端口被占用时可调整 `.env.onboarding` 中的 `KA_WEB_PORT`。基础设施端口仅在 Compose 网络内可达。
 
 保留 `.env.onboarding` 以复用凭据，并与数据卷一起备份。脚本在检测到已有部署资源而配置缺失时会停止。原有 IDEA 开发环境继续使用下文的配置及项目。
 
@@ -86,9 +86,43 @@
 mvn spring-boot:run "-Dspring-boot.run.profiles=local"
 ```
 
+### IDEA + Vite 开发
+
+在 IDEA 中运行 Spring Boot 主类，启用 `local` Profile，或使用上面的 Maven 启动命令。后端监听 8080。另开终端启动前端：
+
+```powershell
+cd frontend
+npm ci
+npm run dev
+```
+
+打开 `http://localhost:5173/`。Vite 将同源 `/api/` 请求转发到 8080。前端开发建议使用与 Maven 打包相同的 Node.js 22.16.0 和 npm 10.9.2。
+
+### JAR 和 Docker 镜像
+
+从仓库根目录执行：
+
+```powershell
+mvn -DskipTests package
+java -jar target/knowledge-assistant-0.0.1-SNAPSHOT.jar --spring.profiles.active=local
+```
+
+正式打包在 `prepare-package` 下载固定版本的 Node.js 和 npm，使用锁文件执行 `npm ci` 并构建 Vue。应用入口为 `http://localhost:8080/`。普通 `mvn compile` 和 `mvn test` 不运行前端构建。仅生成后端 JAR 时使用 `mvn -DskipTests -DskipFrontend package`。
+
+```powershell
+docker build -t knowledge-assistant:local .
+.\start.ps1
+```
+
+`docker build` 可单独验证应用镜像构建。`start.ps1` 会自行通过 Compose 构建和启动应用及基础设施，可直接执行。最终用户只需 Docker Desktop。
+
+### 真实模型人工验收
+
+使用一键部署时运行 `.\start.ps1 -ConfigureModel`，确认费用及数据发送后输入 `YES`，再隐藏输入阿里云百炼 API Key。脚本保存授权并启用 Chat、Embedding 和导入 Worker。使用 JAR 时通过上文的 Git 忽略配置设置 `assistant.model.api-key`、`assistant.model.enabled=true`、`assistant.model.online-authorized=true` 和 `assistant.worker.enabled=true`，核对模型名称、端点及 1024 维后用 local Profile 启动。随后按下文注册、建库、导入并等待发布，再验证检索和带引用问答。完成后，一键部署可运行 `.\start.ps1 -RevokeModelAuthorization`，JAR 部署可关闭个人配置中的模型授权及 Worker 后重启。
+
 ## 首次使用与排查
 
-1. 打开 `http://localhost:8080/api/index.html`，注册并登录，进入「知识库」创建和选择知识库。
+1. 打开 `http://localhost:8080/`，注册并登录，进入「知识库」创建和选择知识库。
 2. 启用并配置导入 Worker 后上传一份不超过 2 MiB 的 UTF-8 Markdown 或 TXT，等待任务完成及索引发布。
 3. 在「检索」尝试 BM25。配置 Embedding 后可使用向量与混合检索，另行配置 Rerank 后可使用混合重排。
 4. 在「问答」基于已发布文档提问，确认引用可打开正文，再追问同一主题。

@@ -13,12 +13,9 @@
 - Maven POM 由 Spotless 使用 Eclipse WTP XML Formatter 4.21.0 格式化，采用四空格缩进。其他 XML 沿用文件内风格，MyBatis XML 按语句组织并使用 `#{参数名}` 绑定业务输入。
 - Markdown 使用清楚的标题层级和带语言标记的围栏代码块。仓库内文档使用相对链接，检查文件路径和锚点，清理多余行尾空白。
 
-## 原生前端
+## Vue 前端
 
-[package.json](../package.json) 固定 Prettier 3.6.2，使用 `npm ci` 按 [锁文件](../package-lock.json) 安装。[格式配置](../.prettierrc.json) 使用四空格缩进、JavaScript 单引号与分号、120 列打印宽度及 LF 行尾。[忽略配置](../.prettierignore) 排除 `node_modules/`、`target/`、`dist/` 和 `build/`。
-
-- `npm run format:web:check` 检查静态 HTML、CSS、JavaScript 和 `src/test/js/**/*.mjs`。
-- `npm run format:web` 会写入上述整个范围。只需整理本次变更时，可用 `npx prettier --write` 显式传入相关文件路径。
+Vue 和 TypeScript 代码在 [frontend](../frontend) 中。按锁文件运行 `npm ci`，使用 `npm run typecheck` 检查类型，使用 `npm run build` 检查生产构建。
 
 ## 按变更范围验证
 
