@@ -3,6 +3,7 @@ type RequestOptions = {
     body?: unknown;
     signal?: AbortSignal;
     notifyUnauthorized?: boolean;
+    onSuccessStatus?: (status: number) => void;
 };
 
 type Result<T> = { code: number; message: string; data: T; requestId: string };
@@ -25,7 +26,7 @@ export const sessionEvents = new EventTarget();
 
 export async function request<T>(
     path: string,
-    { method = 'GET', body, signal, notifyUnauthorized = true }: RequestOptions = {},
+    { method = 'GET', body, signal, notifyUnauthorized = true, onSuccessStatus }: RequestOptions = {},
 ): Promise<T> {
     if (!path.startsWith('/api/')) throw new TypeError('仅允许同源 API 路径');
     const csrf = method === 'GET' ? undefined : await request<Csrf>(authPath + '/csrf', { signal });
@@ -70,6 +71,7 @@ export async function request<T>(
         throw new ApiError('响应格式不正确', 'protocol', response.status, code, requestId);
     }
     if (code !== 0) throw new ApiError(message, 'business', response.status, code, requestId);
+    onSuccessStatus?.(response.status);
     return result.data as T;
 }
 

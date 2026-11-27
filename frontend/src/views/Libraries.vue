@@ -2,39 +2,55 @@
 import { computed, ref } from 'vue';
 import { BookOpen, FileText, Plus, Search } from 'lucide-vue-next';
 import { ElMessage } from 'element-plus';
-import { api } from '../api';
-import { confirmDelete, showError } from '../feedback';
-import { dateLabel, type Library } from '../model';
+import { errorMessage, request } from '../http';
+import { librariesPath, useRead, type Library } from '../management';
+import { confirmDelete } from '../feedback';
+import { dateLabel } from '../model';
 
 const query = ref('');
 const dialog = ref(false);
 const editing = ref<Library>();
 const name = ref('');
 const description = ref('');
-const filtered = computed(() =>
-    api.libraries.filter((item) =>
-        (item.name + item.description).toLowerCase().includes(query.value.trim().toLowerCase()),
-    ),
-);
+const busy = ref(false);
+const deleting = ref(false);
+const path = computed(() => librariesPath + '?' + new URLSearchParams({ keyword: query.value.trim() }));
+const { data: filtered, loading, error, reload } = useRead<Library[]>(path, 200);
 function open(item?: Library) {
     editing.value = item;
     name.value = item?.name || '';
     description.value = item?.description || '';
     dialog.value = true;
 }
-function save() {
+async function save() {
+    if (busy.value || !name.value.trim()) return;
+    busy.value = true;
     try {
-        api.saveLibrary({ name: name.value, description: description.value }, editing.value);
+        await request(editing.value ? librariesPath + '/' + editing.value.id : librariesPath, {
+            method: editing.value ? 'PUT' : 'POST',
+            body: { name: name.value, description: description.value },
+        });
         dialog.value = false;
+        reload();
         ElMessage.success('知识库已保存');
-    } catch (error) {
-        showError(error);
+    } catch (failure) {
+        ElMessage.error(errorMessage(failure));
+    } finally {
+        busy.value = false;
     }
 }
 async function remove(item: Library) {
-    if (await confirmDelete(item.name, '删除后，该知识库将无法用于检索或继续问答。')) {
-        api.deleteLibrary(item);
+    if (deleting.value) return;
+    deleting.value = true;
+    try {
+        if (!(await confirmDelete(item.name, '删除后，该知识库将无法用于检索或继续问答。'))) return;
+        await request(librariesPath + '/' + item.id, { method: 'DELETE' });
+        reload();
         ElMessage.success('知识库已删除');
+    } catch (failure) {
+        ElMessage.error(errorMessage(failure));
+    } finally {
+        deleting.value = false;
     }
 }
 </script>
@@ -70,25 +86,32 @@ async function remove(item: Library) {
                 <h2>{{ item.name }}</h2>
                 <p>{{ item.description || '暂无描述' }}</p>
                 <footer>
-                    <span
-                        ><FileText :size="15" />{{
-                            api.documents.filter((doc) => doc.library === item.id).length
-                        }}
-                        份文档</span
-                    ><span>{{ dateLabel(item.updated) }}</span>
+                    <span><FileText :size="15" />{{ item.documentCount }} 份文档</span
+                    ><span>{{ dateLabel(Date.parse(item.updatedAt)) }}</span>
                 </footer>
             </article>
         </div>
-        <div v-if="!filtered.length" class="surface empty">
+        <div v-if="loading" class="surface empty">正在加载知识库…</div>
+        <div v-else-if="error" class="surface empty">{{ error }} <el-button @click="reload">重新加载</el-button></div>
+        <div v-else-if="!filtered?.length" class="surface empty">
             {{ query ? '没有匹配的知识库' : '创建第一个知识库以导入资料' }}
         </div>
-        <el-dialog v-model="dialog" :title="editing ? '编辑知识库' : '创建知识库'" width="480px">
+        <el-dialog
+            v-model="dialog"
+            :title="editing ? '编辑知识库' : '创建知识库'"
+            width="480px"
+            :close-on-click-modal="!busy"
+            :close-on-press-escape="!busy"
+            :show-close="!busy"
+        >
             <form class="form" @submit.prevent="save">
-                <label>名称<el-input v-model="name" maxlength="80" /></label>
-                <label>描述<el-input v-model="description" type="textarea" :rows="3" maxlength="500" /></label>
+                <label>名称<el-input v-model="name" maxlength="100" /></label>
+                <label>描述<el-input v-model="description" type="textarea" :rows="3" maxlength="1000" /></label>
                 <div class="dialog-actions">
-                    <el-button @click="dialog = false">取消</el-button
-                    ><el-button native-type="submit" type="primary" :disabled="!name.trim()">保存</el-button>
+                    <el-button :disabled="busy" @click="dialog = false">取消</el-button
+                    ><el-button native-type="submit" type="primary" :disabled="!name.trim()" :loading="busy"
+                        >保存</el-button
+                    >
                 </div>
             </form>
         </el-dialog>

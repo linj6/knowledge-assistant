@@ -1,46 +1,97 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { FileText, MessageSquare, Search, UploadCloud } from 'lucide-vue-next';
-import { ElMessage } from 'element-plus';
-import { api } from '../api';
-import { confirmDelete, showError } from '../feedback';
-import { dateLabel, defaults, splitLabels, statusLabels, type Doc, type DocStatus, type Split } from '../model';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { ApiError, errorMessage, request } from '../http';
+import { confirmDelete } from '../feedback';
+import { dateLabel } from '../model';
+import {
+    librariesPath,
+    taskPath,
+    useRead,
+    useTaskPolling,
+    splitLabels,
+    statusLabels,
+    documentStatus,
+    statusClass,
+    failureLabel,
+    type Library,
+    type DocumentRecord,
+    type Strategy,
+    type Task,
+    type Chunking,
+    type Page,
+} from '../management';
+
 const route = useRoute();
-const library = computed(() => api.libraries.find((item) => item.id === route.params.id));
+const router = useRouter();
+const libraryPath = computed(() => librariesPath + '/' + route.params.id);
+const {
+    data: library,
+    loading: libraryLoading,
+    error: libraryError,
+    reload: reloadLibrary,
+} = useRead<Library>(libraryPath);
 const query = ref('');
-const status = ref<DocStatus | ''>('');
+const status = ref('');
 const page = ref(1);
 const pageSize = 5;
-const records = computed(() =>
-    api.documents
-        .filter(
-            (doc) =>
-                doc.library === library.value?.id &&
-                (!status.value || doc.status === status.value) &&
-                doc.name.toLowerCase().includes(query.value.trim().toLowerCase()),
-        )
-        .sort((a, b) => b.updated - a.updated),
-);
-const pageRecords = computed(() => records.value.slice((page.value - 1) * pageSize, page.value * pageSize));
-watch([query, status, library], () => {
-    page.value = 1;
-});
+const filters = { IMPORTING: '导入中', FAILED: '失败', PUBLISHED: '已发布', UNPUBLISHED: '未发布' };
 watch(
-    () => records.value.length,
-    (count) => {
-        page.value = Math.min(page.value, Math.max(1, Math.ceil(count / pageSize)));
+    [query, status],
+    () => {
+        page.value = 1;
     },
+    { flush: 'sync' },
 );
+const docsPath = computed(() => (library.value ? libraryPath.value + '/documents' : ''));
+const listPath = computed(() => {
+    if (!docsPath.value) return '';
+    const params = new URLSearchParams({ page: String(page.value), pageSize: String(pageSize) });
+    if (query.value.trim()) params.set('keyword', query.value.trim());
+    if (status.value) params.set('status', status.value);
+    return docsPath.value + '?' + params;
+});
+const { data: records, loading, error, reload } = useRead<Page<DocumentRecord>>(listPath, 180);
+const pageRecords = computed(() => records.value?.items ?? []);
+watch(records, (result) => {
+    if (result) page.value = Math.min(page.value, Math.max(1, Math.ceil(Number(result.total) / pageSize)));
+});
+const tasks = computed(() => pageRecords.value.flatMap((doc) => (doc.importTask ? [doc.importTask] : [])));
+const { pollError, resumePolling } = useTaskPolling(tasks, reload);
 
 const dialog = ref(false);
 const file = ref<File>();
-const split = ref<Split>({ ...defaults });
+const strategy = ref<Strategy>();
+const size = ref<number>();
+const overlap = ref<number>();
 const busy = ref(false);
+const changing = ref(false);
 const dragging = ref(false);
+const validSplit = computed(() => {
+    const length = size.value ?? 800;
+    const shared = overlap.value ?? 120;
+    return (
+        Number.isInteger(length) &&
+        length >= 1 &&
+        length <= 800 &&
+        Number.isInteger(shared) &&
+        shared >= 0 &&
+        shared < length
+    );
+});
+watch(libraryPath, () => {
+    dialog.value = false;
+    query.value = '';
+    status.value = '';
+    page.value = 1;
+});
 function open() {
     file.value = undefined;
-    split.value = { ...defaults };
+    strategy.value = undefined;
+    size.value = undefined;
+    overlap.value = undefined;
     dialog.value = true;
 }
 function choose(files?: FileList | null) {
@@ -58,25 +109,73 @@ function choose(files?: FileList | null) {
     file.value = candidate;
 }
 async function submit() {
-    if (!file.value || !library.value || busy.value) return;
+    if (!file.value || !docsPath.value || busy.value || !validSplit.value) return;
+    const path = docsPath.value;
+    const body = new FormData();
+    body.append('file', file.value);
+    if (strategy.value) body.append('strategy', strategy.value);
+    if (size.value != null) body.append('chunkSize', String(size.value));
+    if (overlap.value != null) body.append('chunkOverlap', String(overlap.value));
     busy.value = true;
     try {
-        await api.upload(library.value.id, file.value, split.value);
+        let statusCode = 0;
+        const task = await request<Task & { chunkingConfig: Chunking }>(path + ':import', {
+            method: 'POST',
+            body,
+            onSuccessStatus: (value) => {
+                statusCode = value;
+            },
+        });
+        if (path !== docsPath.value) return;
+        if (statusCode !== 200 && statusCode !== 202) throw new ApiError('上传响应状态不正确', 'protocol', statusCode);
         query.value = '';
         status.value = '';
         page.value = 1;
         dialog.value = false;
-        ElMessage.success('已提交导入任务');
-    } catch (error) {
-        showError(error);
+        reload();
+        if (statusCode === 200) {
+            const config = task.chunkingConfig;
+            await ElMessageBox.confirm(
+                `已有相同内容的文档，沿用${splitLabels[config.strategy]}，目标长度 ${config.chunkSize}，重叠 ${config.chunkOverlap}。`,
+                '重复上传',
+                { confirmButtonText: '查看已有文档', cancelButtonText: '关闭' },
+            ).then(
+                () => {
+                    if (path === docsPath.value)
+                        void router.push('/libraries/' + route.params.id + '/documents/' + task.documentId);
+                },
+                () => {},
+            );
+        } else {
+            ElMessage.success('已提交导入任务');
+        }
+    } catch (failure) {
+        if (path === docsPath.value) ElMessage.error(errorMessage(failure));
     } finally {
         busy.value = false;
     }
 }
-async function remove(doc: Doc) {
-    if (await confirmDelete(doc.name)) {
-        api.deleteDocument(doc);
-        ElMessage.success('文档已删除');
+async function change(doc: DocumentRecord, retry = false) {
+    if (changing.value) return;
+    const path = docsPath.value;
+    changing.value = true;
+    try {
+        if (retry && doc.importTask) {
+            await request<Task>(taskPath(doc.importTask.importTaskId) + ':retry', { method: 'POST' });
+        } else {
+            if (!(await confirmDelete(doc.filename)) || path !== docsPath.value) return;
+            await request(path + '/' + doc.documentId, { method: 'DELETE' });
+        }
+        if (path !== docsPath.value) return;
+        ElMessage.success(retry ? '已提交重试' : '文档已删除');
+        reload();
+    } catch (failure) {
+        if (path === docsPath.value) {
+            ElMessage.error(errorMessage(failure));
+            if (failure instanceof ApiError && failure.status === 409) reload();
+        }
+    } finally {
+        changing.value = false;
     }
 }
 </script>
@@ -88,7 +187,7 @@ async function remove(doc: Doc) {
                 <div>
                     <h1>{{ library.name }}</h1>
                     <p>{{ library.description || '暂无描述' }}</p>
-                    <small class="muted">更新于 {{ dateLabel(library.updated) }}</small>
+                    <small class="muted">更新于 {{ dateLabel(Date.parse(library.updatedAt)) }}</small>
                 </div>
                 <div class="toolbar">
                     <RouterLink class="action-link" :to="{ path: '/retrieval', query: { library: library.id } }"
@@ -113,7 +212,7 @@ async function remove(doc: Doc) {
                         />
                         <el-select v-model="status" aria-label="导入状态筛选" style="width: 145px"
                             ><el-option label="全部状态" value="" /><el-option
-                                v-for="(label, key) in statusLabels"
+                                v-for="(label, key) in filters"
                                 :key="key"
                                 :value="key"
                                 :label="label"
@@ -132,38 +231,54 @@ async function remove(doc: Doc) {
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="doc in pageRecords" :key="doc.id">
+                        <tr v-for="doc in pageRecords" :key="doc.documentId">
                             <td>
-                                <RouterLink :to="'/libraries/' + library.id + '/documents/' + doc.id"
-                                    ><FileText :size="15" />{{ doc.name }}</RouterLink
+                                <RouterLink :to="'/libraries/' + library.id + '/documents/' + doc.documentId"
+                                    ><FileText :size="15" />{{ doc.filename }}</RouterLink
                                 >
                             </td>
                             <td>
-                                <span class="status" :class="doc.status">{{ statusLabels[doc.status] }}</span>
+                                <span class="status" :class="statusClass(doc)">{{
+                                    statusLabels[documentStatus(doc)]
+                                }}</span>
+                                <div v-if="failureLabel(doc.importTask)" class="error">
+                                    {{ failureLabel(doc.importTask) }}
+                                </div>
                             </td>
-                            <td>{{ splitLabels[doc.split.mode] }}</td>
-                            <td>{{ doc.chunks.length }}</td>
-                            <td>{{ dateLabel(doc.updated) }}</td>
+                            <td>{{ doc.chunkingConfig ? splitLabels[doc.chunkingConfig.strategy] : '—' }}</td>
+                            <td>{{ doc.chunkCount }}</td>
+                            <td>
+                                {{
+                                    dateLabel(Date.parse(doc.importTask?.updatedAt ?? doc.publishedAt ?? doc.createdAt))
+                                }}
+                            </td>
                             <td>
                                 <div class="toolbar">
                                     <button
-                                        v-if="doc.status === 'failed'"
+                                        v-if="documentStatus(doc) === 'FAILED'"
                                         class="text-btn"
-                                        @click="api.retryDocument(doc)"
+                                        :disabled="changing"
+                                        @click="change(doc, true)"
                                     >
                                         重试</button
-                                    ><button class="text-btn danger" @click="remove(doc)">删除</button>
+                                    ><button class="text-btn danger" :disabled="changing" @click="change(doc)">
+                                        删除
+                                    </button>
                                 </div>
                             </td>
                         </tr>
                     </tbody>
                 </table>
-                <div v-if="!records.length" class="empty">没有匹配的文档</div>
+                <div v-if="loading" class="empty">正在加载文档…</div>
+                <div v-else-if="error || pollError" class="empty">
+                    {{ error || pollError }} <el-button @click="resumePolling">重新加载</el-button>
+                </div>
+                <div v-else-if="!Number(records?.total ?? 0)" class="empty">没有匹配的文档</div>
                 <el-pagination
                     v-else
                     v-model:current-page="page"
                     :page-size="pageSize"
-                    :total="records.length"
+                    :total="Number(records?.total ?? 0)"
                     layout="prev, pager, next, total"
                 />
             </div>
@@ -200,7 +315,11 @@ async function remove(doc: Doc) {
                         />
                     </label>
                     <label
-                        >切分策略<el-select v-model="split.mode" :disabled="busy"
+                        >切分策略<el-select
+                            v-model="strategy"
+                            placeholder="后端默认（固定长度）"
+                            clearable
+                            :disabled="busy"
                             ><el-option
                                 v-for="(label, key) in splitLabels"
                                 :key="key"
@@ -209,7 +328,7 @@ async function remove(doc: Doc) {
                     ></label>
                     <p class="muted">
                         {{
-                            split.mode === 'FIXED'
+                            strategy !== 'MARKDOWN_STRUCTURE_AWARE'
                                 ? '按目标长度切分，重叠部分保留相邻片段的上下文。'
                                 : '优先沿 Markdown 标题结构切分，超长段落继续按目标长度拆分。'
                         }}
@@ -217,35 +336,36 @@ async function remove(doc: Doc) {
                     <div class="form-columns">
                         <label
                             >Chunk 目标长度<el-input-number
-                                v-model="split.size"
+                                v-model="size"
+                                placeholder="默认 800"
                                 :min="1"
-                                :max="4000"
+                                :max="800"
                                 :precision="0"
                                 :disabled="busy"
                         /></label>
                         <label
                             >重叠长度<el-input-number
-                                v-model="split.overlap"
+                                v-model="overlap"
+                                placeholder="默认 120"
                                 :min="0"
-                                :max="3999"
+                                :max="799"
                                 :precision="0"
                                 :disabled="busy"
                         /></label>
                     </div>
-                    <p v-if="split.overlap >= split.size" class="error">重叠长度必须小于目标长度。</p>
+                    <p v-if="!validSplit" class="error">目标长度须为 1–800，重叠长度须小于目标长度。</p>
                     <div class="dialog-actions">
                         <el-button :disabled="busy" @click="dialog = false">取消</el-button
-                        ><el-button
-                            native-type="submit"
-                            type="primary"
-                            :loading="busy"
-                            :disabled="!file || !split.size || split.overlap == null || split.overlap >= split.size"
+                        ><el-button native-type="submit" type="primary" :loading="busy" :disabled="!file || !validSplit"
                             >提交导入</el-button
                         >
                     </div>
                 </form>
             </el-dialog>
         </template>
-        <div v-else class="surface empty">该知识库已不可用。</div>
+        <div v-else-if="libraryLoading" class="surface empty">正在加载知识库…</div>
+        <div v-else class="surface empty">
+            {{ libraryError || '该知识库已不可用。' }} <el-button @click="reloadLibrary">重新加载</el-button>
+        </div>
     </section>
 </template>
