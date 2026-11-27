@@ -2,14 +2,46 @@
 import { ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Search } from 'lucide-vue-next';
-import { api, wait } from '../api';
-import { strategies, type Strategy, type Evidence } from '../model';
+import { request } from '../http';
+import { showError } from '../feedback';
+import { librariesPath, useRead, type Library } from '../management';
+import { headingLabel, strategies, type Strategy } from '../model';
+type Hit = {
+    chunkId: string;
+    documentId: string;
+    headingPath: string | null;
+    content: string;
+    sourceStart: number;
+    sourceEnd: number;
+    finalRank: number;
+    vectorDistance: number | null;
+    bm25Score: number | null;
+    rrfScore: number | null;
+    rerankScore: number | null;
+};
+type Result = {
+    diagnostics: {
+        requestedStrategy: Strategy;
+        actualStrategy: Strategy | null;
+        degraded: boolean;
+        status: string;
+        error: string | null;
+    };
+    chunks: Hit[];
+};
+const scores = [
+    ['vectorDistance', '向量距离'],
+    ['bm25Score', 'BM25 分数'],
+    ['rrfScore', 'RRF 分数'],
+    ['rerankScore', '重排分数'],
+] as const;
+const { data: libraries, error: libraryError } = useRead<Library[]>(ref(librariesPath));
 const route = useRoute();
 const library = ref('');
 watch(
-    () => route.query.library,
-    (value) => {
-        library.value = api.libraries.find((item) => item.id === value)?.id || api.libraries[0]?.id || '';
+    [() => route.query.library, libraries],
+    ([value]) => {
+        library.value = libraries.value?.find((item) => item.id === value)?.id || libraries.value?.[0]?.id || '';
     },
     { immediate: true },
 );
@@ -19,7 +51,7 @@ const compare = ref(false);
 const strategy = ref<Strategy>('HYBRID_RRF');
 const selected = ref<Strategy[]>(['VECTOR', 'BM25', 'HYBRID_RRF']);
 const busy = ref(false);
-const results = ref<{ strategy: Strategy; hits: Evidence[] }[]>([]);
+const results = ref<Result[]>([]);
 const context = ref('');
 async function run() {
     if (
@@ -39,9 +71,20 @@ async function run() {
     busy.value = true;
     results.value = [];
     try {
-        await wait(450);
-        results.value = modes.map((mode) => ({ strategy: mode, hits: api.search(current, question, limit, mode) }));
+        const pool = Math.max(20, limit);
+        const response = await request<{ results: Result[] }>('/api/v1/retrieval/search', {
+            method: 'POST',
+            body: {
+                knowledgeBaseId: current,
+                query: question,
+                strategies: modes,
+                parameters: { vectorTopK: pool, bm25TopK: pool, fusionTopK: pool, rrfK: 60, finalTopK: limit },
+            },
+        });
+        results.value = response.results;
         context.value = question + ' · Top-' + limit;
+    } catch (error) {
+        showError(error);
     } finally {
         busy.value = false;
     }
@@ -53,12 +96,13 @@ async function run() {
             <h1>检索工作台</h1>
             <p>测试资料召回效果，逐条检查检索证据。</p>
         </header>
+        <p v-if="libraryError" role="alert" class="error">{{ libraryError }}</p>
         <form class="surface form retrieval-form" @submit.prevent="run">
             <div class="form-columns">
                 <label
                     >知识库<el-select v-model="library" placeholder="选择知识库"
                         ><el-option
-                            v-for="item in api.libraries"
+                            v-for="item in libraries"
                             :key="item.id"
                             :value="item.id"
                             :label="item.name" /></el-select
@@ -96,22 +140,40 @@ async function run() {
                 检索结果 <small class="muted">{{ context }}</small>
             </h2>
             <div class="result-grid" :class="{ multiple: results.length > 1 }">
-                <section v-for="result in results" :key="result.strategy" class="surface result-column">
+                <section
+                    v-for="result in results"
+                    :key="result.diagnostics.requestedStrategy"
+                    class="surface result-column"
+                >
                     <div class="heading-row">
-                        <h3>{{ result.strategy }}</h3>
-                        <span class="pill">{{ result.hits.length }} 条</span>
+                        <h3>{{ result.diagnostics.requestedStrategy }}</h3>
+                        <span class="pill">{{ result.chunks.length }} 条</span>
                     </div>
-                    <p v-if="!result.hits.length" class="empty">暂无匹配证据</p>
-                    <article v-for="(hit, index) in result.hits" :key="hit.docId + hit.index" class="evidence">
+                    <p class="muted">
+                        实际策略 {{ result.diagnostics.actualStrategy ?? '无' }} ·
+                        {{ result.diagnostics.degraded ? '已降级' : '未降级' }} · {{ result.diagnostics.status }}
+                    </p>
+                    <p v-if="result.diagnostics.error" class="error">{{ result.diagnostics.error }}</p>
+                    <p v-else-if="!result.chunks.length" class="empty">暂无匹配证据</p>
+                    <article v-for="hit in result.chunks" :key="hit.chunkId" class="evidence">
                         <div class="heading-row">
-                            <strong>#{{ index + 1 }} {{ hit.document }}</strong
-                            ><small class="muted">{{ hit.score.toFixed(4) }}</small>
+                            <strong>#{{ hit.finalRank }} · 文档 {{ hit.documentId }}</strong>
                         </div>
-                        <p class="muted">Chunk {{ hit.index + 1 }} · {{ hit.heading || '正文' }}</p>
-                        <p>{{ hit.text.slice(0, 110) }}{{ hit.text.length > 110 ? '…' : '' }}</p>
+                        <p class="muted">
+                            Chunk {{ hit.chunkId }} · {{ headingLabel(hit.headingPath) }} · [{{ hit.sourceStart }},
+                            {{ hit.sourceEnd }})
+                        </p>
+                        <div class="toolbar">
+                            <template v-for="[field, label] in scores" :key="field">
+                                <small v-if="hit[field] != null" class="muted"
+                                    >{{ label }} {{ hit[field]?.toFixed(4) }}</small
+                                >
+                            </template>
+                        </div>
+                        <p>{{ hit.content.slice(0, 110) }}{{ hit.content.length > 110 ? '…' : '' }}</p>
                         <details>
                             <summary>展开完整证据</summary>
-                            <pre>{{ hit.text }}</pre>
+                            <pre>{{ hit.content }}</pre>
                         </details>
                     </article>
                 </section>

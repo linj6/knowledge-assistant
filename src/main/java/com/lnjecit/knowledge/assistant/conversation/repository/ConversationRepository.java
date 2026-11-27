@@ -156,9 +156,9 @@ public class ConversationRepository {
         return conversationMapper.selectList(new LambdaQueryWrapper<Conversation>()
                 .eq(Conversation::getOwnerUserId, ownerUserId)
                 .isNull(Conversation::getDeletedAt)
-                .eq(Conversation::getKnowledgeBaseId, knowledgeBaseId)
+                .eq(knowledgeBaseId != null, Conversation::getKnowledgeBaseId, knowledgeBaseId)
                 .apply(
-                        "EXISTS (SELECT 1 FROM knowledge_base kb WHERE kb.id = chat_conversation.knowledge_base_id AND kb.deleted_at IS NULL)")
+                        "EXISTS (SELECT 1 FROM knowledge_base kb WHERE kb.id = chat_conversation.knowledge_base_id AND kb.owner_user_id = chat_conversation.owner_user_id AND kb.deleted_at IS NULL)")
                 .apply(pattern != null, "title ILIKE {0} ESCAPE '!'", pattern)
                 .orderByDesc(Conversation::getUpdatedAt, Conversation::getId));
     }

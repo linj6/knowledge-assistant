@@ -12,7 +12,8 @@ import { copy } from './feedback';
 hljs.registerLanguage('java', java);
 hljs.registerLanguage('yaml', yaml);
 hljs.registerLanguage('json', json);
-const props = defineProps<{ text: string }>();
+const props = defineProps<{ text: string; citationIds?: string[] }>();
+const emit = defineEmits<{ citation: [id: string] }>();
 const md = new MarkdownIt({ html: false, linkify: true });
 md.renderer.rules.fence = (tokens, index) => {
     const token = tokens[index];
@@ -28,9 +29,23 @@ md.renderer.rules.fence = (tokens, index) => {
         '</code></pre></div>'
     );
 };
-const rendered = computed(() => DOMPurify.sanitize(md.render(props.text)));
+md.renderer.rules.text = (tokens, index, _options, env) => {
+    const text = md.utils.escapeHtml(tokens[index].content);
+    return text.replace(/\[(E\d+)\]/g, (marker, id: string) =>
+        env.citationIds?.includes(id)
+            ? '<button type="button" class="text-btn" data-citation="' + id + '">' + marker + '</button>'
+            : marker,
+    );
+};
+const rendered = computed(() => DOMPurify.sanitize(md.render(props.text, { citationIds: props.citationIds })));
 function click(event: MouseEvent) {
     const target = event.target as HTMLElement;
+    const citation = target.closest<HTMLElement>('button[data-citation]')?.dataset.citation;
+    if (citation && props.citationIds?.includes(citation)) {
+        event.preventDefault();
+        emit('citation', citation);
+        return;
+    }
     if (!target.closest('button[data-copy-code]')) return;
     const code = target.closest('.code-block')?.querySelector('code')?.textContent;
     if (code !== undefined && code !== null) void copy(code);

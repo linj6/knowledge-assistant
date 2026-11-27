@@ -148,6 +148,26 @@ class ConversationApiTests {
     }
 
     @Test
+    void listsAcrossKnowledgeBasesWithoutRequiringAKnowledgeBaseFilter() throws Exception {
+        Conversation newest = new Conversation();
+        newest.setId(ID);
+        newest.setKnowledgeBaseId(7L);
+        newest.setTitle("匹配会话一");
+        Conversation older = new Conversation();
+        older.setId(ID + 1);
+        older.setKnowledgeBaseId(8L);
+        older.setTitle("匹配会话二");
+        when(repository.listOwnedConversations(42L, null, "匹配")).thenReturn(List.of(newest, older));
+
+        mvc.perform(get(PATH).param("keyword", "匹配"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].knowledgeBaseId").value("7"))
+                .andExpect(jsonPath("$.data[1].knowledgeBaseId").value("8"));
+        org.mockito.Mockito.verifyNoInteractions(knowledgeBases);
+    }
+
+    @Test
     void renamesAndDeletesOwnedConversation() throws Exception {
         for (String body : List.of("{}", "{\"title\":\"   \"}", "{\"title\":\"" + "a".repeat(201) + "\"}")) {
             mvc.perform(patch(PATH + "/{id}", ID)

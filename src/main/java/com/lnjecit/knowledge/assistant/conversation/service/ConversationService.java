@@ -42,7 +42,9 @@ public class ConversationService {
     }
 
     public List<Conversation> list(long userId, Long knowledgeBaseId, String keyword) {
-        knowledgeBaseService.requireOwned(knowledgeBaseId, userId);
+        if (knowledgeBaseId != null) {
+            knowledgeBaseService.requireOwned(knowledgeBaseId, userId);
+        }
         return repository.listOwnedConversations(userId, knowledgeBaseId, keyword);
     }
 

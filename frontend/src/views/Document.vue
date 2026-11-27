@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { ApiError, errorMessage, request } from '../http';
-import { dateLabel } from '../model';
+import { dateLabel, headingLabel } from '../model';
 import {
     librariesPath,
     taskPath,
@@ -69,15 +69,6 @@ async function retry() {
         if (failure instanceof ApiError && failure.status === 409) reload();
     } finally {
         busy.value = false;
-    }
-}
-function headingLabel(path: string | null) {
-    if (!path) return '正文';
-    try {
-        const value = JSON.parse(path) as { headings?: { text: string }[] };
-        return value.headings?.map(({ text }) => text).join(' / ') || '正文';
-    } catch {
-        return path;
     }
 }
 </script>

@@ -65,12 +65,11 @@ async function signOut() {
                 </RouterLink>
             </nav>
             <div class="account">
-                <div class="avatar" :title="account.username + ' · 业务数据仅保存在此浏览器'">
+                <div class="avatar" :title="account.username">
                     {{ account.username.slice(0, 1).toUpperCase() }}
                 </div>
                 <div v-if="!compact" class="account-name">
-                    <strong>{{ account.username }}</strong
-                    ><small title="业务数据仅保存在此浏览器">业务为本地演示</small>
+                    <strong>{{ account.username }}</strong>
                 </div>
                 <button class="icon" title="退出登录" aria-label="退出登录" :disabled="busy" @click="signOut">
                     <LogOut :size="17" />

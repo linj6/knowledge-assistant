@@ -87,7 +87,7 @@ public class ConversationController {
 
     @GetMapping
     public Result<List<ConversationResponse>> list(
-            @RequestParam @Positive Long knowledgeBaseId,
+            @RequestParam(required = false) @Positive Long knowledgeBaseId,
             @RequestParam(required = false) String keyword,
             Authentication authentication) {
         return Result.success(
