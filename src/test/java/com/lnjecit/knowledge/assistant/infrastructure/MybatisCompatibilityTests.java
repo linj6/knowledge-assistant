@@ -98,13 +98,11 @@ class MybatisCompatibilityTests {
             jdbc.execute("CREATE TABLE compatibility_probe(id BIGINT PRIMARY KEY, content TEXT NOT NULL)");
             assertThat(context.getBean(org.flywaydb.core.Flyway.class).migrate().migrationsExecuted)
                     .isZero();
-            assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class))
-                    .isEqualTo(10);
-            // 成功记录必须覆盖当前 V1～V10，不能只凭总数判断迁移已完成。
+            // 成功记录必须覆盖当前 V1～V13。
             assertThat(jdbc.queryForList(
                             "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank",
                             String.class))
-                    .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10");
+                    .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13");
             // 外键覆盖会话、消息和用户记忆。
             assertThat(jdbc.queryForList(
                             "SELECT conname FROM pg_constraint WHERE contype='f' AND connamespace='public'::regnamespace",
@@ -174,13 +172,13 @@ class MybatisCompatibilityTests {
             assertThat(bases.insert(base)).isEqualTo(1);
             assertThat(base.getId()).isPositive();
             assertThat(bases.selectById(base.getId()).getCreatedAt()).isEqualTo(base.getCreatedAt());
-            // 检查 V3 覆盖五表及当时的业务列；V5 新增 version 的结构在下方单独验证。
+            // 检查 V3 覆盖五表及当时的业务列；V5 的 version 在下方单独验证，V11 的管理字段由迁移测试覆盖。
             for (String table : java.util.List.of(
                     "knowledge_base", "document", "document_index_version", "document_chunk", "document_import_task")) {
                 assertThat(jdbc.queryForObject("SELECT obj_description(?::regclass, 'pg_class')", String.class, table))
                         .isNotBlank();
                 assertThat(jdbc.queryForList(
-                                "SELECT col_description(attrelid,attnum) FROM pg_attribute WHERE attrelid=?::regclass AND attnum>0 AND NOT attisdropped AND NOT (attrelid='document_chunk'::regclass AND attname='version')",
+                                "SELECT col_description(attrelid,attnum) FROM pg_attribute WHERE attrelid=?::regclass AND attnum>0 AND NOT attisdropped AND NOT (attrelid='document_chunk'::regclass AND attname='version') AND NOT (attrelid='knowledge_base'::regclass AND attname IN ('updated_at', 'deleted_at')) AND NOT (attrelid='document'::regclass AND attname='deleted_at')",
                                 String.class,
                                 table))
                         .allSatisfy(comment -> assertThat(comment).isNotBlank());

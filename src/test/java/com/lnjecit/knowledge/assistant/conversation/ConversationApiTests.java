@@ -265,7 +265,6 @@ class ConversationApiTests {
         mvc.perform(post(PATH).contentType("application/json").content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(40000));
-        mvc.perform(get(PATH)).andExpect(status().isBadRequest());
         mvc.perform(get(PATH).param("knowledgeBaseId", "0")).andExpect(status().isBadRequest());
         mvc.perform(get(PATH + "/invalid")).andExpect(status().isBadRequest());
         mvc.perform(get(PATH + "/0")).andExpect(status().isBadRequest());

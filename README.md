@@ -4,16 +4,16 @@ Knowledge Assistant 是一个基于 Java / Spring AI 的个人知识库与 RAG �
 
 ## 当前功能
 
-- 注册、登录和登出，按账号隔离知识库、文档、导入任务和会话。
-- 创建及浏览知识库，上传 UTF-8 Markdown / TXT，查看异步导入进度。
+- Vue 3 Web UI V2 支持注册、登录和登出，按账号隔离知识库、文档、导入任务和会话。
+- 创建、编辑和删除知识库。导入 UTF-8 Markdown / TXT 时可选择固定长度或 Markdown 结构感知切分，支持原文及 Chunk 预览和失败任务手动重试。
 - 对比向量检索、BM25、RRF 融合和融合后重排。
-- 单轮 API 与多轮问答页面，提供引用跳转、取消生成和轮次状态查询。
+- 单轮 API 与多轮问答页面，提供可回查的 Citation 引用证据、取消生成、轮次状态查询和跨知识库的统一历史会话管理。
 
-登录后可在「记忆」页手动管理长期记忆并开启账号总开关。总开关默认关闭。启用后，多轮问答选中的记忆可能发送给线上模型。详见[长期记忆](docs/core-features.md#长期记忆)。
+登录后可在「记忆」页手动管理长期记忆并开启账号总开关。总开关默认关闭。启用后，多轮问答选中的记忆可能发送给线上模型。当轮与历史回答可查看实际注入的 Memory Trace 快照。详见[长期记忆](docs/core-features.md#长期记忆)。
 
 ## 工程实现
 
-项目是单 Maven 模块，使用 Java 21、Spring Boot 4.1.2、Spring AI 2.0.2、Spring Security、MyBatis 和 Flyway。静态 HTML、CSS、JavaScript 与 REST API 由同一应用提供。PostgreSQL / pgvector 保存业务数据和向量，Elasticsearch / IK 提供关键词检索，MinIO 保存原文件，Redis 保存登录会话。版本以 [pom.xml](pom.xml) 和 [Compose 配置](compose.yaml) 为准。
+项目是单 Maven 模块，使用 Java 21、Spring Boot 4.1.2、Spring AI 2.0.2、Spring Security、MyBatis 和 Flyway。Vue 前端由 Maven 构建并打包到同一 Spring Boot JAR，页面与 REST API 同源提供。PostgreSQL / pgvector 保存业务数据和向量，Elasticsearch / IK 提供关键词检索，MinIO 保存原文件，Redis 保存登录会话。版本以 [pom.xml](pom.xml) 和 [Compose 配置](compose.yaml) 为准。
 
 - **索引按版本发布**。Worker 构建并校验 PostgreSQL 与 Elasticsearch 的数据，检索以 PostgreSQL 当前发布版本为边界。
 - **引用可回查**。后端校验引用与本次上下文的对应关系，界面可按文档、索引版本和 Chunk 查看证据。
@@ -30,7 +30,7 @@ Knowledge Assistant 是一个基于 Java / Spring AI 的个人知识库与 RAG �
 
 首次运行时，输入 `YES` 显式授权在线调用及可能产生的费用，再按隐藏输入提示填写阿里云百炼 API Key。输入 `NO` 也可继续部署，在线模型和导入 Worker 保持关闭。脚本会构建镜像、启动应用和基础设施、执行 Flyway 迁移、初始化 MinIO Bucket 和生命周期规则，并在健康检查通过后打开 `http://127.0.0.1:8080/`。
 
-完整参数、资源实测和排查方法见 [Windows 一键部署](docs/getting-started.md#windows-一键部署)。需要使用 JDK、Maven 或 IDEA 调试时，参见[开发模式的环境准备](docs/getting-started.md#环境与基础设施)和 [local Profile 启动说明](docs/getting-started.md#应用配置与启动)。
+完整参数、资源实测和排查方法见 [Windows 一键部署](docs/getting-started.md#windows-一键部署)。需要使用 IDEA + Vite 调试或通过 Maven 打包时，参见[开发模式的环境准备](docs/getting-started.md#环境与基础设施)和 [local Profile 启动说明](docs/getting-started.md#应用配置与启动)。
 
 | 文档 | 内容 |
 | --- | --- |

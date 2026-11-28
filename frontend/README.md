@@ -18,4 +18,4 @@ npm run dev
 
 Vite 将同源 `/api/` 请求原样转发到 `http://127.0.0.1:8080`。注册、登录、查询当前用户和退出使用 Spring Security Session。每次写请求先读取 Session 对应的 CSRF Token。
 
-正式打包和 Docker 部署见[开始使用](../docs/getting-started.md#jar-和-docker-镜像)。
+本地可运行 `npm run typecheck` 和 `npm run build` 验证类型与生产构建。正式打包和 Docker 部署见[开始使用](../docs/getting-started.md#jar-和-docker-镜像)。

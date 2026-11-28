@@ -57,13 +57,13 @@ class AuthMigrationTests {
         assertThat(jdbc.queryForList("SELECT * FROM knowledge_base")).isEqualTo(bases);
         assertThat(jdbc.queryForList("SELECT * FROM document")).isEqualTo(documents);
 
-        // 模拟在 V6 完成人工归属绑定后重试，升级至 V12 后仍须保留既有映射。
+        // 模拟在 V6 完成人工归属绑定后重试，升级至 V13 后仍须保留既有映射。
         jdbc.update("UPDATE knowledge_base SET owner_user_id=1 WHERE id=101");
         java.util.List<java.util.Map<String, Object>> boundBases = jdbc.queryForList("SELECT * FROM knowledge_base");
-        assertThat(latest.migrate().migrationsExecuted).isEqualTo(6);
+        assertThat(latest.migrate().migrationsExecuted).isEqualTo(7);
         assertThat(jdbc.queryForObject("SELECT memory_enabled FROM app_user WHERE id=1", Boolean.class))
                 .isFalse();
-        assertThat(latest.info().current().getVersion().getVersion()).isEqualTo("12");
+        assertThat(latest.info().current().getVersion().getVersion()).isEqualTo("13");
         assertThat(jdbc.queryForList("SELECT id,name,description,created_at,owner_user_id FROM knowledge_base"))
                 .isEqualTo(boundBases);
         assertThat(

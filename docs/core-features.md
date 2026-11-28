@@ -8,7 +8,7 @@
 
 ## 文档导入
 
-支持 UTF-8 Markdown / TXT，单文件上限 2 MiB。同一知识库内重复内容复用已有导入结果，新任务返回 HTTP 202，重复内容返回 200。页面可查询任务进度及文档列表。上传可选 multipart 字段为 `strategy`、`chunkSize`、`chunkOverlap`，各字段缺省时继承服务端配置。策略支持 `FIXED_CODE_POINT` 和 `MARKDOWN_STRUCTURE_AWARE`，默认固定长度 800、重叠 120，单位为 Unicode 码点。长度须为正整数且不超过 Embedding 输入上限，重叠须为非负整数且小于长度。上传和任务查询通过 `data.chunkingConfig` 返回索引版本实际采用的配置，重复上传返回已有任务的配置。结构感知优先保留完整结构，超长结构优先沿原始行拆分，必要时使用码点窗口。重叠用于超长结构内部，普通 TXT 可按段落或码点窗口切分。发布后才能参与检索。[导入接口](../src/main/java/com/lnjecit/knowledge/assistant/ingestion/controller/DocumentImportController.java) · [默认配置](../src/main/resources/application.yml)
+支持 UTF-8 Markdown / TXT，单文件上限 2 MiB。同一知识库内重复内容复用已有导入结果，新任务返回 HTTP 202，重复内容返回 200。页面可查询任务进度及文档列表，并预览原文与已发布 Chunk。上传可选 multipart 字段为 `strategy`、`chunkSize`、`chunkOverlap`，各字段缺省时继承服务端配置。策略支持 `FIXED_CODE_POINT` 和 `MARKDOWN_STRUCTURE_AWARE`，默认固定长度 800、重叠 120，单位为 Unicode 码点。长度须为正整数且不超过 Embedding 输入上限，重叠须为非负整数且小于长度。上传和任务查询通过 `data.chunkingConfig` 返回索引版本实际采用的配置，重复上传返回已有任务的配置。结构感知优先保留完整结构，超长结构优先沿原始行拆分，必要时使用码点窗口。重叠用于超长结构内部，普通 TXT 可按段落或码点窗口切分。发布后才能参与检索。[导入接口](../src/main/java/com/lnjecit/knowledge/assistant/ingestion/controller/DocumentImportController.java) · [默认配置](../src/main/resources/application.yml)
 
 最终失败的导入可通过 `POST /api/v1/import-tasks/{taskId}:retry` 手动重试，无需请求体。HTTP 202 返回同一任务和原切分配置，自动重试额度恢复，Worker 继续构建或重新核验后发布。资源不存在、越权或已删除时返回 404。任务尚未最终失败或已成功时返回 409（40907），失败原因或版本状态无法安全恢复时返回 409（40908），例如原文校验失败、索引版本已发布或版本处于无恢复路径的 `FAILED` 状态。
 
@@ -21,13 +21,13 @@
 | `HYBRID_RRF` | 融合向量与 BM25 候选，按各路排名累加贡献 |
 | `HYBRID_RERANK` | 以 RRF 候选为输入，调用配置的重排模型 |
 
-检索页可对比各路结果。四种策略已实现，M4 冻结评估范围为前三种。[检索编排](../src/main/java/com/lnjecit/knowledge/assistant/retrieval/RetrievalService.java) · [M4 评估](evaluation.md)
+检索页可对比各路结果，从文档列表进入检索测试后可返回来源知识库。四种策略已实现，M4 冻结评估范围为前三种。[检索编排](../src/main/java/com/lnjecit/knowledge/assistant/retrieval/RetrievalService.java) · [M4 评估](evaluation.md)
 
 ## 引用与多轮会话
 
 单轮入口为 `POST /api/v1/chat/answers`。主站问答使用绑定一个知识库的会话。后端从检索候选构建上下文，校验生成结果中的引用身份，证据不足时可返回拒答。引用可打开对应版本的 Chunk；引用校验覆盖身份与范围，正文是否支持结论需另行判断。同一会话可参考有预算限制的近期已回答轮次。[RAG 源码](../src/main/java/com/lnjecit/knowledge/assistant/rag) · [历史选择](../src/main/java/com/lnjecit/knowledge/assistant/conversation/service/TurnHistoryService.java)
 
-会话列表 `GET /api/v1/conversations` 保留必填的 `knowledgeBaseId`，可用 `keyword` 按标题做忽略大小写的字面搜索，空白关键词会被忽略。列表按最近问答活动时间和会话 ID 降序。使用 `PATCH /api/v1/conversations/{id}` 提交 `{"title":"标题"}` 可在生成期间重命名，标题去除首尾空白后须为 1～200 个字符。重命名保留问答活动时间，自动标题写入会保留手动标题。使用 `DELETE /api/v1/conversations/{id}` 可逻辑删除会话并保留消息、轮次、引用和 Memory Trace。活动轮次期间删除返回 HTTP 409。
+会话列表 `GET /api/v1/conversations` 支持可选的 `knowledgeBaseId`。省略时跨知识库返回当前账号的有效会话，排除已删除会话和已删除知识库。可用 `keyword` 按标题做忽略大小写的字面搜索，空白关键词会被忽略。列表按最近问答活动时间和会话 ID 降序。使用 `PATCH /api/v1/conversations/{id}` 提交 `{"title":"标题"}` 可在生成期间重命名，标题去除首尾空白后须为 1～200 个字符。重命名保留问答活动时间，自动标题写入会保留手动标题。使用 `DELETE /api/v1/conversations/{id}` 可逻辑删除会话并保留消息、轮次、引用和 Memory Trace。活动轮次期间删除返回 HTTP 409。
 
 ## 取消与恢复
 
@@ -39,4 +39,4 @@
 
 仅多轮会话问答召回记忆。已启用的主题型记忆在当前问题包含任一关键词时命中，匹配忽略大小写。已启用的全局型记忆直接进入候选。命中的主题型优先，组内按更新时间和 ID 降序。默认每轮最多选取 10 条、1,000 估算 Token，生成阶段还会按完整请求 12,000 估算 Token（含 1,024 输出预留）从末尾裁剪记忆。
 
-Memory Trace 记录实际注入的条数及每条记忆的 ID、类型、范围和注入时的正文。成功且可回答的结果可在当轮和历史消息中查看。旧记录仅保留当时写入的条数与元数据。记忆用于个性化，知识库引用与拒答仍以检索证据为准。删除或编辑记忆会影响后续召回，历史回答和当时保存的记忆快照仍保留。开启后，命中并纳入请求的记忆可能发送给线上模型。
+Memory Trace 记录实际注入的条数及每条记忆的 ID、类型、范围和注入时的正文。成功且可回答的结果可在当轮和历史消息中查看。旧记录仅保留当时写入的条数与元数据。记忆用于个性化，知识库引用与拒答仍以检索证据为准。修改、停用和删除记忆影响后续召回。删除记忆不会清除历史问答中已保存的记忆快照。开启后，命中并纳入请求的记忆可能发送给线上模型。

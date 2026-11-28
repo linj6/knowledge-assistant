@@ -29,11 +29,11 @@ import com.lnjecit.knowledge.assistant.conversation.service.ConversationService;
 import com.lnjecit.knowledge.assistant.conversation.service.TurnExecutor;
 import com.lnjecit.knowledge.assistant.conversation.service.TurnHistoryService;
 import com.lnjecit.knowledge.assistant.conversation.service.TurnService;
-import com.lnjecit.knowledge.assistant.memory.dto.RecalledMemory;
 import com.lnjecit.knowledge.assistant.memory.entity.MemoryType;
 import com.lnjecit.knowledge.assistant.memory.repository.UserMemoryRepository;
 import com.lnjecit.knowledge.assistant.memory.service.MemoryRecallProperties;
 import com.lnjecit.knowledge.assistant.memory.service.MemoryRecallService;
+import com.lnjecit.knowledge.assistant.memory.service.MemoryService;
 import com.lnjecit.knowledge.assistant.rag.RagService;
 import com.lnjecit.knowledge.assistant.rag.context.ContextBuilder;
 import com.lnjecit.knowledge.assistant.rag.context.ContextProperties;
@@ -423,9 +423,21 @@ class DatabaseIT {
             when(memory.recall(1L, "原始问题 1")).thenAnswer(call -> realRecall.recall(1L, call.getArgument(1)));
             when(memory.recall(1L, "记忆程序缺陷")).thenAnswer(call -> realRecall.recall(1L, call.getArgument(1)));
             when(memory.recall(1L, "用户不存在")).thenAnswer(call -> realRecall.recall(2L, call.getArgument(1)));
+            long memoryId = 2125000000000000001L;
+            jdbc.update("UPDATE app_user SET memory_enabled = true WHERE id = 1");
+            jdbc.update(
+                    """
+                    INSERT INTO user_memory (id, user_id, type, content, source_type)
+                    VALUES (?, 1, 'BACKGROUND', 'private profile', 'MANUAL'),
+                           (?, 2, 'BACKGROUND', 'foreign profile', 'MANUAL')
+                    """,
+                    memoryId,
+                    memoryId + 1);
+            MemoryRecallService storedRecall = context.getBean(MemoryRecallService.class);
+            MemoryService memoryService = context.getBean(MemoryService.class);
             when(memory.recall(1L, "原始问题 5")).thenAnswer(call -> {
                 assertThat(Thread.currentThread().getName()).startsWith("conversation-turn-");
-                return List.of(new RecalledMemory(2125000000000000001L, MemoryType.BACKGROUND, "private profile"));
+                return storedRecall.recall(1L, call.getArgument(1));
             });
             TurnExecutor executor = new TurnExecutor(rag, repository, observedHistory, json, memory);
             TurnService turns = new TurnService(
@@ -453,7 +465,15 @@ class DatabaseIT {
                     if (round == 5) {
                         assertThat(trace.path("memories").get(0).path("id").asString())
                                 .isEqualTo("2125000000000000001");
-                        assertThat(persisted.memoryTrace()).doesNotContain("private profile");
+                        assertThat(trace.path("memories").get(0).path("content").asString())
+                                .isEqualTo("private profile");
+                        memoryService.update(1L, memoryId, MemoryType.BACKGROUND, "edited profile", null, true);
+                        assertThat(turns.get(1L, conversation, turnId).memoryTrace())
+                                .isEqualTo(persisted.memoryTrace());
+                        memoryService.update(1L, memoryId, MemoryType.BACKGROUND, "edited profile", null, false);
+                        assertThat(turns.get(1L, conversation, turnId).memoryTrace())
+                                .isEqualTo(persisted.memoryTrace());
+                        memoryService.delete(1L, memoryId);
                         assertThat(repository.listMessages(conversation, 50, 0))
                                 .filteredOn(message -> message.getId().equals(persisted.assistantMessageId()))
                                 .singleElement()
@@ -473,6 +493,11 @@ class DatabaseIT {
                     Prompt request = requests.get(round - 1);
                     assertThat(request.getInstructions().getFirst().getText())
                             .startsWith("Prompt-Version: rag-answer-v" + (round == 5 ? 3 : 2));
+                    if (round == 5) {
+                        assertThat(request.getInstructions().getLast().getText())
+                                .contains("private profile")
+                                .doesNotContain("foreign profile", "edited profile");
+                    }
                     JsonNode history = json.readTree(
                                     request.getInstructions().getLast().getText())
                             .get("history");
@@ -922,6 +947,19 @@ class DatabaseIT {
                     .extracting(Conversation::getId)
                     .containsExactly(22L);
             assertThat(repository.listOwnedConversations(1L, 9L, null)).isEmpty();
+            jdbc.update("UPDATE chat_conversation SET title = 'Match %_' WHERE id IN (20, 22, 23)");
+            jdbc.update("UPDATE chat_conversation SET title = 'Match xy' WHERE id = 21");
+            assertThat(repository.listOwnedConversations(1L, null, null))
+                    .extracting(Conversation::getId)
+                    .containsExactly(id, 19L, 22L, 21L, 20L);
+            assertThat(repository.listOwnedConversations(1L, null, "  MATCH %_  "))
+                    .extracting(Conversation::getId)
+                    .containsExactly(22L, 20L);
+            jdbc.update("UPDATE knowledge_base SET deleted_at = CURRENT_TIMESTAMP WHERE id = 8");
+            repository.delete(20L);
+            assertThat(repository.listOwnedConversations(1L, null, null))
+                    .extracting(Conversation::getId)
+                    .containsExactly(id, 19L, 21L);
 
             UUID turn = UUID.randomUUID();
             Message user = message(id, turn, MessageRole.USER, null);
