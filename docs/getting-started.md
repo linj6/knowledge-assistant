@@ -139,3 +139,34 @@ MinIO 镜像仅用于本地学习与开发，不推荐用于公网生产部署�
 登录后打开「记忆」，手动添加一条偏好并开启总开关。新增、编辑、启停和删除均可在关闭在线模型的情况下体验。要查看实际注入，请在获准调用线上模型后，进入有已发布文档的知识库，在多轮会话里提出既能命中文档、又与记忆相关的问题。成功且可回答时，查看当轮 Memory Trace，刷新后可从历史消息再次查看。启用后实际注入的记忆可能发送给线上模型。
 
 如需比较总开关关闭与开启时的行为，请复用测试账号已有的已发布文档，并在两个新会话中各提交一次同样的问题。关闭 Query Rewrite、Rerank 和导入 Worker。默认多轮检索使用 HYBRID_RRF，两次成功且可回答的请求预计共调用 2 次查询 Embedding 和 2 次 Chat。刷新、轮询及查看历史预计新增 0 次模型调用。若检索失败或证据不足，实际 Chat 次数可能更少。
+
+## 通过 API 浏览本地 Git 仓库
+
+本地 Git 接入默认关闭。将以下配置加入应用加载的个人配置文件，填写实际登录账号的用户 ID 和服务端可读取的仓库绝对路径。仓库需包含自己的 .git 目录，Git 可执行文件可用绝对路径或应用进程 PATH 中的命令名。
+
+```yaml
+assistant:
+  git:
+    enabled: true
+    allowed-user-ids: [42]
+    repositories:
+      interview-lab:
+        name: 面试练习
+        path: 'D:/develop/repository/backend-interview-lab'
+    executable: git
+    command-timeout: 5s
+    max-output-bytes: 8388608
+    snapshot-ttl: 15m
+    snapshot-capacity: 256
+```
+
+沿用 Session Cookie 和 POST 请求的 CSRF 令牌。仓库列表只返回配置键和显示名称。
+
+| 请求 | 参数及响应 data |
+| --- | --- |
+| GET /api/v1/git-repositories | 返回仓库列表，包含 repositoryKey 和 name。 |
+| POST /api/v1/git-repositories/{repositoryKey}/snapshots | 无请求体。返回 snapshotId、repositoryKey、branch、commitSha 和 expiresAt。 |
+| GET /api/v1/git-snapshots/{snapshotId}/entries | 可选查询参数 path，省略或为空时浏览根目录。返回当前目录下的子目录和 Markdown 文件。 |
+| POST /api/v1/git-snapshots/{snapshotId}/manifest:preview | 请求体示例 `{"paths":["专题","说明.md"]}`。递归展开目录，按相对路径去重并返回文件清单。空字符串代表根目录，最多传 256 条选择。 |
+
+条目包含 path、directory 和 sizeBytes，目录的 sizeBytes 为 null。路径区分大小写，使用 / 分隔。浏览使用创建快照时的提交，分离 HEAD 时 branch 为 HEAD。预览最多包含 30 个 Markdown 文件，单文件大小沿用上传限制，默认为 2 MiB。快照存于应用内存，过期或重启后需重新创建。若固定提交已被外部 Git 操作清理，应用会返回仓库不可读。预览只生成清单。

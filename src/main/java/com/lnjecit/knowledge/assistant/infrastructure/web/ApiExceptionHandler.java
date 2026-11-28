@@ -4,6 +4,7 @@ import com.lnjecit.knowledge.assistant.common.RequestIdContext;
 import com.lnjecit.knowledge.assistant.common.api.Result;
 import com.lnjecit.knowledge.assistant.common.error.*;
 import com.lnjecit.knowledge.assistant.infrastructure.logging.FailureLog;
+import com.lnjecit.knowledge.assistant.ingestion.git.GitErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.*;
@@ -46,7 +47,8 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     private HttpStatus statusFor(ErrorCode code) {
-        // 公共码显式映射；领域自定义码默认 400，后续按实际需要在 Web 层扩展。
+        if (code instanceof GitErrorCode) return HttpStatus.valueOf(code.getCode() / 100);
+        // 公共码显式映射；其他领域自定义码默认 400。
         if (!(code instanceof CommonErrorCode commonCode)) return HttpStatus.BAD_REQUEST;
         return switch (commonCode) {
             case NOT_FOUND, KNOWLEDGE_BASE_NOT_FOUND, CONVERSATION_NOT_FOUND, MEMORY_NOT_FOUND -> HttpStatus.NOT_FOUND;
