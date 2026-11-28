@@ -134,10 +134,11 @@ class AnswerGeneratorTests {
         when(model.call(any(Prompt.class))).thenReturn(response("candidate", "stop", false));
         AnswerGenerator generator = generator(model);
         RecalledMemory retained = new RecalledMemory(2125000000000000001L, MemoryType.BACKGROUND, "private profile");
+        RecalledMemory topic = new RecalledMemory(2125000000000000003L, MemoryType.TECH_PREFERENCE, "topic preference");
         RecalledMemory oversized = new RecalledMemory(2125000000000000002L, MemoryType.BACKGROUND, "x".repeat(12000));
         List<HistoryTurn> history = List.of(new HistoryTurn("prior question", "prior answer"));
         AssembledContext context = context("[]");
-        RawGenerationResult v3 = generator.generate("original", context, history, List.of(retained, oversized));
+        RawGenerationResult v3 = generator.generate("original", context, history, List.of(retained, topic, oversized));
         RawGenerationResult v2 = generator.generate("original", context, history, List.of(oversized));
         RawGenerationResult v1 = generator.generate("original", context, List.of(), List.of(oversized));
 
@@ -148,19 +149,25 @@ class AnswerGeneratorTests {
                 requests.getAllValues().getFirst().getInstructions().getLast().getText());
         assertThat(v3.promptVersion()).isEqualTo("rag-answer-v3");
         assertThat(sent.path("memory"))
-                .isEqualTo(json.readTree(
-                        """
-                [{"type":"BACKGROUND","content":"private profile"}]
+                .isEqualTo(
+                        json.readTree(
+                                """
+                [{"type":"BACKGROUND","content":"private profile"},{"type":"TECH_PREFERENCE","content":"topic preference"}]
                 """));
         assertThat(sent.path("history")).isEqualTo(json.<JsonNode>valueToTree(history));
         assertThat(sent.path("evidence")).isEqualTo(json.readTree(context.contextText()));
         assertThat(sent.path("question").asString()).isEqualTo("original");
-        assertThat(json.writeValueAsString(v3.memoryTrace()))
+        JsonNode trace = json.readTree(json.writeValueAsString(v3.memoryTrace()));
+        assertThat(trace.path("injectedCount").asInt()).isEqualTo(2);
+        assertThat(trace.path("memories"))
                 .isEqualTo(
-                        """
-                {"injectedCount":1,"memories":[{"id":"2125000000000000001","type":"BACKGROUND"}]}
-                """
-                                .strip());
+                        json.readTree(
+                                """
+                [
+                  {"id":"2125000000000000001","type":"BACKGROUND","scope":"GLOBAL","content":"private profile"},
+                  {"id":"2125000000000000003","type":"TECH_PREFERENCE","scope":"TOPIC","content":"topic preference"}
+                ]
+                """));
         assertThat(v2.promptVersion()).isEqualTo("rag-answer-v2");
         assertThat(v1.promptVersion()).isEqualTo("rag-answer-v1");
         assertThat(v2.memoryTrace().injectedCount()).isZero();

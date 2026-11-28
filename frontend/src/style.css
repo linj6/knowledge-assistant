@@ -836,3 +836,8 @@ small {
     padding: 9px 11px;
     margin: 0;
 }
+
+.memory-trace-content {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}

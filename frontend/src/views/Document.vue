@@ -22,6 +22,10 @@ import {
 } from '../management';
 
 const route = useRoute();
+const documentsLocation = computed(() => {
+    const { keyword, status, page } = route.query;
+    return { path: '/libraries/' + route.params.id, query: { keyword, status, page } };
+});
 const libraryPath = computed(() => (route.params.doc ? librariesPath + '/' + route.params.id : ''));
 const path = computed(() => (libraryPath.value ? libraryPath.value + '/documents/' + route.params.doc : ''));
 const { data: library } = useRead<Library>(libraryPath);
@@ -74,9 +78,9 @@ async function retry() {
 </script>
 <template>
     <section class="page">
-        <RouterLink class="breadcrumb" :to="'/libraries/' + route.params.id">{{
-            library?.name || '知识库'
-        }}</RouterLink>
+        <RouterLink class="breadcrumb action-link" :to="documentsLocation">
+            返回文档列表<span v-if="library"> · {{ library.name }}</span>
+        </RouterLink>
         <template v-if="doc">
             <header class="page-heading heading-row">
                 <div>

@@ -38,6 +38,11 @@ const status = ref('');
 const page = ref(1);
 const pageSize = 5;
 const filters = { IMPORTING: '导入中', FAILED: '失败', PUBLISHED: '已发布', UNPUBLISHED: '未发布' };
+const listQuery = computed(() => ({
+    keyword: query.value || undefined,
+    status: status.value || undefined,
+    page: page.value > 1 ? String(page.value) : undefined,
+}));
 watch(
     [query, status],
     () => {
@@ -81,12 +86,18 @@ const validSplit = computed(() => {
         shared < length
     );
 });
-watch(libraryPath, () => {
-    dialog.value = false;
-    query.value = '';
-    status.value = '';
-    page.value = 1;
-});
+watch(
+    [libraryPath, () => route.query],
+    ([, params]) => {
+        dialog.value = false;
+        query.value = typeof params.keyword === 'string' ? params.keyword : '';
+        status.value = typeof params.status === 'string' && Object.hasOwn(filters, params.status) ? params.status : '';
+        const requestedPage = typeof params.page === 'string' ? Number(params.page) : 1;
+        page.value =
+            Number.isInteger(requestedPage) && requestedPage > 0 && requestedPage <= 2147483647 ? requestedPage : 1;
+    },
+    { immediate: true },
+);
 function open() {
     file.value = undefined;
     strategy.value = undefined;
@@ -190,7 +201,9 @@ async function change(doc: DocumentRecord, retry = false) {
                     <small class="muted">更新于 {{ dateLabel(Date.parse(library.updatedAt)) }}</small>
                 </div>
                 <div class="toolbar">
-                    <RouterLink class="action-link" :to="{ path: '/retrieval', query: { library: library.id } }"
+                    <RouterLink
+                        class="action-link"
+                        :to="{ path: '/retrieval', query: { ...listQuery, library: library.id } }"
                         ><Search :size="16" />检索测试</RouterLink
                     >
                     <RouterLink class="action-link" :to="{ path: '/chat', query: { library: library.id } }"
@@ -233,7 +246,11 @@ async function change(doc: DocumentRecord, retry = false) {
                     <tbody>
                         <tr v-for="doc in pageRecords" :key="doc.documentId">
                             <td>
-                                <RouterLink :to="'/libraries/' + library.id + '/documents/' + doc.documentId"
+                                <RouterLink
+                                    :to="{
+                                        path: '/libraries/' + library.id + '/documents/' + doc.documentId,
+                                        query: listQuery,
+                                    }"
                                     ><FileText :size="15" />{{ doc.filename }}</RouterLink
                                 >
                             </td>

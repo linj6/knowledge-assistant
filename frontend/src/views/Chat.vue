@@ -6,7 +6,7 @@ import { confirmDelete, copy, showError } from '../feedback';
 import { ApiError, errorMessage, request } from '../http';
 import { librariesPath, useRead, type Chunk, type Library } from '../management';
 import Markdown from '../Markdown.vue';
-import { headingLabel, memoryTypes, type MemoryType } from '../model';
+import { headingLabel, isGlobal, memoryTypes, type MemoryType } from '../model';
 
 type Conversation = { id: string; knowledgeBaseId: string; title: string };
 type Status = 'PROCESSING' | 'CANCEL_REQUESTED' | 'ANSWERED' | 'INSUFFICIENT_EVIDENCE' | 'FAILED' | 'CANCELLED';
@@ -17,7 +17,10 @@ type Turn = {
     question: string;
     answer?: string | null;
     citations?: Citation[] | null;
-    memoryTrace?: { injectedCount: number; memories: { id: string; type: MemoryType }[] } | null;
+    memoryTrace?: {
+        injectedCount: number;
+        memories?: { id: string; type: MemoryType; scope?: 'GLOBAL' | 'TOPIC'; content?: string }[];
+    } | null;
     errorCode?: string | null;
 };
 type Message = Pick<Turn, 'turnId' | 'status' | 'citations' | 'memoryTrace' | 'errorCode'> & {
@@ -449,13 +452,28 @@ function enter(event: KeyboardEvent) {
                                         >
                                     </div>
                                     <details>
-                                        <summary>Memory Trace · {{ turn.memoryTrace?.injectedCount || 0 }} 条</summary>
-                                        <ul v-if="turn.memoryTrace?.injectedCount">
+                                        <summary>
+                                            Memory Trace ·
+                                            {{ turn.memoryTrace ? turn.memoryTrace.injectedCount + ' 条' : '未记录' }}
+                                        </summary>
+                                        <ul v-if="turn.memoryTrace?.memories?.length">
                                             <li v-for="entry in turn.memoryTrace?.memories" :key="entry.id">
-                                                {{ memoryTypes[entry.type] }} · {{ entry.id }}
+                                                <strong>
+                                                    {{
+                                                        (entry.scope ?? (isGlobal(entry.type) ? 'GLOBAL' : 'TOPIC')) ===
+                                                        'GLOBAL'
+                                                            ? '全局（GLOBAL）'
+                                                            : '主题（TOPIC）'
+                                                    }}
+                                                    · {{ memoryTypes[entry.type] }}
+                                                </strong>
+                                                <p class="memory-trace-content">
+                                                    {{ entry.content ?? '历史记录未保存记忆正文。' }}
+                                                </p>
                                             </li>
                                         </ul>
-                                        <p v-else>本轮未注入长期记忆。</p>
+                                        <p v-else-if="turn.memoryTrace?.injectedCount === 0">本轮未注入长期记忆。</p>
+                                        <p v-else>本轮没有可查看的记忆明细。</p>
                                     </details>
                                     <details>
                                         <summary>技术信息</summary>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Search } from 'lucide-vue-next';
 import { request } from '../http';
@@ -37,6 +37,11 @@ const scores = [
 ] as const;
 const { data: libraries, error: libraryError } = useRead<Library[]>(ref(librariesPath));
 const route = useRoute();
+const sourceLocation = computed(() => {
+    const { library: sourceId, keyword, status, page } = route.query;
+    if (!libraries.value?.some((item) => item.id === sourceId)) return;
+    return { path: '/libraries/' + sourceId, query: { keyword, status, page } };
+});
 const library = ref('');
 watch(
     [() => route.query.library, libraries],
@@ -92,6 +97,7 @@ async function run() {
 </script>
 <template>
     <section class="page">
+        <RouterLink v-if="sourceLocation" class="breadcrumb action-link" :to="sourceLocation"> 返回知识库 </RouterLink>
         <header class="page-heading">
             <h1>检索工作台</h1>
             <p>测试资料召回效果，逐条检查检索证据。</p>
